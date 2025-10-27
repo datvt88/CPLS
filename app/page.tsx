@@ -1,21 +1,47 @@
-// app/page.tsx
-import Link from 'next/link'
+'use client';
+import { AuthForm } from '@/components/AuthForm';
+import { supabase } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
-export default function HomePage() {
+export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        // Kiểm tra hoặc tạo profile
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!existingProfile) {
+          await supabase.from('profiles').insert([
+            {
+              id: session.user.id,
+              email: session.user.email,
+              plan: 'Free',
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        }
+        router.push('/dashboard');
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen text-center">
-      <h1 className="text-3xl font-bold mb-4">Welcome to Auto Trading Web App</h1>
-      <p className="mb-6 text-gray-600 max-w-md">
-        Track your trading strategies, get AI-based buy/sell signals, and manage your Supabase account easily.
-      </p>
-      <div className="flex gap-4">
-        <Link href="/pricing" className="bg-blue-600 text-white px-4 py-2 rounded">
-          View Plans
-        </Link>
-        <Link href="/dashboard" className="bg-gray-200 px-4 py-2 rounded">
-          Go to Dashboard
-        </Link>
+    <main className="flex flex-col items-center justify-center min-h-screen p-4">
+      <div className="max-w-md w-full bg-zinc-900 rounded-2xl shadow-lg p-6 border border-zinc-800">
+        <h1 className="text-3xl font-bold text-center mb-6 text-green-400">Auto Trading AI</h1>
+        <AuthForm />
       </div>
     </main>
-  )
+  );
 }
