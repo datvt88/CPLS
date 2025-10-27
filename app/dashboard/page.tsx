@@ -1,47 +1,39 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabaseClient'
+'use client';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
-  const [user, setUser] = useState<any>(null)
-  const [ticker, setTicker] = useState('VNINDEX')
-  const [signal, setSignal] = useState('')
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
-  }, [])
-
-  const fetchSignal = async () => {
-    const res = await fetch(`/api/ai-signal?ticker=${ticker}`)
-    const data = await res.json()
-    setSignal(data.signal)
-  }
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/');
+        return;
+      }
+      setUser(user);
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      setProfile(data);
+    })();
+  }, []);
 
   return (
-    <main className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      {user ? (
-        <div>
-          <p>Welcome, {user.email}</p>
-          <p className="mt-2">Your subscription: <strong>{user.user_metadata?.plan || 'Free'}</strong></p>
-          {user.user_metadata?.plan === 'VIP' ? (
-            <div className="mt-6 p-4 bg-green-100 rounded-lg">
-              <h2 className="font-semibold text-green-700 mb-2">AI Trading Signals</h2>
-              <div className="flex gap-2 mb-3">
-                <input value={ticker} onChange={e => setTicker(e.target.value)} className="border p-2 rounded w-40" placeholder="Enter ticker" />
-                <button onClick={fetchSignal} className="bg-blue-600 text-white px-3 py-2 rounded">Get Signal</button>
-              </div>
-              {signal && <p className="bg-white p-3 rounded shadow">{signal}</p>}
-            </div>
-          ) : (
-            <div className="mt-6 p-4 bg-yellow-100 rounded-lg">
-              <p>Upgrade to VIP to access AI insights and trading filters.</p>
-            </div>
-          )}
+    <main className="min-h-screen bg-black text-white p-6">
+      <div className="max-w-3xl mx-auto bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+        <h1 className="text-2xl font-bold mb-4 text-green-400">Welcome, {profile?.email}</h1>
+        <p className="text-gray-400 mb-6">Your Plan: <span className="text-green-300">{profile?.plan}</span></p>
+
+        <div className="bg-zinc-800 p-4 rounded-xl">
+          <h2 className="text-xl mb-3 text-green-400">AI Trading Signals</h2>
+          <p className="text-sm text-gray-300">📈 VNINDEX: BUY</p>
+          <p className="text-sm text-gray-300">💹 HPG: STRONG BUY</p>
+          <p className="text-sm text-gray-300">📉 VNM: SELL</p>
         </div>
-      ) : (
-        <p>Please log in to view your dashboard.</p>
-      )}
+      </div>
     </main>
-  )
+  );
 }
