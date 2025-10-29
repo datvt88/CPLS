@@ -1,23 +1,25 @@
-// app/layout.tsx
 import './globals.css'
-import { ReactNode } from 'react'
+import { ThemeProvider } from 'next-themes'
+import Sidebar from '../components/Sidebar'
+import Header from '../components/Header'
+import AuthListener from '../components/AuthListener'
 
-export const metadata = {
-  title: 'Auto Trading App',
-  description: 'Vietnam Stock Trading with AI Signals (Gemini + Supabase)',
-}
+export const metadata = { title: 'CPLS - Trading Dashboard' }
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-gray-50 text-gray-900">
-        <header className="p-4 bg-blue-600 text-white font-semibold shadow">
-          Auto Trading App
-        </header>
-        <main className="min-h-screen p-4">{children}</main>
-        <footer className="p-4 text-center text-sm text-gray-500">
-          © {new Date().getFullYear()} Auto Trading AI
-        </footer>
+    <html lang="vi">
+      <body>
+        <ThemeProvider attribute="data-theme" defaultTheme="dark">
+          <div className="min-h-screen flex bg-[--bg] text-white">
+            <AuthListener />
+            <Sidebar />
+            <div className="flex-1 flex flex-col">
+              <Header />
+              <main className="container py-6">{children}</main>
+            </div>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   )
