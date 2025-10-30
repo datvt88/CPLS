@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react'
 
 interface TopStock {
   code: string
-  floor?: string
+  floor: string
   price: number
   change: number
   changePct: number
-  volume?: number
+  volume: number
+  isCeiling: boolean
 }
 
 export default function TopGainersWidget() {
@@ -18,25 +19,27 @@ export default function TopGainersWidget() {
 
   const fetchData = async () => {
     try {
-      // Try fetching from stocks API with filter
       const response = await fetch(
-        'https://api-finfo.vndirect.com.vn/v4/stocks?q=type:STOCK~floor:HOSE,HNX,UPCOM&size=10&page=1'
+        'https://api-finfo.vndirect.com.vn/v4/top_stocks?q=index:VNIndex~lastPrice:gte:6~nmVolumeAvgCr20D:gte:100000~priceChgPctCr1D:gt:0&size=10&sort=priceChgPctCr1D'
       )
-      
+
       if (!response.ok) {
         throw new Error('API not available')
       }
-      
+
       const data = await response.json()
-      
+
       if (data.data && Array.isArray(data.data)) {
-        const mappedData: TopStock[] = data.data.slice(0, 10).map((item: any) => ({
-          code: item.code || item.symbol,
-          floor: item.floor || item.exchange || 'HOSE',
-          price: item.price || item.lastPrice || item.closePrice || 0,
-          change: item.change || 0,
-          changePct: item.changePct || item.pctChange || item.changePercent || 0,
-          volume: item.volume || item.totalVolume || 0,
+        const mappedData: TopStock[] = data.data.map((item: any) => ({
+          code: item.code,
+          floor: item.index || 'VNINDEX',
+          price: item.lastPrice || 0,
+          change: item.priceChgCr1D || 0,
+          changePct: item.priceChgPctCr1D || 0,
+          volume: item.nmVolumeAvgCr20D || 0,
+          // Giá trần thường là ~6.9-7% cho HOSE/HNX, ~15% cho UPCOM
+          isCeiling: (item.priceChgPctCr1D >= 6.85 && item.priceChgPctCr1D <= 7.1) ||
+                     (item.priceChgPctCr1D >= 14.8 && item.priceChgPctCr1D <= 15.2),
         }))
         setStocks(mappedData)
         setLastUpdate(new Date().toLocaleTimeString('vi-VN'))
@@ -45,7 +48,7 @@ export default function TopGainersWidget() {
         setError('Dữ liệu không khả dụng')
       }
     } catch (err) {
-      setError('API Top Gainers chưa được cấu hình')
+      setError('Không thể tải dữ liệu Top 10 cổ phiếu')
       console.error('Error fetching top gainers:', err)
     } finally {
       setLoading(false)
@@ -62,6 +65,13 @@ export default function TopGainersWidget() {
     if (volume >= 1000000) return (volume / 1000000).toFixed(2) + 'M'
     if (volume >= 1000) return (volume / 1000).toFixed(2) + 'K'
     return volume.toString()
+  }
+
+  const getColorClass = (stock: TopStock) => {
+    if (stock.isCeiling) return 'text-purple-500'
+    if (stock.change > 0) return 'text-green-500'
+    if (stock.change < 0) return 'text-red-500'
+    return 'text-yellow-500'
   }
 
   if (loading) {
@@ -98,8 +108,8 @@ export default function TopGainersWidget() {
       )}
       <div className="bg-panel border border-gray-800 rounded-lg overflow-hidden">
         <div className="p-4 border-b border-gray-800">
-          <h3 className="font-semibold text-lg">Top cổ phiếu</h3>
-          <p className="text-sm text-muted">Thị trường chứng khoán</p>
+          <h3 className="font-semibold text-lg">Top 10 cổ phiếu tăng giá</h3>
+          <p className="text-sm text-muted">VN-Index | Sắp xếp theo % tăng</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -119,20 +129,21 @@ export default function TopGainersWidget() {
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500">#{index + 1}</span>
-                      <span className="font-semibold text-base">{stock.code}</span>
+                      <span className={'font-semibold text-base ' + getColorClass(stock)}>{stock.code}</span>
+                      {stock.isCeiling && <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-500 rounded">Trần</span>}
                     </div>
                   </td>
                   <td className="p-3 text-sm text-muted">{stock.floor}</td>
-                  <td className={'p-3 text-right font-bold text-lg ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  <td className={'p-3 text-right font-bold text-lg ' + getColorClass(stock)}>
                     {stock.price.toFixed(2)}
                   </td>
-                  <td className={'p-3 text-right font-bold text-base ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  <td className={'p-3 text-right font-bold text-base ' + getColorClass(stock)}>
                     {stock.change > 0 ? '▲ +' : stock.change < 0 ? '▼ ' : '● '}{stock.change.toFixed(2)}
                   </td>
-                  <td className={'p-3 text-right font-bold text-base ' + (stock.changePct > 0 ? 'text-green-500' : stock.changePct < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  <td className={'p-3 text-right font-bold text-base ' + getColorClass(stock)}>
                     {stock.changePct > 0 ? '+' : ''}{stock.changePct.toFixed(2)}%
                   </td>
-                  <td className="p-3 text-right text-sm text-muted">{stock.volume ? formatVolume(stock.volume) : '-'}</td>
+                  <td className="p-3 text-right text-sm text-muted">{formatVolume(stock.volume)}</td>
                 </tr>
               ))}
             </tbody>
