@@ -11,17 +11,37 @@ interface TopStock {
   isCeiling: boolean
 }
 
+type ExchangeTab = 'HOSE' | 'HNX' | 'VN30'
+
 export default function TopGainersWidget() {
+  const [activeTab, setActiveTab] = useState<ExchangeTab>('HOSE')
   const [stocks, setStocks] = useState<TopStock[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<string>('')
 
+  const getApiUrl = (exchange: ExchangeTab) => {
+    const indexMap = {
+      HOSE: 'VNIndex',
+      HNX: 'HNX',
+      VN30: 'VN30',
+    }
+    return `https://api-finfo.vndirect.com.vn/v4/top_stocks?q=index:${indexMap[exchange]}~lastPrice:gte:6~nmVolumeAvgCr20D:gte:100000~priceChgPctCr1D:gt:0&size=10&sort=priceChgPctCr1D`
+  }
+
+  const getFloorName = (indexName: string) => {
+    const floorMap: Record<string, string> = {
+      'VNINDEX': 'HOSE',
+      'VNIndex': 'HOSE',
+      'HNX': 'HNX',
+      'VN30': 'VN30',
+    }
+    return floorMap[indexName] || indexName
+  }
+
   const fetchData = async () => {
     try {
-      const response = await fetch(
-        'https://api-finfo.vndirect.com.vn/v4/top_stocks?q=index:VNIndex~lastPrice:gte:6~nmVolumeAvgCr20D:gte:100000~priceChgPctCr1D:gt:0&size=10&sort=priceChgPctCr1D'
-      )
+      const response = await fetch(getApiUrl(activeTab))
 
       if (!response.ok) {
         throw new Error('API not available')
@@ -32,7 +52,7 @@ export default function TopGainersWidget() {
       if (data.data && Array.isArray(data.data)) {
         const mappedData: TopStock[] = data.data.map((item: any) => ({
           code: item.code,
-          floor: item.index || 'VNINDEX',
+          floor: getFloorName(item.index || activeTab),
           price: item.lastPrice || 0,
           change: item.priceChgCr1D || 0,
           changePct: item.priceChgPctCr1D || 0,
@@ -56,10 +76,12 @@ export default function TopGainersWidget() {
   }
 
   useEffect(() => {
+    setLoading(true)
     fetchData()
     const interval = setInterval(fetchData, 5000)
     return () => clearInterval(interval)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) return (volume / 1000000).toFixed(2) + 'M'
@@ -108,8 +130,40 @@ export default function TopGainersWidget() {
       )}
       <div className="bg-panel border border-gray-800 rounded-lg overflow-hidden">
         <div className="p-4 border-b border-gray-800">
-          <h3 className="font-semibold text-lg">Top 10 cổ phiếu tăng giá</h3>
-          <p className="text-sm text-muted">VN-Index | Sắp xếp theo % tăng</p>
+          <h3 className="font-semibold text-lg mb-3">Top 10 cổ phiếu tăng giá</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('HOSE')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'HOSE'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+              }`}
+            >
+              HOSE
+            </button>
+            <button
+              onClick={() => setActiveTab('HNX')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'HNX'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+              }`}
+            >
+              HNX
+            </button>
+            <button
+              onClick={() => setActiveTab('VN30')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'VN30'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+              }`}
+            >
+              VN30
+            </button>
+          </div>
+          <p className="text-sm text-muted mt-3">Sắp xếp theo % tăng cao nhất</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
