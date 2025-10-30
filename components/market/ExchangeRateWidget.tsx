@@ -96,11 +96,11 @@ export default function ExchangeRateWidget() {
             <thead className="bg-gray-900 text-sm">
               <tr>
                 <th className="text-left p-3">Tiền tệ</th>
-                <th className="text-right p-3">Giá đóng cửa</th>
+                <th className="text-right p-3 font-semibold">Giá hiện tại</th>
                 <th className="text-right p-3">Cao</th>
                 <th className="text-right p-3">Thấp</th>
-                <th className="text-right p-3">Thay đổi</th>
-                <th className="text-right p-3">%</th>
+                <th className="text-right p-3 font-semibold">Thay đổi</th>
+                <th className="text-right p-3 font-semibold">% Thay đổi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
@@ -118,20 +118,20 @@ export default function ExchangeRateWidget() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-3 text-right">
-                      <div className="font-bold text-lg">{formatRate(rate.closePrice)}</div>
+                    <td className={'p-3 text-right ' + (rate.change > 0 ? 'text-green-500' : rate.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                      <div className="font-bold text-xl">{formatRate(rate.closePrice)}</div>
                       <div className="text-xs text-muted">VND</div>
                     </td>
                     <td className="p-3 text-right">
-                      <div className="font-medium text-green-500">{formatRate(rate.highPrice)}</div>
+                      <div className="font-medium text-sm">{formatRate(rate.highPrice)}</div>
                     </td>
                     <td className="p-3 text-right">
-                      <div className="font-medium text-red-500">{formatRate(rate.lowPrice)}</div>
+                      <div className="font-medium text-sm">{formatRate(rate.lowPrice)}</div>
                     </td>
-                    <td className={'p-3 text-right font-semibold ' + (rate.change > 0 ? 'text-green-500' : rate.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                      <div>{rate.change > 0 ? '+' : ''}{formatRate(rate.change)}</div>
+                    <td className={'p-3 text-right font-bold text-base ' + (rate.change > 0 ? 'text-green-500' : rate.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                      <div>{rate.change > 0 ? '▲ +' : rate.change < 0 ? '▼ ' : '● '}{formatRate(rate.change)}</div>
                     </td>
-                    <td className={'p-3 text-right font-semibold ' + (rate.changePct > 0 ? 'text-green-500' : rate.changePct < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    <td className={'p-3 text-right font-bold text-base ' + (rate.changePct > 0 ? 'text-green-500' : rate.changePct < 0 ? 'text-red-500' : 'text-yellow-500')}>
                       <div>{rate.changePct > 0 ? '+' : ''}{rate.changePct.toFixed(2)}%</div>
                     </td>
                   </tr>

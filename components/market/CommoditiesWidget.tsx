@@ -110,11 +110,18 @@ export default function CommoditiesWidget() {
                 <p className="text-xs text-muted">{commodity.unit}</p>
               </div>
             </div>
-            <div className={'text-right mb-2 ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-              <div className="text-2xl font-bold">{commodity.lastPrice.toFixed(2)}</div>
-            </div>
-            <div className={'text-sm font-semibold border-t border-gray-800 pt-2 ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-              {commodity.change > 0 ? '▲' : commodity.change < 0 ? '▼' : '●'} {commodity.change > 0 ? '+' : ''}{commodity.change.toFixed(2)} ({commodity.change > 0 ? '+' : ''}{commodity.changePercent.toFixed(2)}%)
+            <div className="space-y-2">
+              <div className={'text-3xl font-bold ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                {commodity.lastPrice.toFixed(2)}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={'text-base font-semibold ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  {commodity.change > 0 ? '▲' : commodity.change < 0 ? '▼' : '●'} {commodity.change > 0 ? '+' : ''}{commodity.change.toFixed(2)}
+                </div>
+                <div className={'text-base font-semibold ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  ({commodity.change > 0 ? '+' : ''}{commodity.changePercent.toFixed(2)}%)
+                </div>
+              </div>
             </div>
           </div>
         ))}

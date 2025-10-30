@@ -107,9 +107,9 @@ export default function TopGainersWidget() {
               <tr>
                 <th className="text-left p-3">Mã CK</th>
                 <th className="text-left p-3">Sàn</th>
-                <th className="text-right p-3">Giá</th>
-                <th className="text-right p-3">Thay đổi</th>
-                <th className="text-right p-3">%</th>
+                <th className="text-right p-3 font-semibold">Giá hiện tại</th>
+                <th className="text-right p-3 font-semibold">Thay đổi</th>
+                <th className="text-right p-3 font-semibold">% Thay đổi</th>
                 <th className="text-right p-3">KL</th>
               </tr>
             </thead>
@@ -119,15 +119,17 @@ export default function TopGainersWidget() {
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500">#{index + 1}</span>
-                      <span className="font-semibold">{stock.code}</span>
+                      <span className="font-semibold text-base">{stock.code}</span>
                     </div>
                   </td>
                   <td className="p-3 text-sm text-muted">{stock.floor}</td>
-                  <td className="p-3 text-right font-medium">{stock.price.toFixed(2)}</td>
-                  <td className={'p-3 text-right font-medium ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                    {stock.change > 0 ? '+' : ''}{stock.change.toFixed(2)}
+                  <td className={'p-3 text-right font-bold text-lg ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {stock.price.toFixed(2)}
                   </td>
-                  <td className={'p-3 text-right font-semibold ' + (stock.changePct > 0 ? 'text-green-500' : stock.changePct < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  <td className={'p-3 text-right font-bold text-base ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {stock.change > 0 ? '▲ +' : stock.change < 0 ? '▼ ' : '● '}{stock.change.toFixed(2)}
+                  </td>
+                  <td className={'p-3 text-right font-bold text-base ' + (stock.changePct > 0 ? 'text-green-500' : stock.changePct < 0 ? 'text-red-500' : 'text-yellow-500')}>
                     {stock.changePct > 0 ? '+' : ''}{stock.changePct.toFixed(2)}%
                   </td>
                   <td className="p-3 text-right text-sm text-muted">{stock.volume ? formatVolume(stock.volume) : '-'}</td>

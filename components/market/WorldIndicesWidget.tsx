@@ -102,20 +102,25 @@ export default function WorldIndicesWidget() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {indices.map((index) => (
           <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-5 hover:border-gray-700 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{getCountryFlag(index.code)}</span>
-                <div>
-                  <h3 className="font-semibold text-lg">{index.name}</h3>
-                  <p className="text-xs text-muted">{getLocation(index.code)}</p>
-                </div>
-              </div>
-              <div className={'text-right ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                <div className="text-2xl font-bold">{index.lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-3xl">{getCountryFlag(index.code)}</span>
+              <div>
+                <h3 className="font-semibold text-lg">{index.name}</h3>
+                <p className="text-xs text-muted">{getLocation(index.code)}</p>
               </div>
             </div>
-            <div className={'text-sm font-semibold border-t border-gray-800 pt-3 ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-              {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)} ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
+            <div className="space-y-2">
+              <div className={'text-3xl font-bold ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                {index.lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={'text-base font-semibold ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)}
+                </div>
+                <div className={'text-base font-semibold ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                  ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
+                </div>
+              </div>
             </div>
           </div>
         ))}

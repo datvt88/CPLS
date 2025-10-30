@@ -80,17 +80,22 @@ export default function SecuritiesWidget() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {indices.map((index) => (
           <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="font-semibold text-lg">{index.code}</h3>
-                <p className="text-xs text-muted">{index.name}</p>
-              </div>
-              <div className={'text-right ' + getChangeColor(index.change)}>
-                <div className="text-2xl font-bold">{index.lastPrice.toFixed(2)}</div>
-              </div>
+            <div className="mb-3">
+              <h3 className="font-semibold text-lg">{index.code}</h3>
+              <p className="text-xs text-muted">{index.name}</p>
             </div>
-            <div className={'text-sm font-semibold ' + getChangeColor(index.change)}>
-              {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)} ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
+            <div className="space-y-2">
+              <div className={'text-3xl font-bold ' + getChangeColor(index.change)}>
+                {index.lastPrice.toFixed(2)}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={'text-base font-semibold ' + getChangeColor(index.change)}>
+                  {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)}
+                </div>
+                <div className={'text-base font-semibold ' + getChangeColor(index.change)}>
+                  ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
+                </div>
+              </div>
             </div>
           </div>
         ))}
