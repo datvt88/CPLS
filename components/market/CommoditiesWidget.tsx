@@ -11,7 +11,7 @@ export default function CommoditiesWidget() {
   const fetchData = async () => {
     try {
       const response = await fetch(
-        'https://api-finfo.vndirect.com.vn/v4/change_prices?q=period:1D~code:SPOT_GOLDS,GEN1ST_BRENT_OIL,GEN1ST_WHEAT,GEN1ST_COFFEE,GEN1ST_SUGAR,GEN1ST_COTTON,GEN1ST_COPPER'
+        'https://api-finfo.vndirect.com.vn/v4/change_prices?q=period:1D~code:SPOT_GOLDS,SPOT_SILVER,GEN1ST_BRENT_OIL,GEN1ST_RUBBER,GEN1ST_UREA,GEN1ST_COFFEE_LONDON'
       )
       const data = await response.json()
       
@@ -45,12 +45,11 @@ export default function CommoditiesWidget() {
   const getCommodityName = (code: string) => {
     const names: Record<string, string> = {
       SPOT_GOLDS: 'Vàng',
+      SPOT_SILVER: 'Bạc',
       GEN1ST_BRENT_OIL: 'Dầu Brent',
-      GEN1ST_WHEAT: 'Lúa mì',
-      GEN1ST_COFFEE: 'Cà phê',
-      GEN1ST_SUGAR: 'Đường',
-      GEN1ST_COTTON: 'Bông',
-      GEN1ST_COPPER: 'Đồng',
+      GEN1ST_RUBBER: 'Cao su',
+      GEN1ST_UREA: 'Urea',
+      GEN1ST_COFFEE_LONDON: 'Cà phê London',
     }
     return names[code] || code
   }
@@ -58,12 +57,11 @@ export default function CommoditiesWidget() {
   const getCommodityUnit = (code: string) => {
     const units: Record<string, string> = {
       SPOT_GOLDS: 'USD/oz',
+      SPOT_SILVER: 'USD/oz',
       GEN1ST_BRENT_OIL: 'USD/barrel',
-      GEN1ST_WHEAT: 'USD/bushel',
-      GEN1ST_COFFEE: 'USD/lb',
-      GEN1ST_SUGAR: 'USD/lb',
-      GEN1ST_COTTON: 'USD/lb',
-      GEN1ST_COPPER: 'USD/lb',
+      GEN1ST_RUBBER: 'USD/kg',
+      GEN1ST_UREA: 'USD/ton',
+      GEN1ST_COFFEE_LONDON: 'USD/ton',
     }
     return units[code] || 'USD'
   }
@@ -71,12 +69,11 @@ export default function CommoditiesWidget() {
   const getCommodityIcon = (code: string) => {
     const icons: Record<string, string> = {
       SPOT_GOLDS: '🥇',
+      SPOT_SILVER: '🥈',
       GEN1ST_BRENT_OIL: '🛢️',
-      GEN1ST_WHEAT: '🌾',
-      GEN1ST_COFFEE: '☕',
-      GEN1ST_SUGAR: '🍬',
-      GEN1ST_COTTON: '🧵',
-      GEN1ST_COPPER: '🔶',
+      GEN1ST_RUBBER: '🏀',
+      GEN1ST_UREA: '🧪',
+      GEN1ST_COFFEE_LONDON: '☕',
     }
     return icons[code] || '📦'
   }
