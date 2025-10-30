@@ -19,6 +19,7 @@ export default function TopGainersWidget() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<string>('')
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   const getApiUrl = (exchange: ExchangeTab) => {
     const indexMap = {
@@ -75,8 +76,16 @@ export default function TopGainersWidget() {
     }
   }
 
+  const handleTabChange = (tab: ExchangeTab) => {
+    if (tab === activeTab) return
+    setIsTransitioning(true)
+    setTimeout(() => {
+      setActiveTab(tab)
+      setIsTransitioning(false)
+    }, 150)
+  }
+
   useEffect(() => {
-    setLoading(true)
     fetchData()
     const interval = setInterval(fetchData, 5000)
     return () => clearInterval(interval)
@@ -96,7 +105,7 @@ export default function TopGainersWidget() {
     return 'text-yellow-500'
   }
 
-  if (loading) {
+  if (loading && stocks.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
@@ -133,30 +142,42 @@ export default function TopGainersWidget() {
           <h3 className="font-semibold text-lg mb-3">Top 10 cổ phiếu tăng giá</h3>
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('HOSE')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                handleTabChange('HOSE')
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'HOSE'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-purple-600 text-white shadow-lg scale-105'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
               }`}
             >
               HOSE
             </button>
             <button
-              onClick={() => setActiveTab('HNX')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                handleTabChange('HNX')
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'HNX'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-purple-600 text-white shadow-lg scale-105'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
               }`}
             >
               HNX
             </button>
             <button
-              onClick={() => setActiveTab('VN30')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                handleTabChange('VN30')
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === 'VN30'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-purple-600 text-white shadow-lg scale-105'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
               }`}
             >
@@ -165,7 +186,7 @@ export default function TopGainersWidget() {
           </div>
           <p className="text-sm text-muted mt-3">Sắp xếp theo % tăng cao nhất</p>
         </div>
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto transition-opacity duration-200 min-h-[600px] ${isTransitioning ? 'opacity-40' : 'opacity-100'}`}>
           <table className="w-full">
             <thead className="bg-gray-900 text-sm">
               <tr>
