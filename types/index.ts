@@ -59,3 +59,47 @@ export interface ThemeContextType {
   theme: 'light' | 'dark'
   setTheme: (theme: 'light' | 'dark') => void
 }
+
+// Market Data Types
+export interface MarketIndex {
+  code: string
+  name?: string
+  lastPrice: number
+  change: number
+  changePercent: number
+  high?: number
+  low?: number
+  open?: number
+  volume?: number
+  matchedVolume?: number
+}
+
+export interface TopStock {
+  code: string
+  floor: string
+  lastPrice: number
+  change: number
+  changePercent: number
+  volume: number
+  matchedVolume?: number
+}
+
+export interface Commodity {
+  code: string
+  name: string
+  lastPrice: number
+  change: number
+  changePercent: number
+  unit?: string
+}
+
+export interface ExchangeRate {
+  code: string
+  name: string
+  buyRate: number
+  sellRate: number
+  change?: number
+  changePercent?: number
+}
+
+export type MarketTab = 'securities' | 'world' | 'commodities' | 'exchange'
