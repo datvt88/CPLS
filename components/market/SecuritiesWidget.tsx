@@ -6,6 +6,7 @@ export default function SecuritiesWidget() {
   const [indices, setIndices] = useState<MarketIndex[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<string>('')
 
   const fetchData = async () => {
     try {
@@ -17,16 +18,13 @@ export default function SecuritiesWidget() {
       if (data.data) {
         const mappedData: MarketIndex[] = data.data.map((item: any) => ({
           code: item.code,
-          name: getIndexName(item.code),
-          lastPrice: item.lastPrice || item.close || 0,
+          name: item.name || getIndexName(item.code),
+          lastPrice: item.price || 0,
           change: item.change || 0,
-          changePercent: item.pctChange || 0,
-          high: item.high,
-          low: item.low,
-          open: item.open,
-          volume: item.totalVolume,
+          changePercent: item.changePct || 0,
         }))
         setIndices(mappedData)
+        setLastUpdate(new Date().toLocaleTimeString('vi-VN'))
         setError(null)
       }
     } catch (err) {
@@ -49,7 +47,7 @@ export default function SecuritiesWidget() {
       HNX: 'HNX-Index',
       UPCOM: 'UPCOM-Index',
       VN30: 'VN30-Index',
-      VN30F1M: 'VN30F1M',
+      VN30F1M: 'Hợp đồng tương lai VN30',
     }
     return names[code] || code
   }
@@ -73,26 +71,30 @@ export default function SecuritiesWidget() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {indices.map((index) => (
-        <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-semibold text-lg">{index.code}</h3>
-              <p className="text-sm text-muted">{index.name}</p>
-            </div>
-            <div className={'text-right ' + getChangeColor(index.change)}>
-              <div className="text-xl font-bold">{index.lastPrice.toFixed(2)}</div>
-              <div className="text-sm">{index.change > 0 ? '+' : ''}{index.change.toFixed(2)} ({index.changePercent > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)</div>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-xs text-muted border-t border-gray-800 pt-3">
-            <div><div className="text-gray-500">Cao</div><div className="font-medium text-white">{index.high?.toFixed(2) || '-'}</div></div>
-            <div><div className="text-gray-500">Thấp</div><div className="font-medium text-white">{index.low?.toFixed(2) || '-'}</div></div>
-            <div><div className="text-gray-500">Mở cửa</div><div className="font-medium text-white">{index.open?.toFixed(2) || '-'}</div></div>
-          </div>
+    <div className="space-y-4">
+      {lastUpdate && (
+        <div className="text-xs text-muted text-right">
+          Cập nhật lúc: {lastUpdate}
         </div>
-      ))}
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {indices.map((index) => (
+          <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-semibold text-lg">{index.code}</h3>
+                <p className="text-xs text-muted">{index.name}</p>
+              </div>
+              <div className={'text-right ' + getChangeColor(index.change)}>
+                <div className="text-2xl font-bold">{index.lastPrice.toFixed(2)}</div>
+              </div>
+            </div>
+            <div className={'text-sm font-semibold ' + getChangeColor(index.change)}>
+              {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)} ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

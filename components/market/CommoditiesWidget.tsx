@@ -6,6 +6,7 @@ export default function CommoditiesWidget() {
   const [commodities, setCommodities] = useState<Commodity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<string>('')
 
   const fetchData = async () => {
     try {
@@ -17,13 +18,14 @@ export default function CommoditiesWidget() {
       if (data.data) {
         const mappedData: Commodity[] = data.data.map((item: any) => ({
           code: item.code,
-          name: getCommodityName(item.code),
-          lastPrice: item.lastPrice || item.close || 0,
+          name: item.name || getCommodityName(item.code),
+          lastPrice: item.price || 0,
           change: item.change || 0,
-          changePercent: item.pctChange || 0,
+          changePercent: item.changePct || 0,
           unit: getCommodityUnit(item.code),
         }))
         setCommodities(mappedData)
+        setLastUpdate(new Date().toLocaleTimeString('vi-VN'))
         setError(null)
       }
     } catch (err) {
@@ -92,26 +94,31 @@ export default function CommoditiesWidget() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {commodities.map((commodity) => (
-        <div key={commodity.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
-          <div className="flex items-center gap-3 mb-3">
-            <span className="text-3xl">{getCommodityIcon(commodity.code)}</span>
-            <div className="flex-1">
-              <h3 className="font-semibold text-lg">{commodity.name}</h3>
-              <p className="text-xs text-muted">{commodity.unit}</p>
-            </div>
-            <div className={'text-right ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-              <div className="text-xl font-bold">{commodity.lastPrice.toFixed(2)}</div>
-              <div className="text-xs font-semibold">{commodity.change > 0 ? '+' : ''}{commodity.changePercent.toFixed(2)}%</div>
-            </div>
-          </div>
-          <div className={'text-sm border-t border-gray-800 pt-2 ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-            <span className="font-medium">{commodity.change > 0 ? '▲' : commodity.change < 0 ? '▼' : '●'}</span>
-            <span className="ml-2">{commodity.change > 0 ? '+' : ''}{commodity.change.toFixed(2)} {commodity.unit}</span>
-          </div>
+    <div className="space-y-4">
+      {lastUpdate && (
+        <div className="text-xs text-muted text-right">
+          Cập nhật lúc: {lastUpdate}
         </div>
-      ))}
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {commodities.map((commodity) => (
+          <div key={commodity.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-3xl">{getCommodityIcon(commodity.code)}</span>
+              <div className="flex-1">
+                <h3 className="font-semibold text-base">{commodity.name}</h3>
+                <p className="text-xs text-muted">{commodity.unit}</p>
+              </div>
+            </div>
+            <div className={'text-right mb-2 ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+              <div className="text-2xl font-bold">{commodity.lastPrice.toFixed(2)}</div>
+            </div>
+            <div className={'text-sm font-semibold border-t border-gray-800 pt-2 ' + (commodity.change > 0 ? 'text-green-500' : commodity.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+              {commodity.change > 0 ? '▲' : commodity.change < 0 ? '▼' : '●'} {commodity.change > 0 ? '+' : ''}{commodity.change.toFixed(2)} ({commodity.change > 0 ? '+' : ''}{commodity.changePercent.toFixed(2)}%)
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

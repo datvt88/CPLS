@@ -1,34 +1,51 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { TopStock } from '@/types'
+
+interface TopStock {
+  code: string
+  floor?: string
+  price: number
+  change: number
+  changePct: number
+  volume?: number
+}
 
 export default function TopGainersWidget() {
   const [stocks, setStocks] = useState<TopStock[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<string>('')
 
   const fetchData = async () => {
     try {
+      // Try fetching from stocks API with filter
       const response = await fetch(
-        'https://api-finfo.vndirect.com.vn/v4/top_stocks?q=index:VNIndex~type:NetBuyVol,NetBuyVal,Value,Volume~order:Top&size=10'
+        'https://api-finfo.vndirect.com.vn/v4/stocks?q=type:STOCK~floor:HOSE,HNX,UPCOM&size=10&page=1'
       )
+      
+      if (!response.ok) {
+        throw new Error('API not available')
+      }
+      
       const data = await response.json()
       
-      if (data.data) {
+      if (data.data && Array.isArray(data.data)) {
         const mappedData: TopStock[] = data.data.slice(0, 10).map((item: any) => ({
-          code: item.code,
-          floor: item.floor || 'HOSE',
-          lastPrice: item.lastPrice || item.price || 0,
+          code: item.code || item.symbol,
+          floor: item.floor || item.exchange || 'HOSE',
+          price: item.price || item.lastPrice || item.closePrice || 0,
           change: item.change || 0,
-          changePercent: item.pctChange || item.changePercent || 0,
-          volume: item.nmVolume || item.volume || 0,
-          matchedVolume: item.matchedVolume,
+          changePct: item.changePct || item.pctChange || item.changePercent || 0,
+          volume: item.volume || item.totalVolume || 0,
         }))
         setStocks(mappedData)
+        setLastUpdate(new Date().toLocaleTimeString('vi-VN'))
         setError(null)
+      } else {
+        setError('Dữ liệu không khả dụng')
       }
     } catch (err) {
-      setError('Không thể tải dữ liệu')
+      setError('API Top Gainers chưa được cấu hình')
       console.error('Error fetching top gainers:', err)
     } finally {
       setLoading(false)
@@ -56,49 +73,69 @@ export default function TopGainersWidget() {
   }
 
   if (error) {
-    return <div className="text-center py-8 text-red-400"><p>{error}</p></div>
+    return (
+      <div className="text-center py-8 bg-panel border border-gray-800 rounded-lg p-6">
+        <p className="text-yellow-500 mb-2">⚠️ {error}</p>
+        <p className="text-sm text-muted">Widget này yêu cầu API endpoint riêng cho top gainers</p>
+      </div>
+    )
+  }
+
+  if (stocks.length === 0) {
+    return (
+      <div className="text-center py-8 bg-panel border border-gray-800 rounded-lg p-6">
+        <p className="text-muted">Không có dữ liệu</p>
+      </div>
+    )
   }
 
   return (
-    <div className="bg-panel border border-gray-800 rounded-lg overflow-hidden">
-      <div className="p-4 border-b border-gray-800">
-        <h3 className="font-semibold text-lg">Top 10 Cổ phiếu tăng giá mạnh nhất</h3>
-        <p className="text-sm text-muted">VN-Index</p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-900 text-sm">
-            <tr>
-              <th className="text-left p-3">Mã CK</th>
-              <th className="text-left p-3">Sàn</th>
-              <th className="text-right p-3">Giá</th>
-              <th className="text-right p-3">Thay đổi</th>
-              <th className="text-right p-3">%</th>
-              <th className="text-right p-3">KL</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {stocks.map((stock, index) => (
-              <tr key={stock.code} className="hover:bg-gray-900 transition-colors">
-                <td className="p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">#{index + 1}</span>
-                    <span className="font-semibold">{stock.code}</span>
-                  </div>
-                </td>
-                <td className="p-3 text-sm text-muted">{stock.floor}</td>
-                <td className="p-3 text-right font-medium">{stock.lastPrice.toFixed(2)}</td>
-                <td className={'p-3 text-right font-medium ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                  {stock.change > 0 ? '+' : ''}{stock.change.toFixed(2)}
-                </td>
-                <td className={'p-3 text-right font-semibold ' + (stock.changePercent > 0 ? 'text-green-500' : stock.changePercent < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                  {stock.changePercent > 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
-                </td>
-                <td className="p-3 text-right text-sm text-muted">{formatVolume(stock.volume)}</td>
+    <div className="space-y-4">
+      {lastUpdate && (
+        <div className="text-xs text-muted text-right">
+          Cập nhật lúc: {lastUpdate}
+        </div>
+      )}
+      <div className="bg-panel border border-gray-800 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-800">
+          <h3 className="font-semibold text-lg">Top cổ phiếu</h3>
+          <p className="text-sm text-muted">Thị trường chứng khoán</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-900 text-sm">
+              <tr>
+                <th className="text-left p-3">Mã CK</th>
+                <th className="text-left p-3">Sàn</th>
+                <th className="text-right p-3">Giá</th>
+                <th className="text-right p-3">Thay đổi</th>
+                <th className="text-right p-3">%</th>
+                <th className="text-right p-3">KL</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {stocks.map((stock, index) => (
+                <tr key={stock.code} className="hover:bg-gray-900 transition-colors">
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">#{index + 1}</span>
+                      <span className="font-semibold">{stock.code}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-sm text-muted">{stock.floor}</td>
+                  <td className="p-3 text-right font-medium">{stock.price.toFixed(2)}</td>
+                  <td className={'p-3 text-right font-medium ' + (stock.change > 0 ? 'text-green-500' : stock.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {stock.change > 0 ? '+' : ''}{stock.change.toFixed(2)}
+                  </td>
+                  <td className={'p-3 text-right font-semibold ' + (stock.changePct > 0 ? 'text-green-500' : stock.changePct < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {stock.changePct > 0 ? '+' : ''}{stock.changePct.toFixed(2)}%
+                  </td>
+                  <td className="p-3 text-right text-sm text-muted">{stock.volume ? formatVolume(stock.volume) : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ export default function WorldIndicesWidget() {
   const [indices, setIndices] = useState<MarketIndex[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<string>('')
 
   const fetchData = async () => {
     try {
@@ -17,15 +18,13 @@ export default function WorldIndicesWidget() {
       if (data.data) {
         const mappedData: MarketIndex[] = data.data.map((item: any) => ({
           code: item.code,
-          name: getIndexName(item.code),
-          lastPrice: item.lastPrice || item.close || 0,
+          name: item.name || getIndexName(item.code),
+          lastPrice: item.price || 0,
           change: item.change || 0,
-          changePercent: item.pctChange || 0,
-          high: item.high,
-          low: item.low,
-          open: item.open,
+          changePercent: item.changePct || 0,
         }))
         setIndices(mappedData)
+        setLastUpdate(new Date().toLocaleTimeString('vi-VN'))
         setError(null)
       }
     } catch (err) {
@@ -44,13 +43,13 @@ export default function WorldIndicesWidget() {
 
   const getIndexName = (code: string) => {
     const names: Record<string, string> = {
-      DOWJONES: 'Dow Jones (US)',
-      NASDAQ: 'Nasdaq (US)',
-      NIKKEI225: 'Nikkei 225 (Japan)',
-      SHANGHAI: 'Shanghai (China)',
-      HANGSENG: 'Hang Seng (HK)',
-      FTSE100: 'FTSE 100 (UK)',
-      DAX: 'DAX (Germany)',
+      DOWJONES: 'Dow Jones',
+      NASDAQ: 'Nasdaq',
+      NIKKEI225: 'Nikkei 225',
+      SHANGHAI: 'Shanghai SE',
+      HANGSENG: 'Hang Seng',
+      FTSE100: 'FTSE 100',
+      DAX: 'DAX',
     }
     return names[code] || code
   }
@@ -68,6 +67,19 @@ export default function WorldIndicesWidget() {
     return flags[code] || '🌍'
   }
 
+  const getLocation = (code: string) => {
+    const locations: Record<string, string> = {
+      DOWJONES: 'USA',
+      NASDAQ: 'USA',
+      NIKKEI225: 'Japan',
+      SHANGHAI: 'China',
+      HANGSENG: 'Hong Kong',
+      FTSE100: 'UK',
+      DAX: 'Germany',
+    }
+    return locations[code] || ''
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -81,29 +93,33 @@ export default function WorldIndicesWidget() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {indices.map((index) => (
-        <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{getCountryFlag(index.code)}</span>
-              <div>
-                <h3 className="font-semibold text-lg">{index.code}</h3>
-                <p className="text-sm text-muted">{index.name}</p>
+    <div className="space-y-4">
+      {lastUpdate && (
+        <div className="text-xs text-muted text-right">
+          Cập nhật lúc: {lastUpdate}
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {indices.map((index) => (
+          <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-5 hover:border-gray-700 transition-colors">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{getCountryFlag(index.code)}</span>
+                <div>
+                  <h3 className="font-semibold text-lg">{index.name}</h3>
+                  <p className="text-xs text-muted">{getLocation(index.code)}</p>
+                </div>
+              </div>
+              <div className={'text-right ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                <div className="text-2xl font-bold">{index.lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
             </div>
-            <div className={'text-right ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-              <div className="text-xl font-bold">{index.lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              <div className="text-sm font-semibold">{index.change > 0 ? '+' : ''}{index.change.toFixed(2)} ({index.changePercent > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)</div>
+            <div className={'text-sm font-semibold border-t border-gray-800 pt-3 ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+              {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)} ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-xs text-muted border-t border-gray-800 pt-3">
-            <div><div className="text-gray-500">Cao</div><div className="font-medium text-white">{index.high?.toFixed(2) || '-'}</div></div>
-            <div><div className="text-gray-500">Thấp</div><div className="font-medium text-white">{index.low?.toFixed(2) || '-'}</div></div>
-            <div><div className="text-gray-500">Mở</div><div className="font-medium text-white">{index.open?.toFixed(2) || '-'}</div></div>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
