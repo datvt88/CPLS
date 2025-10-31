@@ -77,28 +77,43 @@ export default function SecuritiesWidget() {
           Cập nhật lúc: {lastUpdate}
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {indices.map((index) => (
-          <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-4 hover:border-gray-700 transition-colors">
-            <div className="mb-3">
-              <h3 className="font-semibold text-lg">{index.code}</h3>
-              <p className="text-xs text-muted">{index.name}</p>
-            </div>
-            <div className="space-y-2">
-              <div className={'text-3xl font-bold ' + getChangeColor(index.change)}>
-                {index.lastPrice.toFixed(2)}
-              </div>
-              <div className="flex items-center gap-3">
-                <div className={'text-base font-semibold ' + getChangeColor(index.change)}>
-                  {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)}
-                </div>
-                <div className={'text-base font-semibold ' + getChangeColor(index.change)}>
-                  ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="bg-panel border border-gray-800 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-800">
+          <h3 className="font-semibold text-lg">Chỉ số chứng khoán Việt Nam</h3>
+          <p className="text-sm text-muted">VNINDEX, HNX, UPCOM, VN30</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-900 text-sm">
+              <tr>
+                <th className="text-left p-3">Mã chỉ số</th>
+                <th className="text-left p-3">Tên</th>
+                <th className="text-right p-3 font-semibold">Giá hiện tại</th>
+                <th className="text-right p-3 font-semibold">Thay đổi</th>
+                <th className="text-right p-3 font-semibold">% Thay đổi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {indices.map((index) => (
+                <tr key={index.code} className="hover:bg-gray-900 transition-colors">
+                  <td className="p-3">
+                    <div className="font-semibold text-base">{index.code}</div>
+                  </td>
+                  <td className="p-3 text-sm text-muted">{index.name}</td>
+                  <td className={'p-3 text-right font-bold text-xl ' + getChangeColor(index.change)}>
+                    {index.lastPrice.toFixed(2)}
+                  </td>
+                  <td className={'p-3 text-right font-bold text-base ' + getChangeColor(index.change)}>
+                    {index.change > 0 ? '▲ +' : index.change < 0 ? '▼ ' : '● '}{index.change.toFixed(2)}
+                  </td>
+                  <td className={'p-3 text-right font-bold text-base ' + getChangeColor(index.change)}>
+                    {index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

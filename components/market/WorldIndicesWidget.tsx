@@ -99,31 +99,46 @@ export default function WorldIndicesWidget() {
           Cập nhật lúc: {lastUpdate}
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {indices.map((index) => (
-          <div key={index.code} className="bg-panel border border-gray-800 rounded-lg p-5 hover:border-gray-700 transition-colors">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-3xl">{getCountryFlag(index.code)}</span>
-              <div>
-                <h3 className="font-semibold text-lg">{index.name}</h3>
-                <p className="text-xs text-muted">{getLocation(index.code)}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className={'text-3xl font-bold ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                {index.lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <div className="flex items-center gap-3">
-                <div className={'text-base font-semibold ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                  {index.change > 0 ? '▲' : index.change < 0 ? '▼' : '●'} {index.change > 0 ? '+' : ''}{index.change.toFixed(2)}
-                </div>
-                <div className={'text-base font-semibold ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
-                  ({index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%)
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="bg-panel border border-gray-800 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-800">
+          <h3 className="font-semibold text-lg">Chỉ số chứng khoán thế giới</h3>
+          <p className="text-sm text-muted">Dow Jones, Nasdaq, Nikkei, Shanghai...</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-900 text-sm">
+              <tr>
+                <th className="text-left p-3">Chỉ số</th>
+                <th className="text-left p-3">Quốc gia</th>
+                <th className="text-right p-3 font-semibold">Giá hiện tại</th>
+                <th className="text-right p-3 font-semibold">Thay đổi</th>
+                <th className="text-right p-3 font-semibold">% Thay đổi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {indices.map((index) => (
+                <tr key={index.code} className="hover:bg-gray-900 transition-colors">
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{getCountryFlag(index.code)}</span>
+                      <span className="font-semibold text-base">{index.name}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-sm text-muted">{getLocation(index.code)}</td>
+                  <td className={'p-3 text-right font-bold text-xl ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {index.lastPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className={'p-3 text-right font-bold text-base ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {index.change > 0 ? '▲ +' : index.change < 0 ? '▼ ' : '● '}{index.change.toFixed(2)}
+                  </td>
+                  <td className={'p-3 text-right font-bold text-base ' + (index.change > 0 ? 'text-green-500' : index.change < 0 ? 'text-red-500' : 'text-yellow-500')}>
+                    {index.change > 0 ? '+' : ''}{index.changePercent.toFixed(2)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
