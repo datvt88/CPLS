@@ -94,6 +94,7 @@ export default function StockFinancialsWidget({ stockCode }: { stockCode: string
 
   useEffect(() => {
     fetchFinancialRatios()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockCode])
 
   const formatValue = (value: number, unit: string): string => {

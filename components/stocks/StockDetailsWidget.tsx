@@ -130,6 +130,7 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
 
   useEffect(() => {
     fetchStockData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockCode])
 
   useEffect(() => {
