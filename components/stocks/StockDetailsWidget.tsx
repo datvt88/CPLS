@@ -154,202 +154,226 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
 
     // Clear previous chart
     if (chartRef.current) {
-      chartRef.current.remove()
-    }
-
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 500,
-      layout: {
-        background: { color: '#1a1a1a' },
-        textColor: '#d1d5db',
-      },
-      grid: {
-        vertLines: { color: '#2a2a2a' },
-        horzLines: { color: '#2a2a2a' },
-      },
-      timeScale: {
-        borderColor: '#4b5563',
-      },
-      rightPriceScale: {
-        borderColor: '#4b5563',
-      },
-    })
-
-    chartRef.current = chart
-
-    // Add candlestick series
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderUpColor: '#22c55e',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
-    })
-    candlestickSeriesRef.current = candlestickSeries
-
-    // Prepare candlestick data
-    const candleData: CandlestickData[] = stockData.map(item => ({
-      time: item.date,
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-    }))
-
-    candlestickSeries.setData(candleData)
-
-    // Calculate and add Bollinger Bands
-    const bands = calculateBollingerBands(stockData)
-
-    const upperBandData: LineData[] = []
-    const middleBandData: LineData[] = []
-    const lowerBandData: LineData[] = []
-
-    stockData.forEach((item, i) => {
-      if (bands[i] && bands[i].middle > 0) {
-        upperBandData.push({ time: item.date, value: bands[i].upper })
-        middleBandData.push({ time: item.date, value: bands[i].middle })
-        lowerBandData.push({ time: item.date, value: bands[i].lower })
-      }
-    })
-
-    const upperBandSeries = chart.addLineSeries({
-      color: '#ef4444',
-      lineWidth: 2,
-      title: 'Upper BB',
-    })
-    upperBandSeriesRef.current = upperBandSeries
-    upperBandSeries.setData(upperBandData)
-
-    const middleBandSeries = chart.addLineSeries({
-      color: '#fbbf24',
-      lineWidth: 2,
-      title: 'Middle BB',
-    })
-    middleBandSeriesRef.current = middleBandSeries
-    middleBandSeries.setData(middleBandData)
-
-    const lowerBandSeries = chart.addLineSeries({
-      color: '#22c55e',
-      lineWidth: 2,
-      title: 'Lower BB',
-    })
-    lowerBandSeriesRef.current = lowerBandSeries
-    lowerBandSeries.setData(lowerBandData)
-
-    // Add resistance and support lines (last quarter only)
-    if (pivotPoints) {
-      const startIndex = Math.floor(stockData.length * 0.75) // Start from 75% of data
-      const lastQuarterData = stockData.slice(startIndex)
-
-      // R3 - Kháng cự mạnh
-      const r3Data: LineData[] = lastQuarterData.map(item => ({
-        time: item.date,
-        value: pivotPoints.r3
-      }))
-      const r3Series = chart.addLineSeries({
-        color: '#dc2626',
-        lineWidth: 2,
-        lineStyle: 2, // Dashed
-        title: 'R3',
-      })
-      r3SeriesRef.current = r3Series
-      r3Series.setData(r3Data)
-
-      // R2
-      const r2Data: LineData[] = lastQuarterData.map(item => ({
-        time: item.date,
-        value: pivotPoints.r2
-      }))
-      const r2Series = chart.addLineSeries({
-        color: '#f87171',
-        lineWidth: 1,
-        lineStyle: 2,
-        title: 'R2',
-      })
-      r2SeriesRef.current = r2Series
-      r2Series.setData(r2Data)
-
-      // R1
-      const r1Data: LineData[] = lastQuarterData.map(item => ({
-        time: item.date,
-        value: pivotPoints.r1
-      }))
-      const r1Series = chart.addLineSeries({
-        color: '#fca5a5',
-        lineWidth: 1,
-        lineStyle: 2,
-        title: 'R1',
-      })
-      r1SeriesRef.current = r1Series
-      r1Series.setData(r1Data)
-
-      // S1
-      const s1Data: LineData[] = lastQuarterData.map(item => ({
-        time: item.date,
-        value: pivotPoints.s1
-      }))
-      const s1Series = chart.addLineSeries({
-        color: '#86efac',
-        lineWidth: 1,
-        lineStyle: 2,
-        title: 'S1',
-      })
-      s1SeriesRef.current = s1Series
-      s1Series.setData(s1Data)
-
-      // S2
-      const s2Data: LineData[] = lastQuarterData.map(item => ({
-        time: item.date,
-        value: pivotPoints.s2
-      }))
-      const s2Series = chart.addLineSeries({
-        color: '#4ade80',
-        lineWidth: 1,
-        lineStyle: 2,
-        title: 'S2',
-      })
-      s2SeriesRef.current = s2Series
-      s2Series.setData(s2Data)
-
-      // S3 - Hỗ trợ mạnh
-      const s3Data: LineData[] = lastQuarterData.map(item => ({
-        time: item.date,
-        value: pivotPoints.s3
-      }))
-      const s3Series = chart.addLineSeries({
-        color: '#16a34a',
-        lineWidth: 2,
-        lineStyle: 2,
-        title: 'S3',
-      })
-      s3SeriesRef.current = s3Series
-      s3Series.setData(s3Data)
-    }
-
-    chart.timeScale().fitContent()
-
-    // Handle resize
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth
-        })
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      if (chartRef.current) {
+      try {
         chartRef.current.remove()
+      } catch (e) {
+        console.error('Error removing chart:', e)
       }
     }
-  }, [stockData, timeFrame])
+
+    try {
+      // Validate data
+      if (!stockData || stockData.length === 0) {
+        throw new Error('No stock data available')
+      }
+
+      // Create chart
+      const chart = createChart(chartContainerRef.current, {
+        width: chartContainerRef.current.clientWidth,
+        height: 500,
+        layout: {
+          background: { color: '#1a1a1a' },
+          textColor: '#d1d5db',
+        },
+        grid: {
+          vertLines: { color: '#2a2a2a' },
+          horzLines: { color: '#2a2a2a' },
+        },
+        timeScale: {
+          borderColor: '#4b5563',
+        },
+        rightPriceScale: {
+          borderColor: '#4b5563',
+        },
+      })
+
+      chartRef.current = chart
+
+      // Add candlestick series
+      const candlestickSeries = chart.addCandlestickSeries({
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderUpColor: '#22c55e',
+        borderDownColor: '#ef4444',
+        wickUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
+      })
+      candlestickSeriesRef.current = candlestickSeries
+
+      // Prepare candlestick data
+      const candleData: CandlestickData[] = stockData
+        .filter(item => item.date && item.open > 0 && item.high > 0 && item.low > 0 && item.close > 0)
+        .map(item => ({
+          time: item.date,
+          open: item.open,
+          high: item.high,
+          low: item.low,
+          close: item.close,
+        }))
+
+      if (candleData.length === 0) {
+        throw new Error('No valid candle data')
+      }
+
+      candlestickSeries.setData(candleData)
+
+      // Calculate and add Bollinger Bands
+      const bands = calculateBollingerBands(stockData)
+
+      const upperBandData: LineData[] = []
+      const middleBandData: LineData[] = []
+      const lowerBandData: LineData[] = []
+
+      stockData.forEach((item, i) => {
+        if (bands[i] && bands[i].middle > 0) {
+          upperBandData.push({ time: item.date, value: bands[i].upper })
+          middleBandData.push({ time: item.date, value: bands[i].middle })
+          lowerBandData.push({ time: item.date, value: bands[i].lower })
+        }
+      })
+
+      const upperBandSeries = chart.addLineSeries({
+        color: '#ef4444',
+        lineWidth: 2,
+        title: 'Upper BB',
+      })
+      upperBandSeriesRef.current = upperBandSeries
+      upperBandSeries.setData(upperBandData)
+
+      const middleBandSeries = chart.addLineSeries({
+        color: '#fbbf24',
+        lineWidth: 2,
+        title: 'Middle BB',
+      })
+      middleBandSeriesRef.current = middleBandSeries
+      middleBandSeries.setData(middleBandData)
+
+      const lowerBandSeries = chart.addLineSeries({
+        color: '#22c55e',
+        lineWidth: 2,
+        title: 'Lower BB',
+      })
+      lowerBandSeriesRef.current = lowerBandSeries
+      lowerBandSeries.setData(lowerBandData)
+
+      // Add resistance and support lines (last quarter only)
+      if (pivotPoints) {
+        const startIndex = Math.floor(stockData.length * 0.75) // Start from 75% of data
+        const lastQuarterData = stockData.slice(startIndex)
+
+        // R3 - Kháng cự mạnh
+        const r3Data: LineData[] = lastQuarterData.map(item => ({
+          time: item.date,
+          value: pivotPoints.r3
+        }))
+        const r3Series = chart.addLineSeries({
+          color: '#dc2626',
+          lineWidth: 2,
+          lineStyle: 2, // Dashed
+          title: 'R3',
+        })
+        r3SeriesRef.current = r3Series
+        r3Series.setData(r3Data)
+
+        // R2
+        const r2Data: LineData[] = lastQuarterData.map(item => ({
+          time: item.date,
+          value: pivotPoints.r2
+        }))
+        const r2Series = chart.addLineSeries({
+          color: '#f87171',
+          lineWidth: 1,
+          lineStyle: 2,
+          title: 'R2',
+        })
+        r2SeriesRef.current = r2Series
+        r2Series.setData(r2Data)
+
+        // R1
+        const r1Data: LineData[] = lastQuarterData.map(item => ({
+          time: item.date,
+          value: pivotPoints.r1
+        }))
+        const r1Series = chart.addLineSeries({
+          color: '#fca5a5',
+          lineWidth: 1,
+          lineStyle: 2,
+          title: 'R1',
+        })
+        r1SeriesRef.current = r1Series
+        r1Series.setData(r1Data)
+
+        // S1
+        const s1Data: LineData[] = lastQuarterData.map(item => ({
+          time: item.date,
+          value: pivotPoints.s1
+        }))
+        const s1Series = chart.addLineSeries({
+          color: '#86efac',
+          lineWidth: 1,
+          lineStyle: 2,
+          title: 'S1',
+        })
+        s1SeriesRef.current = s1Series
+        s1Series.setData(s1Data)
+
+        // S2
+        const s2Data: LineData[] = lastQuarterData.map(item => ({
+          time: item.date,
+          value: pivotPoints.s2
+        }))
+        const s2Series = chart.addLineSeries({
+          color: '#4ade80',
+          lineWidth: 1,
+          lineStyle: 2,
+          title: 'S2',
+        })
+        s2SeriesRef.current = s2Series
+        s2Series.setData(s2Data)
+
+        // S3 - Hỗ trợ mạnh
+        const s3Data: LineData[] = lastQuarterData.map(item => ({
+          time: item.date,
+          value: pivotPoints.s3
+        }))
+        const s3Series = chart.addLineSeries({
+          color: '#16a34a',
+          lineWidth: 2,
+          lineStyle: 2,
+          title: 'S3',
+        })
+        s3SeriesRef.current = s3Series
+        s3Series.setData(s3Data)
+      }
+
+      chart.timeScale().fitContent()
+
+      // Handle resize
+      const handleResize = () => {
+        if (chartContainerRef.current && chartRef.current) {
+          chartRef.current.applyOptions({
+            width: chartContainerRef.current.clientWidth
+          })
+        }
+      }
+
+      window.addEventListener('resize', handleResize)
+
+      return () => {
+        window.removeEventListener('resize', handleResize)
+        if (chartRef.current) {
+          try {
+            chartRef.current.remove()
+          } catch (e) {
+            console.error('Error in cleanup:', e)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error creating chart:', error)
+      setError('Không thể tạo biểu đồ')
+    }
+  }, [stockData, timeFrame, pivotPoints])
 
   if (!mounted) {
     return (
