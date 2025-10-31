@@ -46,6 +46,12 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
   const upperBandSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
   const middleBandSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
   const lowerBandSeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const r1SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const r2SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const r3SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const s1SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const s2SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const s3SeriesRef = useRef<ISeriesApi<'Line'> | null>(null)
 
   // Calculate Bollinger Bands (30, 3)
   const calculateBollingerBands = (data: StockPrice[]): BollingerBands[] => {
@@ -101,7 +107,7 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
     try {
       setLoading(true)
       const response = await fetch(
-        `https://api-finfo.vndirect.com.vn/v4/stock_prices?sort=date&q=code:${stockCode}&size=270`
+        `https://api-finfo.vndirect.com.vn/v4/stock_prices?sort=date&q=code:${stockCode}&size=810`
       )
 
       if (!response.ok) throw new Error('Không thể tải dữ liệu')
@@ -234,6 +240,96 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
     lowerBandSeriesRef.current = lowerBandSeries
     lowerBandSeries.setData(lowerBandData)
 
+    // Add resistance and support lines (last quarter only)
+    if (pivotPoints) {
+      const startIndex = Math.floor(stockData.length * 0.75) // Start from 75% of data
+      const lastQuarterData = stockData.slice(startIndex)
+
+      // R3 - Kháng cự mạnh
+      const r3Data: LineData[] = lastQuarterData.map(item => ({
+        time: item.date,
+        value: pivotPoints.r3
+      }))
+      const r3Series = chart.addLineSeries({
+        color: '#dc2626',
+        lineWidth: 2,
+        lineStyle: 2, // Dashed
+        title: 'R3',
+      })
+      r3SeriesRef.current = r3Series
+      r3Series.setData(r3Data)
+
+      // R2
+      const r2Data: LineData[] = lastQuarterData.map(item => ({
+        time: item.date,
+        value: pivotPoints.r2
+      }))
+      const r2Series = chart.addLineSeries({
+        color: '#f87171',
+        lineWidth: 1,
+        lineStyle: 2,
+        title: 'R2',
+      })
+      r2SeriesRef.current = r2Series
+      r2Series.setData(r2Data)
+
+      // R1
+      const r1Data: LineData[] = lastQuarterData.map(item => ({
+        time: item.date,
+        value: pivotPoints.r1
+      }))
+      const r1Series = chart.addLineSeries({
+        color: '#fca5a5',
+        lineWidth: 1,
+        lineStyle: 2,
+        title: 'R1',
+      })
+      r1SeriesRef.current = r1Series
+      r1Series.setData(r1Data)
+
+      // S1
+      const s1Data: LineData[] = lastQuarterData.map(item => ({
+        time: item.date,
+        value: pivotPoints.s1
+      }))
+      const s1Series = chart.addLineSeries({
+        color: '#86efac',
+        lineWidth: 1,
+        lineStyle: 2,
+        title: 'S1',
+      })
+      s1SeriesRef.current = s1Series
+      s1Series.setData(s1Data)
+
+      // S2
+      const s2Data: LineData[] = lastQuarterData.map(item => ({
+        time: item.date,
+        value: pivotPoints.s2
+      }))
+      const s2Series = chart.addLineSeries({
+        color: '#4ade80',
+        lineWidth: 1,
+        lineStyle: 2,
+        title: 'S2',
+      })
+      s2SeriesRef.current = s2Series
+      s2Series.setData(s2Data)
+
+      // S3 - Hỗ trợ mạnh
+      const s3Data: LineData[] = lastQuarterData.map(item => ({
+        time: item.date,
+        value: pivotPoints.s3
+      }))
+      const s3Series = chart.addLineSeries({
+        color: '#16a34a',
+        lineWidth: 2,
+        lineStyle: 2,
+        title: 'S3',
+      })
+      s3SeriesRef.current = s3Series
+      s3Series.setData(s3Data)
+    }
+
     chart.timeScale().fitContent()
 
     // Handle resize
@@ -346,19 +442,55 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
 
         {/* Indicators Legend */}
         <div className="mt-4 p-3 bg-gray-900 rounded-lg">
-          <div className="text-sm font-semibold mb-2">Chỉ báo kỹ thuật:</div>
-          <div className="flex items-center gap-6 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-red-500 rounded"></div>
-              <span>Upper BB (Kháng cự mạnh)</span>
+          <div className="text-sm font-semibold mb-3">Chỉ báo kỹ thuật:</div>
+
+          {/* Bollinger Bands */}
+          <div className="mb-3">
+            <div className="text-xs text-muted mb-2">Bollinger Bands (30, 3):</div>
+            <div className="flex items-center gap-4 text-xs flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-500 rounded"></div>
+                <span>Upper BB</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+                <span>Middle BB (SMA 30)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded"></div>
+                <span>Lower BB</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-              <span>Middle BB (30)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded"></div>
-              <span>Lower BB (Hỗ trợ mạnh)</span>
+          </div>
+
+          {/* Support & Resistance */}
+          <div>
+            <div className="text-xs text-muted mb-2">Kháng cự & Hỗ trợ (1/4 cuối biểu đồ):</div>
+            <div className="flex items-center gap-4 text-xs flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-red-600" style={{width: '20px'}}></div>
+                <span>R3</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-red-400" style={{width: '20px'}}></div>
+                <span>R2</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-red-300" style={{width: '20px'}}></div>
+                <span>R1</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-green-300" style={{width: '20px'}}></div>
+                <span>S1</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-green-400" style={{width: '20px'}}></div>
+                <span>S2</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-green-600" style={{width: '20px'}}></div>
+                <span>S3</span>
+              </div>
             </div>
           </div>
         </div>
