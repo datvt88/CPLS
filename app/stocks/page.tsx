@@ -1,7 +1,22 @@
 'use client'
 import { useState } from 'react'
-import StockDetailsWidget from '@/components/stocks/StockDetailsWidget'
+import dynamic from 'next/dynamic'
 import StockFinancialsWidget from '@/components/stocks/StockFinancialsWidget'
+
+// Import StockDetailsWidget with SSR disabled due to lightweight-charts
+const StockDetailsWidget = dynamic(
+  () => import('@/components/stocks/StockDetailsWidget'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-panel border border-gray-800 rounded-lg p-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        </div>
+      </div>
+    )
+  }
+)
 
 export default function StocksPage() {
   const [stockCode, setStockCode] = useState('TCB')

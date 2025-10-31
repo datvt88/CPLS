@@ -2,6 +2,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { createChart, IChartApi, ISeriesApi, CandlestickData, LineData } from 'lightweight-charts'
 
+// Check if running on client side
+const isClient = typeof window !== 'undefined'
+
 interface StockPrice {
   date: string
   open: number
@@ -30,6 +33,7 @@ interface WoodiePivot {
 type TimeFrame = '1D' | '1W' | '1M'
 
 export default function StockDetailsWidget({ stockCode }: { stockCode: string }) {
+  const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('1D')
@@ -129,12 +133,18 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
   }
 
   useEffect(() => {
-    fetchStockData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockCode])
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
-    if (!chartContainerRef.current || stockData.length === 0) return
+    if (mounted) {
+      fetchStockData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockCode, mounted])
+
+  useEffect(() => {
+    if (!isClient || !mounted || !chartContainerRef.current || stockData.length === 0) return
 
     // Clear previous chart
     if (chartRef.current) {
@@ -244,6 +254,16 @@ export default function StockDetailsWidget({ stockCode }: { stockCode: string })
       }
     }
   }, [stockData, timeFrame])
+
+  if (!mounted) {
+    return (
+      <div className="bg-panel border border-gray-800 rounded-lg p-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
