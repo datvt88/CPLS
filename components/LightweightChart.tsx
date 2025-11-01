@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, memo } from 'react'
-import { createChart, ColorType } from 'lightweight-charts'
-import type { IChartApi, ISeriesApi } from 'lightweight-charts'
+import { createChart, ColorType, Time } from 'lightweight-charts'
+import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, LineData } from 'lightweight-charts'
 import type { StockPriceData, Timeframe, PivotPoints } from '@/types/stock'
 
 interface LightweightChartProps {
@@ -60,7 +60,12 @@ const LightweightChart = memo(({
 
   // Initialize chart once
   useEffect(() => {
-    if (!chartContainerRef.current) return
+    if (!chartContainerRef.current) {
+      console.error('Chart container ref not available')
+      return
+    }
+
+    console.log('Initializing lightweight-charts...')
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -78,6 +83,8 @@ const LightweightChart = memo(({
         secondsVisible: false,
       },
     })
+
+    console.log('Chart created successfully')
 
     // Create all series
     const candlestickSeries = chart.addCandlestickSeries({
@@ -163,6 +170,8 @@ const LightweightChart = memo(({
       floor: floorSeries,
     }
 
+    console.log('All series created:', Object.keys(seriesRefs.current))
+
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth })
@@ -172,6 +181,7 @@ const LightweightChart = memo(({
     window.addEventListener('resize', handleResize)
 
     return () => {
+      console.log('Cleaning up chart...')
       window.removeEventListener('resize', handleResize)
       chart.remove()
     }
@@ -181,6 +191,11 @@ const LightweightChart = memo(({
   useEffect(() => {
     const series = seriesRefs.current
     if (!series.candlestick || !series.volume || historicalData.length === 0) {
+      console.log('Chart not ready or no data:', {
+        hasCandlestick: !!series.candlestick,
+        hasVolume: !!series.volume,
+        dataLength: historicalData.length
+      })
       return
     }
 
@@ -189,18 +204,24 @@ const LightweightChart = memo(({
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
 
-      // Candlestick data
-      const candleData = sortedData.map(d => ({
-        time: d.date,
+      console.log('Setting chart data:', {
+        dataPoints: sortedData.length,
+        firstDate: sortedData[0]?.date,
+        lastDate: sortedData[sortedData.length - 1]?.date
+      })
+
+      // Candlestick data with proper Time typing
+      const candleData: CandlestickData[] = sortedData.map(d => ({
+        time: d.date as Time,
         open: d.open,
         high: d.high,
         low: d.low,
         close: d.close,
       }))
 
-      // Volume data
-      const volumeData = sortedData.map(d => ({
-        time: d.date,
+      // Volume data with proper Time typing
+      const volumeData: HistogramData[] = sortedData.map(d => ({
+        time: d.date as Time,
         value: d.nmVolume,
         color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
       }))
@@ -208,13 +229,15 @@ const LightweightChart = memo(({
       series.candlestick.setData(candleData)
       series.volume.setData(volumeData)
 
+      console.log('Candlestick and volume data set successfully')
+
       // Calculate Bollinger Bands
       if (candleData.length >= 20) {
         const period = 20
         const stdDev = 2
-        const bbUpper: any[] = []
-        const bbMiddle: any[] = []
-        const bbLower: any[] = []
+        const bbUpper: LineData[] = []
+        const bbMiddle: LineData[] = []
+        const bbLower: LineData[] = []
 
         for (let i = period - 1; i < candleData.length; i++) {
           const slice = candleData.slice(i - period + 1, i + 1)
@@ -231,6 +254,8 @@ const LightweightChart = memo(({
         series.bbUpper?.setData(bbUpper)
         series.bbMiddle?.setData(bbMiddle)
         series.bbLower?.setData(bbLower)
+
+        console.log('Bollinger Bands calculated and set:', bbUpper.length, 'points')
       }
 
       // Pivot points
@@ -247,6 +272,8 @@ const LightweightChart = memo(({
           { time: firstTime, value: pivotPoints.S3 },
           { time: lastTime, value: pivotPoints.S3 },
         ])
+
+        console.log('Pivot points set:', { R3: pivotPoints.R3, S3: pivotPoints.S3 })
       }
 
       // Floor/ceiling
@@ -263,9 +290,12 @@ const LightweightChart = memo(({
           { time: firstTime, value: floorPrice },
           { time: lastTime, value: floorPrice },
         ])
+
+        console.log('Floor/ceiling prices set:', { floor: floorPrice, ceiling: ceilingPrice })
       }
 
       chartRef.current?.timeScale().fitContent()
+      console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
