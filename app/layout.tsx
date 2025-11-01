@@ -1,5 +1,5 @@
 import './globals.css'
-import { ThemeProvider } from 'next-themes'
+import { Providers } from '@/components/Providers'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import AuthListener from '../components/AuthListener'
@@ -10,7 +10,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi">
       <body>
-        <ThemeProvider attribute="data-theme" defaultTheme="dark">
+        <Providers>
           <div className="min-h-screen flex bg-[--bg] text-white">
             <AuthListener />
             <Sidebar />
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <main className="container py-6">{children}</main>
             </div>
           </div>
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )

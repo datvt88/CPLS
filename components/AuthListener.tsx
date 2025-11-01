@@ -15,7 +15,7 @@ export default function AuthListener(){
             email: user.email,
             role: 'user',
             created_at: new Date().toISOString()
-          }, { onConflict: ['id'] })
+          }, { onConflict: 'id' })
         }
       }catch(e){ console.error('profile upsert error', e) }
     })
