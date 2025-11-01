@@ -2,13 +2,44 @@
 
 import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Timeframe } from '@/types/stock'
+import { Timeframe, StockPriceData } from '@/types/stock'
 import {
   generateMockStockData,
   mockVietnameseStocks,
   getStockBySymbol,
 } from '@/utils/mockStockData'
 import { calculateWoodiePivotPoints } from '@/components/LightweightChart'
+
+// Helper function to get ISO week number
+function getISOWeek(date: Date): number {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7))
+  const yearStart = new Date(d.getFullYear(), 0, 1)
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
+// Helper function to aggregate OHLC data
+function aggregateGroup(group: StockPriceData[]): StockPriceData {
+  if (group.length === 0) throw new Error('Empty group')
+  if (group.length === 1) return group[0]
+
+  const open = group[0].open
+  const close = group[group.length - 1].close
+  const high = Math.max(...group.map(d => d.high))
+  const low = Math.min(...group.map(d => d.low))
+  const nmVolume = group.reduce((sum, d) => sum + d.nmVolume, 0)
+  const date = group[group.length - 1].date // Use last date in group
+
+  return {
+    date,
+    open: Number(open.toFixed(2)),
+    high: Number(high.toFixed(2)),
+    low: Number(low.toFixed(2)),
+    close: Number(close.toFixed(2)),
+    nmVolume,
+  }
+}
 
 // Dynamic import to avoid SSR issues with lightweight-charts
 const LightweightChart = dynamic(() => import('@/components/LightweightChart'), {
@@ -30,11 +61,61 @@ export default function StocksPage() {
 
   const stockInfo = getStockBySymbol(stockSymbol)
 
-  // Generate mock data for selected stock with correct reference price
-  const historicalData = useMemo(() => {
+  // Generate mock data for selected stock with correct reference price (3 years = 1095 days)
+  const rawHistoricalData = useMemo(() => {
     if (!stockInfo) return []
-    return generateMockStockData(180, stockInfo.referencePrice)
+    return generateMockStockData(1095, stockInfo.referencePrice)
   }, [stockSymbol, stockInfo])
+
+  // Aggregate data based on timeframe
+  const historicalData = useMemo(() => {
+    if (rawHistoricalData.length === 0) return []
+
+    if (timeframe === '1d') {
+      return rawHistoricalData
+    }
+
+    // Aggregate for weekly or monthly
+    const aggregated: typeof rawHistoricalData = []
+    const sortedData = [...rawHistoricalData].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+
+    let currentGroup: typeof rawHistoricalData = []
+    let currentPeriodKey = ''
+
+    sortedData.forEach((dataPoint, index) => {
+      const date = new Date(dataPoint.date)
+      let periodKey = ''
+
+      if (timeframe === '1w') {
+        // Group by week (ISO week number)
+        const week = getISOWeek(date)
+        const year = date.getFullYear()
+        periodKey = `${year}-W${week}`
+      } else if (timeframe === '1m') {
+        // Group by month
+        periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      }
+
+      if (periodKey !== currentPeriodKey && currentGroup.length > 0) {
+        // Aggregate current group
+        aggregated.push(aggregateGroup(currentGroup))
+        currentGroup = [dataPoint]
+        currentPeriodKey = periodKey
+      } else {
+        currentGroup.push(dataPoint)
+        currentPeriodKey = periodKey
+      }
+
+      // Handle last group
+      if (index === sortedData.length - 1 && currentGroup.length > 0) {
+        aggregated.push(aggregateGroup(currentGroup))
+      }
+    })
+
+    return aggregated
+  }, [rawHistoricalData, timeframe])
 
   // Calculate pivot points
   const pivotPoints = useMemo(() => {
@@ -116,21 +197,21 @@ export default function StocksPage() {
             </div>
 
             {/* Ceiling Price */}
-            <div className="bg-orange-900/20 rounded-lg p-4 border border-orange-700/30">
-              <div className="text-orange-400 text-xs mb-1">Giá trần</div>
-              <div className="text-2xl font-bold text-orange-300">
+            <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-700/30">
+              <div className="text-purple-400 text-xs mb-1">Giá trần</div>
+              <div className="text-2xl font-bold text-purple-300">
                 {stockInfo.ceilingPrice.toFixed(2)}
               </div>
-              <div className="text-xs text-orange-400/70">+7%</div>
+              <div className="text-xs text-purple-400/70">+7%</div>
             </div>
 
             {/* Floor Price */}
-            <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-700/30">
-              <div className="text-purple-400 text-xs mb-1">Giá sàn</div>
-              <div className="text-2xl font-bold text-purple-300">
+            <div className="bg-cyan-900/20 rounded-lg p-4 border border-cyan-700/30">
+              <div className="text-cyan-400 text-xs mb-1">Giá sàn</div>
+              <div className="text-2xl font-bold text-cyan-300">
                 {stockInfo.floorPrice.toFixed(2)}
               </div>
-              <div className="text-xs text-purple-400/70">-7%</div>
+              <div className="text-xs text-cyan-400/70">-7%</div>
             </div>
           </div>
 
@@ -228,8 +309,6 @@ export default function StocksPage() {
             timeframe={timeframe}
             pivotPoints={pivotPoints}
             chartType={chartType}
-            floorPrice={stockInfo.floorPrice}
-            ceilingPrice={stockInfo.ceilingPrice}
           />
         )}
 
@@ -238,25 +317,13 @@ export default function StocksPage() {
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef5350' }}></div>
             <span className="text-[--muted]">
-              <strong className="text-red-400">R3</strong> - Kháng cự
+              <strong className="text-red-400">R3</strong> - Kháng cự (chỉ hiển thị 1/5 cuối)
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #26a69a' }}></div>
             <span className="text-[--muted]">
-              <strong className="text-green-400">S3</strong> - Hỗ trợ
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-0.5 bg-orange-500" style={{ borderTop: '2px dashed #FF9800' }}></div>
-            <span className="text-[--muted]">
-              <strong className="text-orange-400">Giá trần</strong> (+7%)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-0.5 bg-purple-500" style={{ borderTop: '2px dashed #9C27B0' }}></div>
-            <span className="text-[--muted]">
-              <strong className="text-purple-400">Giá sàn</strong> (-7%)
+              <strong className="text-green-400">S3</strong> - Hỗ trợ (chỉ hiển thị 1/5 cuối)
             </span>
           </div>
         </div>

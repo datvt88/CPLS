@@ -10,8 +10,6 @@ interface LightweightChartProps {
   timeframe: Timeframe
   pivotPoints: PivotPoints | null
   chartType: 'candlestick' | 'line'
-  floorPrice?: number
-  ceilingPrice?: number
 }
 
 // Calculate Woodie Pivot Points
@@ -32,9 +30,7 @@ const LightweightChart = memo(({
   historicalData,
   timeframe,
   pivotPoints,
-  chartType,
-  floorPrice,
-  ceilingPrice
+  chartType
 }: LightweightChartProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -44,16 +40,12 @@ const LightweightChart = memo(({
     volume: ISeriesApi<'Histogram'> | null
     r3: ISeriesApi<'Line'> | null
     s3: ISeriesApi<'Line'> | null
-    ceiling: ISeriesApi<'Line'> | null
-    floor: ISeriesApi<'Line'> | null
   }>({
     candlestick: null,
     line: null,
     volume: null,
     r3: null,
     s3: null,
-    ceiling: null,
-    floor: null,
   })
 
   // Initialize chart once
@@ -125,22 +117,6 @@ const LightweightChart = memo(({
       priceLineVisible: false,
     })
 
-    const ceilingSeries = chart.addLineSeries({
-      color: '#FF9800',
-      lineWidth: 2,
-      lineStyle: 2,
-      lastValueVisible: true,
-      priceLineVisible: false,
-    })
-
-    const floorSeries = chart.addLineSeries({
-      color: '#9C27B0',
-      lineWidth: 2,
-      lineStyle: 2,
-      lastValueVisible: true,
-      priceLineVisible: false,
-    })
-
     chartRef.current = chart
     seriesRefs.current = {
       candlestick: candlestickSeries,
@@ -148,8 +124,6 @@ const LightweightChart = memo(({
       volume: volumeSeries,
       r3: r3Series,
       s3: s3Series,
-      ceiling: ceilingSeries,
-      floor: floorSeries,
     }
 
     console.log('All series created:', Object.keys(seriesRefs.current))
@@ -249,30 +223,12 @@ const LightweightChart = memo(({
         console.log('Pivot points set (last 1/5):', { R3: pivotPoints.R3, S3: pivotPoints.S3, startIndex, totalPoints: candleData.length })
       }
 
-      // Floor/ceiling prices - full chart
-      if (floorPrice && ceilingPrice && candleData.length > 0) {
-        const firstTime = candleData[0].time
-        const lastTime = candleData[candleData.length - 1].time
-
-        series.ceiling?.setData([
-          { time: firstTime, value: ceilingPrice },
-          { time: lastTime, value: ceilingPrice },
-        ])
-
-        series.floor?.setData([
-          { time: firstTime, value: floorPrice },
-          { time: lastTime, value: floorPrice },
-        ])
-
-        console.log('Floor/ceiling prices set:', { floor: floorPrice, ceiling: ceilingPrice })
-      }
-
       chartRef.current?.timeScale().fitContent()
       console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
-  }, [historicalData, timeframe, pivotPoints, chartType, floorPrice, ceilingPrice])
+  }, [historicalData, timeframe, pivotPoints, chartType])
 
   return (
     <div
