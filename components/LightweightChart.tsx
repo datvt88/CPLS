@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
 import {
   createChart,
@@ -10,7 +10,7 @@ import {
   Time,
   CandlestickData,
   HistogramData,
-  WhitespaceData,
+  LineData,
 } from 'lightweight-charts'
 import type { StockPriceData, Timeframe, PivotPoints } from '@/types/stock'
 
@@ -46,7 +46,7 @@ function calculateBollingerBands(
       arr.map((x) => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / arr.length
     )
 
-  const bands = []
+  const bands: LineData[] = []
   for (let i = period - 1; i < data.length; i++) {
     const slice = data.slice(i - period + 1, i + 1)
     const closePrices = slice.map((d) => d.close)
@@ -56,9 +56,7 @@ function calculateBollingerBands(
 
     bands.push({
       time,
-      upper: middle + stdDev * standardDeviation,
-      middle,
-      lower: middle - stdDev * standardDeviation,
+      value: middle + stdDev * standardDeviation,
     })
   }
   return bands
@@ -105,13 +103,32 @@ interface LightweightChartProps {
   historicalData: StockPriceData[]
   timeframe: Timeframe
   pivotPoints: PivotPoints | null
+  floorPrice?: number
+  ceilingPrice?: number
 }
 
 // --- Main Component ---
-const LightweightChart = memo(({ historicalData, timeframe, pivotPoints }: LightweightChartProps) => {
+const LightweightChart = memo(({
+  historicalData,
+  timeframe,
+  pivotPoints,
+  floorPrice,
+  ceilingPrice
+}: LightweightChartProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<{ chart?: IChartApi; series?: Record<string, ISeriesApi<any>> }>({})
+  const chartRef = useRef<IChartApi | null>(null)
+  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+  const bbUpperRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const bbMiddleRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const bbLowerRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const s3Ref = useRef<ISeriesApi<'Line'> | null>(null)
+  const r3Ref = useRef<ISeriesApi<'Line'> | null>(null)
+  const floorRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const ceilingRef = useRef<ISeriesApi<'Line'> | null>(null)
+
   const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
 
   // Initialize chart
   useEffect(() => {
@@ -119,70 +136,129 @@ const LightweightChart = memo(({ historicalData, timeframe, pivotPoints }: Light
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 450,
-      crosshair: { mode: 1 },
-      timeScale: { timeVisible: true, secondsVisible: false },
+      height: 500,
+      layout: {
+        background: { type: ColorType.Solid, color: '#131722' },
+        textColor: '#d1d4dc',
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
+      },
+      crosshair: {
+        mode: 1,
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(197, 203, 206, 0.4)',
+      },
+      timeScale: {
+        borderColor: 'rgba(197, 203, 206, 0.4)',
+        timeVisible: true,
+        secondsVisible: false,
+      },
     })
 
-    chart.priceScale('right').applyOptions({
-      scaleMargins: { top: 0.2, bottom: 0.15 },
+    // Add candlestick series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderDownColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
     })
 
-    const series = {
-      main: chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderDownColor: '#ef5350',
-        borderUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-        wickUpColor: '#26a69a',
-      }),
-      volume: chart.addHistogramSeries({
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'volume_scale',
-      }),
-      bbUpper: chart.addLineSeries({
-        color: 'green',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      }),
-      bbMiddle: chart.addLineSeries({
-        color: '#ffd900',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      }),
-      bbLower: chart.addLineSeries({
-        color: 'green',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      }),
-      s3: chart.addLineSeries({
-        color: '#34c763',
-        lineWidth: 2,
-        lineStyle: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      }),
-      r3: chart.addLineSeries({
-        color: '#ff453a',
-        lineWidth: 2,
-        lineStyle: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-      }),
-    }
-
-    chart.priceScale('volume_scale').applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+    // Add volume series
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '',
     })
 
-    chartRef.current = { chart, series }
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    })
+
+    // Add Bollinger Bands
+    const bbUpper = chart.addLineSeries({
+      color: '#2962FF',
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    })
+
+    const bbMiddle = chart.addLineSeries({
+      color: '#ffd900',
+      lineWidth: 2,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    })
+
+    const bbLower = chart.addLineSeries({
+      color: '#2962FF',
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false,
+    })
+
+    // Add S3/R3 pivot lines
+    const s3Line = chart.addLineSeries({
+      color: '#26a69a',
+      lineWidth: 2,
+      lineStyle: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      title: 'S3',
+    })
+
+    const r3Line = chart.addLineSeries({
+      color: '#ef5350',
+      lineWidth: 2,
+      lineStyle: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      title: 'R3',
+    })
+
+    // Add floor/ceiling price lines
+    const floorLine = chart.addLineSeries({
+      color: '#9C27B0',
+      lineWidth: 2,
+      lineStyle: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      title: 'Sàn',
+    })
+
+    const ceilingLine = chart.addLineSeries({
+      color: '#FF9800',
+      lineWidth: 2,
+      lineStyle: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      title: 'Trần',
+    })
+
+    chartRef.current = chart
+    candlestickSeriesRef.current = candlestickSeries
+    volumeSeriesRef.current = volumeSeries
+    bbUpperRef.current = bbUpper
+    bbMiddleRef.current = bbMiddle
+    bbLowerRef.current = bbLower
+    s3Ref.current = s3Line
+    r3Ref.current = r3Line
+    floorRef.current = floorLine
+    ceilingRef.current = ceilingLine
+
+    setMounted(true)
 
     const handleResize = () => {
-      if (chartContainerRef.current) {
+      if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth })
       }
     }
@@ -192,102 +268,149 @@ const LightweightChart = memo(({ historicalData, timeframe, pivotPoints }: Light
     return () => {
       window.removeEventListener('resize', handleResize)
       chart.remove()
-      chartRef.current = {}
+      chartRef.current = null
     }
   }, [])
 
   // Update theme
   useEffect(() => {
-    const { chart } = chartRef.current
-    if (!chart) return
+    if (!chartRef.current) return
 
     const isDark = resolvedTheme === 'dark'
 
-    chart.applyOptions({
+    chartRef.current.applyOptions({
       layout: {
         background: { type: ColorType.Solid, color: isDark ? '#131722' : '#FFFFFF' },
-        textColor: isDark ? '#FFF' : '#191919',
+        textColor: isDark ? '#d1d4dc' : '#191919',
       },
       grid: {
-        vertLines: { color: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' },
-        horzLines: { color: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' },
+        vertLines: { color: isDark ? 'rgba(42, 46, 57, 0.5)' : 'rgba(197, 203, 206, 0.5)' },
+        horzLines: { color: isDark ? 'rgba(42, 46, 57, 0.5)' : 'rgba(197, 203, 206, 0.5)' },
       },
     })
   }, [resolvedTheme])
 
-  // Memoize processed data
-  const processedData = useMemo(() => {
-    if (historicalData.length === 0) return null
-
-    const sortedData = [...historicalData].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
-    const aggregated = aggregateData(sortedData, timeframe)
-
-    const mainData: (CandlestickData | WhitespaceData)[] = aggregated.map((d) => ({
-      time: (new Date(d.date).getTime() / 1000) as Time,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-    }))
-
-    const volumeData: (HistogramData | WhitespaceData)[] = aggregated.map((d) => ({
-      time: (new Date(d.date).getTime() / 1000) as Time,
-      value: d.nmVolume,
-      color: d.close > d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
-    }))
-
-    const bbPeriod = timeframe === '1m' ? 10 : 30
-    const bbData = calculateBollingerBands(mainData as CandlestickData[], bbPeriod, 3)
-
-    let s3Data: any[] = []
-    let r3Data: any[] = []
-    if (pivotPoints && pivotPoints.S3 && pivotPoints.R3 && mainData.length > 0) {
-      const lastDataPoint = mainData[mainData.length - 1] as CandlestickData
-      const lastTimestamp = lastDataPoint.time as number
-      const twoWeeksAgo = lastTimestamp - 14 * 24 * 60 * 60
-      const fiveDaysFuture = lastTimestamp + 5 * 24 * 60 * 60
-      s3Data = [
-        { time: twoWeeksAgo as Time, value: pivotPoints.S3 },
-        { time: fiveDaysFuture as Time, value: pivotPoints.S3 },
-      ]
-      r3Data = [
-        { time: twoWeeksAgo as Time, value: pivotPoints.R3 },
-        { time: fiveDaysFuture as Time, value: pivotPoints.R3 },
-      ]
-    }
-
-    return { mainData, volumeData, bbData, s3Data, r3Data }
-  }, [historicalData, timeframe, pivotPoints])
-
-  // Update chart with data
+  // Update chart data
   useEffect(() => {
-    const { chart, series } = chartRef.current
-    if (!chart || !series || !processedData) return
+    if (!mounted || !candlestickSeriesRef.current || historicalData.length === 0) return
 
-    const { mainData, volumeData, bbData, s3Data, r3Data } = processedData
+    try {
+      // Sort and aggregate data
+      const sortedData = [...historicalData].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      )
+      const aggregated = aggregateData(sortedData, timeframe)
 
-    series.main.setData(mainData)
-    series.volume.setData(volumeData)
-    series.bbUpper.setData(bbData.map((d) => ({ time: d.time, value: d.upper })))
-    series.bbMiddle.setData(bbData.map((d) => ({ time: d.time, value: d.middle })))
-    series.bbLower.setData(bbData.map((d) => ({ time: d.time, value: d.lower })))
-    series.s3.setData(s3Data)
-    series.r3.setData(r3Data)
+      // Convert to candlestick data
+      const candleData: CandlestickData[] = aggregated.map((d) => ({
+        time: d.date as Time,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+      }))
 
-    if (mainData.length > 0) {
-      const quarterIndex = Math.floor((mainData.length * 3) / 4)
-      chart.timeScale().setVisibleRange({
-        from: mainData[quarterIndex].time,
-        to: mainData[mainData.length - 1].time,
-      })
-    } else {
-      chart.timeScale().fitContent()
+      // Volume data
+      const volumeData: HistogramData[] = aggregated.map((d) => ({
+        time: d.date as Time,
+        value: d.nmVolume,
+        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+      }))
+
+      // Set candlestick and volume data
+      candlestickSeriesRef.current.setData(candleData)
+      if (volumeSeriesRef.current) {
+        volumeSeriesRef.current.setData(volumeData)
+      }
+
+      // Calculate and set Bollinger Bands
+      if (candleData.length >= 20) {
+        const period = timeframe === '1m' ? 10 : 20
+        const bbPeriod = Math.min(period, candleData.length)
+
+        const bbUpperData: LineData[] = []
+        const bbMiddleData: LineData[] = []
+        const bbLowerData: LineData[] = []
+
+        for (let i = bbPeriod - 1; i < candleData.length; i++) {
+          const slice = candleData.slice(i - bbPeriod + 1, i + 1)
+          const closes = slice.map(d => d.close)
+          const mean = closes.reduce((a, b) => a + b, 0) / closes.length
+          const variance = closes.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / closes.length
+          const stdDev = Math.sqrt(variance)
+
+          bbUpperData.push({ time: candleData[i].time, value: mean + 2 * stdDev })
+          bbMiddleData.push({ time: candleData[i].time, value: mean })
+          bbLowerData.push({ time: candleData[i].time, value: mean - 2 * stdDev })
+        }
+
+        if (bbUpperRef.current) bbUpperRef.current.setData(bbUpperData)
+        if (bbMiddleRef.current) bbMiddleRef.current.setData(bbMiddleData)
+        if (bbLowerRef.current) bbLowerRef.current.setData(bbLowerData)
+      }
+
+      // Set pivot points
+      if (pivotPoints && candleData.length > 0) {
+        const firstTime = candleData[0].time
+        const lastTime = candleData[candleData.length - 1].time
+
+        if (s3Ref.current && pivotPoints.S3) {
+          s3Ref.current.setData([
+            { time: firstTime, value: pivotPoints.S3 },
+            { time: lastTime, value: pivotPoints.S3 },
+          ])
+        }
+
+        if (r3Ref.current && pivotPoints.R3) {
+          r3Ref.current.setData([
+            { time: firstTime, value: pivotPoints.R3 },
+            { time: lastTime, value: pivotPoints.R3 },
+          ])
+        }
+      }
+
+      // Set floor/ceiling prices
+      if (floorPrice && ceilingPrice && candleData.length > 0) {
+        const firstTime = candleData[0].time
+        const lastTime = candleData[candleData.length - 1].time
+
+        if (floorRef.current) {
+          floorRef.current.setData([
+            { time: firstTime, value: floorPrice },
+            { time: lastTime, value: floorPrice },
+          ])
+        }
+
+        if (ceilingRef.current) {
+          ceilingRef.current.setData([
+            { time: firstTime, value: ceilingPrice },
+            { time: lastTime, value: ceilingPrice },
+          ])
+        }
+      }
+
+      // Fit content
+      if (chartRef.current && candleData.length > 0) {
+        chartRef.current.timeScale().fitContent()
+      }
+    } catch (error) {
+      console.error('Error updating chart:', error)
     }
-  }, [processedData])
+  }, [mounted, historicalData, timeframe, pivotPoints, floorPrice, ceilingPrice])
 
-  return <div ref={chartContainerRef} className="h-[450px] w-full" />
+  return (
+    <div className="relative">
+      <div ref={chartContainerRef} className="w-full" />
+      {!mounted && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#131722] rounded-lg">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-gray-400">Đang tải biểu đồ...</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 })
 
 LightweightChart.displayName = 'LightweightChart'

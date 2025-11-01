@@ -28,4 +28,7 @@ export interface StockInfo {
   change: number
   changePercent: number
   volume: number
+  floorPrice: number
+  ceilingPrice: number
+  referencePrice: number
 }

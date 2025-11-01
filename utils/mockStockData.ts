@@ -1,9 +1,9 @@
 import type { StockPriceData, StockInfo } from '@/types/stock'
 
 // Generate mock stock price data
-export function generateMockStockData(days: number = 180): StockPriceData[] {
+export function generateMockStockData(days: number = 180, referencePrice: number = 75): StockPriceData[] {
   const data: StockPriceData[] = []
-  let currentPrice = 50 + Math.random() * 50 // Start between 50-100
+  let currentPrice = referencePrice
   const today = new Date()
 
   for (let i = days; i >= 0; i--) {
@@ -11,13 +11,13 @@ export function generateMockStockData(days: number = 180): StockPriceData[] {
     date.setDate(date.getDate() - i)
 
     // Simulate price movement with some volatility
-    const change = (Math.random() - 0.5) * 5
+    const change = (Math.random() - 0.5) * 3
     currentPrice = Math.max(10, currentPrice + change)
 
     const open = currentPrice + (Math.random() - 0.5) * 2
     const close = currentPrice + (Math.random() - 0.5) * 2
-    const high = Math.max(open, close) + Math.random() * 2
-    const low = Math.min(open, close) - Math.random() * 2
+    const high = Math.max(open, close) + Math.random() * 1.5
+    const low = Math.min(open, close) - Math.random() * 1.5
     const nmVolume = Math.floor(1000000 + Math.random() * 9000000)
 
     data.push({
@@ -38,66 +38,90 @@ export const mockVietnameseStocks: StockInfo[] = [
   {
     symbol: 'VNM',
     name: 'Vinamilk',
+    referencePrice: 77.3,
     lastPrice: 78.5,
     change: 1.2,
     changePercent: 1.55,
     volume: 3456789,
+    floorPrice: 71.9, // -7%
+    ceilingPrice: 82.7, // +7%
   },
   {
     symbol: 'VIC',
     name: 'Vingroup',
+    referencePrice: 46.1,
     lastPrice: 45.3,
     change: -0.8,
     changePercent: -1.74,
     volume: 8765432,
+    floorPrice: 42.9,
+    ceilingPrice: 49.3,
   },
   {
     symbol: 'HPG',
     name: 'Hòa Phát',
+    referencePrice: 22.9,
     lastPrice: 23.4,
     change: 0.5,
     changePercent: 2.18,
     volume: 12345678,
+    floorPrice: 21.3,
+    ceilingPrice: 24.5,
   },
   {
     symbol: 'VHM',
     name: 'Vinhomes',
+    referencePrice: 69.3,
     lastPrice: 67.8,
     change: -1.5,
     changePercent: -2.16,
     volume: 5678901,
+    floorPrice: 64.5,
+    ceilingPrice: 74.2,
   },
   {
     symbol: 'TCB',
     name: 'Techcombank',
+    referencePrice: 33.7,
     lastPrice: 34.6,
     change: 0.9,
     changePercent: 2.67,
     volume: 7890123,
+    floorPrice: 31.3,
+    ceilingPrice: 36.1,
   },
   {
     symbol: 'VPB',
     name: 'VPBank',
+    referencePrice: 18.6,
     lastPrice: 18.9,
     change: 0.3,
     changePercent: 1.61,
     volume: 9012345,
+    floorPrice: 17.3,
+    ceilingPrice: 19.9,
   },
   {
     symbol: 'GAS',
     name: 'PV Gas',
+    referencePrice: 87.1,
     lastPrice: 89.2,
     change: 2.1,
     changePercent: 2.41,
     volume: 2345678,
+    floorPrice: 81.0,
+    ceilingPrice: 93.2,
   },
   {
     symbol: 'MSN',
     name: 'Masan Group',
+    referencePrice: 57.3,
     lastPrice: 56.7,
     change: -0.6,
     changePercent: -1.05,
     volume: 4567890,
+    floorPrice: 53.3,
+    ceilingPrice: 61.3,
   },
 ]
 
