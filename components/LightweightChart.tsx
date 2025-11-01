@@ -9,8 +9,6 @@ interface LightweightChartProps {
   historicalData: StockPriceData[]
   timeframe: Timeframe
   pivotPoints: PivotPoints | null
-  floorPrice?: number
-  ceilingPrice?: number
 }
 
 // Calculate Woodie Pivot Points
@@ -30,32 +28,20 @@ export function calculateWoodiePivotPoints(data: StockPriceData[]): PivotPoints 
 const LightweightChart = memo(({
   historicalData,
   timeframe,
-  pivotPoints,
-  floorPrice,
-  ceilingPrice
+  pivotPoints
 }: LightweightChartProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRefs = useRef<{
     candlestick: ISeriesApi<'Candlestick'> | null
     volume: ISeriesApi<'Histogram'> | null
-    bbUpper: ISeriesApi<'Line'> | null
-    bbMiddle: ISeriesApi<'Line'> | null
-    bbLower: ISeriesApi<'Line'> | null
     r3: ISeriesApi<'Line'> | null
     s3: ISeriesApi<'Line'> | null
-    ceiling: ISeriesApi<'Line'> | null
-    floor: ISeriesApi<'Line'> | null
   }>({
     candlestick: null,
     volume: null,
-    bbUpper: null,
-    bbMiddle: null,
-    bbLower: null,
     r3: null,
     s3: null,
-    ceiling: null,
-    floor: null,
   })
 
   // Initialize chart once
@@ -104,27 +90,6 @@ const LightweightChart = memo(({
       scaleMargins: { top: 0.7, bottom: 0 },
     })
 
-    const bbUpperSeries = chart.addLineSeries({
-      color: '#2962FF',
-      lineWidth: 1,
-      lastValueVisible: false,
-      priceLineVisible: false,
-    })
-
-    const bbMiddleSeries = chart.addLineSeries({
-      color: '#FFD700',
-      lineWidth: 2,
-      lastValueVisible: false,
-      priceLineVisible: false,
-    })
-
-    const bbLowerSeries = chart.addLineSeries({
-      color: '#2962FF',
-      lineWidth: 1,
-      lastValueVisible: false,
-      priceLineVisible: false,
-    })
-
     const r3Series = chart.addLineSeries({
       color: '#ef5350',
       lineWidth: 2,
@@ -141,33 +106,12 @@ const LightweightChart = memo(({
       priceLineVisible: false,
     })
 
-    const ceilingSeries = chart.addLineSeries({
-      color: '#FF9800',
-      lineWidth: 2,
-      lineStyle: 2,
-      lastValueVisible: true,
-      priceLineVisible: false,
-    })
-
-    const floorSeries = chart.addLineSeries({
-      color: '#9C27B0',
-      lineWidth: 2,
-      lineStyle: 2,
-      lastValueVisible: true,
-      priceLineVisible: false,
-    })
-
     chartRef.current = chart
     seriesRefs.current = {
       candlestick: candlestickSeries,
       volume: volumeSeries,
-      bbUpper: bbUpperSeries,
-      bbMiddle: bbMiddleSeries,
-      bbLower: bbLowerSeries,
       r3: r3Series,
       s3: s3Series,
-      ceiling: ceilingSeries,
-      floor: floorSeries,
     }
 
     console.log('All series created:', Object.keys(seriesRefs.current))
@@ -231,34 +175,7 @@ const LightweightChart = memo(({
 
       console.log('Candlestick and volume data set successfully')
 
-      // Calculate Bollinger Bands
-      if (candleData.length >= 20) {
-        const period = 20
-        const stdDev = 2
-        const bbUpper: LineData[] = []
-        const bbMiddle: LineData[] = []
-        const bbLower: LineData[] = []
-
-        for (let i = period - 1; i < candleData.length; i++) {
-          const slice = candleData.slice(i - period + 1, i + 1)
-          const closes = slice.map(d => d.close)
-          const mean = closes.reduce((a, b) => a + b, 0) / closes.length
-          const variance = closes.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / closes.length
-          const sd = Math.sqrt(variance)
-
-          bbUpper.push({ time: candleData[i].time, value: mean + stdDev * sd })
-          bbMiddle.push({ time: candleData[i].time, value: mean })
-          bbLower.push({ time: candleData[i].time, value: mean - stdDev * sd })
-        }
-
-        series.bbUpper?.setData(bbUpper)
-        series.bbMiddle?.setData(bbMiddle)
-        series.bbLower?.setData(bbLower)
-
-        console.log('Bollinger Bands calculated and set:', bbUpper.length, 'points')
-      }
-
-      // Pivot points
+      // Pivot points (R3 - Resistance, S3 - Support)
       if (pivotPoints && candleData.length > 0) {
         const firstTime = candleData[0].time
         const lastTime = candleData[candleData.length - 1].time
@@ -276,30 +193,12 @@ const LightweightChart = memo(({
         console.log('Pivot points set:', { R3: pivotPoints.R3, S3: pivotPoints.S3 })
       }
 
-      // Floor/ceiling
-      if (floorPrice && ceilingPrice && candleData.length > 0) {
-        const firstTime = candleData[0].time
-        const lastTime = candleData[candleData.length - 1].time
-
-        series.ceiling?.setData([
-          { time: firstTime, value: ceilingPrice },
-          { time: lastTime, value: ceilingPrice },
-        ])
-
-        series.floor?.setData([
-          { time: firstTime, value: floorPrice },
-          { time: lastTime, value: floorPrice },
-        ])
-
-        console.log('Floor/ceiling prices set:', { floor: floorPrice, ceiling: ceilingPrice })
-      }
-
       chartRef.current?.timeScale().fitContent()
       console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
-  }, [historicalData, timeframe, pivotPoints, floorPrice, ceilingPrice])
+  }, [historicalData, timeframe, pivotPoints])
 
   return (
     <div
