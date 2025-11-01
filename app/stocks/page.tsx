@@ -69,19 +69,24 @@ export default function StocksPage() {
 
   // Aggregate data based on timeframe
   const historicalData = useMemo(() => {
-    if (rawHistoricalData.length === 0) return []
+    if (rawHistoricalData.length === 0) {
+      console.log('No raw data available')
+      return []
+    }
+
+    console.log('Raw data length:', rawHistoricalData.length, 'Timeframe:', timeframe)
 
     if (timeframe === '1d') {
       return rawHistoricalData
     }
 
     // Aggregate for weekly or monthly
-    const aggregated: typeof rawHistoricalData = []
+    const aggregated: StockPriceData[] = []
     const sortedData = [...rawHistoricalData].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     )
 
-    let currentGroup: typeof rawHistoricalData = []
+    let currentGroup: StockPriceData[] = []
     let currentPeriodKey = ''
 
     sortedData.forEach((dataPoint, index) => {
@@ -98,14 +103,21 @@ export default function StocksPage() {
         periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
       }
 
-      if (periodKey !== currentPeriodKey && currentGroup.length > 0) {
-        // Aggregate current group
-        aggregated.push(aggregateGroup(currentGroup))
+      // Start new group or add to current group
+      if (currentPeriodKey === '') {
+        // First item
+        currentGroup = [dataPoint]
+        currentPeriodKey = periodKey
+      } else if (periodKey !== currentPeriodKey) {
+        // Period changed, save current group and start new one
+        if (currentGroup.length > 0) {
+          aggregated.push(aggregateGroup(currentGroup))
+        }
         currentGroup = [dataPoint]
         currentPeriodKey = periodKey
       } else {
+        // Same period, add to current group
         currentGroup.push(dataPoint)
-        currentPeriodKey = periodKey
       }
 
       // Handle last group
@@ -114,6 +126,7 @@ export default function StocksPage() {
       }
     })
 
+    console.log('Aggregated data length:', aggregated.length)
     return aggregated
   }, [rawHistoricalData, timeframe])
 
@@ -299,17 +312,25 @@ export default function StocksPage() {
             {chartType === 'candlestick' ? 'Biểu đồ nến' : 'Biểu đồ đường'} - {stockSymbol}
           </h3>
           <div className="text-sm text-[--muted]">
-            {historicalData.length} ngày giao dịch
+            {historicalData.length} điểm dữ liệu
+            {timeframe === '1d' ? ' (ngày)' : timeframe === '1w' ? ' (tuần)' : ' (tháng)'}
           </div>
         </div>
 
-        {stockInfo && (
+        {stockInfo && historicalData.length > 0 ? (
           <LightweightChart
             historicalData={historicalData}
             timeframe={timeframe}
             pivotPoints={pivotPoints}
             chartType={chartType}
           />
+        ) : (
+          <div className="h-[500px] w-full flex items-center justify-center bg-gray-800/30 rounded-lg">
+            <div className="text-center text-gray-400">
+              <p className="text-lg">Không có dữ liệu để hiển thị</p>
+              <p className="text-sm mt-2">Vui lòng thử lại hoặc chọn mã cổ phiếu khác</p>
+            </div>
+          </div>
         )}
 
         {/* Legend */}
