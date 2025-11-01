@@ -1,14 +1,22 @@
 'use client'
-import { useState } from 'react'
-import { useUser } from '@supabase/auth-helpers-react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 import { SignalOutput, SignalResponse } from '@/types/signal'
 
 export default function SignalAI(){
-  const user = useUser()
+  const [userId, setUserId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('VNINDEX')
   const [out, setOut] = useState<SignalOutput | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setUserId(session?.user?.id || null)
+    }
+    getUser()
+  }, [])
 
   const run = async () => {
     if (!prompt.trim()) {
@@ -24,7 +32,7 @@ export default function SignalAI(){
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, user_id: user?.id })
+        body: JSON.stringify({ prompt, user_id: userId })
       })
 
       if (!res.ok) {
