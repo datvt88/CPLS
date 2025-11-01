@@ -9,6 +9,9 @@ interface LightweightChartProps {
   historicalData: StockPriceData[]
   timeframe: Timeframe
   pivotPoints: PivotPoints | null
+  chartType: 'candlestick' | 'line'
+  floorPrice?: number
+  ceilingPrice?: number
 }
 
 // Calculate Woodie Pivot Points
@@ -28,20 +31,29 @@ export function calculateWoodiePivotPoints(data: StockPriceData[]): PivotPoints 
 const LightweightChart = memo(({
   historicalData,
   timeframe,
-  pivotPoints
+  pivotPoints,
+  chartType,
+  floorPrice,
+  ceilingPrice
 }: LightweightChartProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRefs = useRef<{
     candlestick: ISeriesApi<'Candlestick'> | null
+    line: ISeriesApi<'Line'> | null
     volume: ISeriesApi<'Histogram'> | null
     r3: ISeriesApi<'Line'> | null
     s3: ISeriesApi<'Line'> | null
+    ceiling: ISeriesApi<'Line'> | null
+    floor: ISeriesApi<'Line'> | null
   }>({
     candlestick: null,
+    line: null,
     volume: null,
     r3: null,
     s3: null,
+    ceiling: null,
+    floor: null,
   })
 
   // Initialize chart once
@@ -81,6 +93,13 @@ const LightweightChart = memo(({
       wickDownColor: '#ef5350',
     })
 
+    const lineSeries = chart.addLineSeries({
+      color: '#2962FF',
+      lineWidth: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+    })
+
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: { type: 'volume' },
@@ -106,12 +125,31 @@ const LightweightChart = memo(({
       priceLineVisible: false,
     })
 
+    const ceilingSeries = chart.addLineSeries({
+      color: '#FF9800',
+      lineWidth: 2,
+      lineStyle: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+    })
+
+    const floorSeries = chart.addLineSeries({
+      color: '#9C27B0',
+      lineWidth: 2,
+      lineStyle: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+    })
+
     chartRef.current = chart
     seriesRefs.current = {
       candlestick: candlestickSeries,
+      line: lineSeries,
       volume: volumeSeries,
       r3: r3Series,
       s3: s3Series,
+      ceiling: ceilingSeries,
+      floor: floorSeries,
     }
 
     console.log('All series created:', Object.keys(seriesRefs.current))
@@ -134,9 +172,10 @@ const LightweightChart = memo(({
   // Update data
   useEffect(() => {
     const series = seriesRefs.current
-    if (!series.candlestick || !series.volume || historicalData.length === 0) {
+    if (!series.candlestick || !series.line || !series.volume || historicalData.length === 0) {
       console.log('Chart not ready or no data:', {
         hasCandlestick: !!series.candlestick,
+        hasLine: !!series.line,
         hasVolume: !!series.volume,
         dataLength: historicalData.length
       })
@@ -151,7 +190,8 @@ const LightweightChart = memo(({
       console.log('Setting chart data:', {
         dataPoints: sortedData.length,
         firstDate: sortedData[0]?.date,
-        lastDate: sortedData[sortedData.length - 1]?.date
+        lastDate: sortedData[sortedData.length - 1]?.date,
+        chartType
       })
 
       // Candlestick data with proper Time typing
@@ -163,6 +203,12 @@ const LightweightChart = memo(({
         close: d.close,
       }))
 
+      // Line data (closing prices)
+      const lineData: LineData[] = sortedData.map(d => ({
+        time: d.date as Time,
+        value: d.close,
+      }))
+
       // Volume data with proper Time typing
       const volumeData: HistogramData[] = sortedData.map(d => ({
         time: d.date as Time,
@@ -170,27 +216,55 @@ const LightweightChart = memo(({
         color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
       }))
 
-      series.candlestick.setData(candleData)
+      // Toggle between candlestick and line chart
+      if (chartType === 'candlestick') {
+        series.candlestick.setData(candleData)
+        series.line.setData([]) // Clear line data
+      } else {
+        series.line.setData(lineData)
+        series.candlestick.setData([]) // Clear candlestick data
+      }
+
       series.volume.setData(volumeData)
 
-      console.log('Candlestick and volume data set successfully')
+      console.log(`${chartType} and volume data set successfully`)
 
-      // Pivot points (R3 - Resistance, S3 - Support)
+      // Pivot points (R3 - Resistance, S3 - Support) - only show in last 1/5 of chart
       if (pivotPoints && candleData.length > 0) {
-        const firstTime = candleData[0].time
+        // Calculate start index for last 1/5 (20%) of data
+        const startIndex = Math.floor(candleData.length * 0.8)
+        const startTime = candleData[startIndex].time
         const lastTime = candleData[candleData.length - 1].time
 
         series.r3?.setData([
-          { time: firstTime, value: pivotPoints.R3 },
+          { time: startTime, value: pivotPoints.R3 },
           { time: lastTime, value: pivotPoints.R3 },
         ])
 
         series.s3?.setData([
-          { time: firstTime, value: pivotPoints.S3 },
+          { time: startTime, value: pivotPoints.S3 },
           { time: lastTime, value: pivotPoints.S3 },
         ])
 
-        console.log('Pivot points set:', { R3: pivotPoints.R3, S3: pivotPoints.S3 })
+        console.log('Pivot points set (last 1/5):', { R3: pivotPoints.R3, S3: pivotPoints.S3, startIndex, totalPoints: candleData.length })
+      }
+
+      // Floor/ceiling prices - full chart
+      if (floorPrice && ceilingPrice && candleData.length > 0) {
+        const firstTime = candleData[0].time
+        const lastTime = candleData[candleData.length - 1].time
+
+        series.ceiling?.setData([
+          { time: firstTime, value: ceilingPrice },
+          { time: lastTime, value: ceilingPrice },
+        ])
+
+        series.floor?.setData([
+          { time: firstTime, value: floorPrice },
+          { time: lastTime, value: floorPrice },
+        ])
+
+        console.log('Floor/ceiling prices set:', { floor: floorPrice, ceiling: ceilingPrice })
       }
 
       chartRef.current?.timeScale().fitContent()
@@ -198,7 +272,7 @@ const LightweightChart = memo(({
     } catch (error) {
       console.error('Error updating chart:', error)
     }
-  }, [historicalData, timeframe, pivotPoints])
+  }, [historicalData, timeframe, pivotPoints, chartType, floorPrice, ceilingPrice])
 
   return (
     <div

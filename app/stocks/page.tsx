@@ -26,6 +26,7 @@ const LightweightChart = dynamic(() => import('@/components/LightweightChart'), 
 export default function StocksPage() {
   const [stockSymbol, setStockSymbol] = useState('VNM')
   const [timeframe, setTimeframe] = useState<Timeframe>('1d')
+  const [chartType, setChartType] = useState<'candlestick' | 'line'>('candlestick')
 
   const stockInfo = getStockBySymbol(stockSymbol)
 
@@ -64,14 +65,13 @@ export default function StocksPage() {
           />
           <button
             onClick={() => {
-              // Quick access to popular stocks
-              const popularStocks = ['VNM', 'HPG', 'VIC', 'VHM', 'FPT', 'TCB', 'MSN', 'VRE']
-              const randomStock = popularStocks[Math.floor(Math.random() * popularStocks.length)]
-              setStockSymbol(randomStock)
+              // Scroll to technical analysis section
+              const technicalSection = document.getElementById('technical-analysis')
+              technicalSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium whitespace-nowrap"
           >
-            🎲 Ngẫu nhiên
+            📊 Xem PTKT
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2">
@@ -90,7 +90,7 @@ export default function StocksPage() {
           </div>
 
           {/* Price Grid */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             {/* Current Price */}
             <div className="bg-gray-800/50 rounded-lg p-4">
               <div className="text-[--muted] text-xs mb-1">Giá hiện tại</div>
@@ -113,6 +113,24 @@ export default function StocksPage() {
                 {stockInfo.referencePrice.toFixed(2)}
               </div>
               <div className="text-xs text-yellow-400/70">Giá đóng cửa phiên trước</div>
+            </div>
+
+            {/* Ceiling Price */}
+            <div className="bg-orange-900/20 rounded-lg p-4 border border-orange-700/30">
+              <div className="text-orange-400 text-xs mb-1">Giá trần</div>
+              <div className="text-2xl font-bold text-orange-300">
+                {stockInfo.ceilingPrice.toFixed(2)}
+              </div>
+              <div className="text-xs text-orange-400/70">+7%</div>
+            </div>
+
+            {/* Floor Price */}
+            <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-700/30">
+              <div className="text-purple-400 text-xs mb-1">Giá sàn</div>
+              <div className="text-2xl font-bold text-purple-300">
+                {stockInfo.floorPrice.toFixed(2)}
+              </div>
+              <div className="text-xs text-purple-400/70">-7%</div>
             </div>
           </div>
 
@@ -145,23 +163,51 @@ export default function StocksPage() {
         </div>
       )}
 
-      {/* Timeframe Selection */}
+      {/* Chart Controls */}
       <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[--muted] mr-2">Khung thời gian:</span>
-          {(['1d', '1w', '1m'] as Timeframe[]).map((tf) => (
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          {/* Timeframe Selection */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[--muted] mr-2">Khung thời gian:</span>
+            {(['1d', '1w', '1m'] as Timeframe[]).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  timeframe === tf
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {tf === '1d' ? 'Ngày' : tf === '1w' ? 'Tuần' : 'Tháng'}
+              </button>
+            ))}
+          </div>
+
+          {/* Chart Type Selection */}
+          <div className="flex items-center gap-2 flex-wrap md:ml-auto">
+            <span className="text-[--muted] mr-2">Loại biểu đồ:</span>
             <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
+              onClick={() => setChartType('candlestick')}
               className={`px-4 py-2 rounded-lg transition-colors ${
-                timeframe === tf
+                chartType === 'candlestick'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              {tf === '1d' ? 'Ngày' : tf === '1w' ? 'Tuần' : 'Tháng'}
+              📊 Nến
             </button>
-          ))}
+            <button
+              onClick={() => setChartType('line')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                chartType === 'line'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              📈 Line
+            </button>
+          </div>
         </div>
       </div>
 
@@ -169,7 +215,7 @@ export default function StocksPage() {
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-semibold text-white">
-            Biểu đồ nến - {stockSymbol}
+            {chartType === 'candlestick' ? 'Biểu đồ nến' : 'Biểu đồ đường'} - {stockSymbol}
           </h3>
           <div className="text-sm text-[--muted]">
             {historicalData.length} ngày giao dịch
@@ -181,28 +227,43 @@ export default function StocksPage() {
             historicalData={historicalData}
             timeframe={timeframe}
             pivotPoints={pivotPoints}
+            chartType={chartType}
+            floorPrice={stockInfo.floorPrice}
+            ceilingPrice={stockInfo.ceilingPrice}
           />
         )}
 
         {/* Legend */}
-        <div className="mt-6 flex flex-wrap gap-6 text-sm">
+        <div className="mt-6 flex flex-wrap gap-4 text-sm">
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef5350' }}></div>
             <span className="text-[--muted]">
-              <strong className="text-red-400">R3</strong> - Woodie Resistance (Kháng cự)
+              <strong className="text-red-400">R3</strong> - Kháng cự
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #26a69a' }}></div>
             <span className="text-[--muted]">
-              <strong className="text-green-400">S3</strong> - Woodie Support (Hỗ trợ)
+              <strong className="text-green-400">S3</strong> - Hỗ trợ
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-0.5 bg-orange-500" style={{ borderTop: '2px dashed #FF9800' }}></div>
+            <span className="text-[--muted]">
+              <strong className="text-orange-400">Giá trần</strong> (+7%)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-0.5 bg-purple-500" style={{ borderTop: '2px dashed #9C27B0' }}></div>
+            <span className="text-[--muted]">
+              <strong className="text-purple-400">Giá sàn</strong> (-7%)
             </span>
           </div>
         </div>
       </div>
 
       {/* Technical Analysis Guide */}
-      <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-xl p-6 border border-purple-700/30">
+      <div id="technical-analysis" className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-xl p-6 border border-purple-700/30">
         <h3 className="text-xl font-semibold text-white mb-3 flex items-center gap-2">
           📊 Phân tích kỹ thuật - Woodie Pivot Points
         </h3>
