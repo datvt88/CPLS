@@ -203,10 +203,11 @@ const LightweightChart = memo(({
 
       console.log(`${chartType} and volume data set successfully`)
 
-      // Pivot points (R3 - Resistance, S3 - Support) - only show in last 1/5 of chart
+      // Pivot points (R3 - Resistance, S3 - Support) - only show in last 1 month (~30 days)
       if (pivotPoints && candleData.length > 0) {
-        // Calculate start index for last 1/5 (20%) of data
-        const startIndex = Math.floor(candleData.length * 0.8)
+        // Calculate start index for last 1 month (approximately 30 data points)
+        const daysToShow = 30
+        const startIndex = Math.max(0, candleData.length - daysToShow)
         const startTime = candleData[startIndex].time
         const lastTime = candleData[candleData.length - 1].time
 
@@ -220,7 +221,7 @@ const LightweightChart = memo(({
           { time: lastTime, value: pivotPoints.S3 },
         ])
 
-        console.log('Pivot points set (last 1/5):', { R3: pivotPoints.R3, S3: pivotPoints.S3, startIndex, totalPoints: candleData.length })
+        console.log('Pivot points set (last 1 month):', { R3: pivotPoints.R3, S3: pivotPoints.S3, startIndex, totalPoints: candleData.length, daysShown: candleData.length - startIndex })
       }
 
       chartRef.current?.timeScale().fitContent()

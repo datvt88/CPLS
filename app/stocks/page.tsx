@@ -130,10 +130,29 @@ export default function StocksPage() {
     return aggregated
   }, [rawHistoricalData, timeframe])
 
+  // Default to show last 6 months (180 days for daily, proportional for weekly/monthly)
+  const displayData = useMemo(() => {
+    if (historicalData.length === 0) return []
+
+    let limitDays = 180 // Default 6 months
+
+    // Adjust limit based on timeframe
+    if (timeframe === '1w') {
+      limitDays = Math.ceil(180 / 7) // ~26 weeks
+    } else if (timeframe === '1m') {
+      limitDays = 6 // 6 months
+    }
+
+    // Take last N data points
+    const result = historicalData.slice(-limitDays)
+    console.log('Display data limited to:', result.length, 'points (last 6 months)')
+    return result
+  }, [historicalData, timeframe])
+
   // Calculate pivot points
   const pivotPoints = useMemo(() => {
-    return calculateWoodiePivotPoints(historicalData)
-  }, [historicalData])
+    return calculateWoodiePivotPoints(displayData)
+  }, [displayData])
 
   return (
     <div className="space-y-6">
@@ -312,14 +331,14 @@ export default function StocksPage() {
             {chartType === 'candlestick' ? 'Biểu đồ nến' : 'Biểu đồ đường'} - {stockSymbol}
           </h3>
           <div className="text-sm text-[--muted]">
-            {historicalData.length} điểm dữ liệu
-            {timeframe === '1d' ? ' (ngày)' : timeframe === '1w' ? ' (tuần)' : ' (tháng)'}
+            {displayData.length} điểm dữ liệu
+            {timeframe === '1d' ? ' (ngày)' : timeframe === '1w' ? ' (tuần)' : ' (tháng)'} - 6 tháng gần nhất
           </div>
         </div>
 
-        {stockInfo && historicalData.length > 0 ? (
+        {stockInfo && displayData.length > 0 ? (
           <LightweightChart
-            historicalData={historicalData}
+            historicalData={displayData}
             timeframe={timeframe}
             pivotPoints={pivotPoints}
             chartType={chartType}
@@ -338,13 +357,13 @@ export default function StocksPage() {
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef5350' }}></div>
             <span className="text-[--muted]">
-              <strong className="text-red-400">R3</strong> - Kháng cự (chỉ hiển thị 1/5 cuối)
+              <strong className="text-red-400">R3</strong> - Kháng cự (1 tháng cuối)
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #26a69a' }}></div>
             <span className="text-[--muted]">
-              <strong className="text-green-400">S3</strong> - Hỗ trợ (chỉ hiển thị 1/5 cuối)
+              <strong className="text-green-400">S3</strong> - Hỗ trợ (1 tháng cuối)
             </span>
           </div>
         </div>
