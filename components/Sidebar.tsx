@@ -19,7 +19,16 @@ export default function Sidebar(){
         </div>
       </div>
       <nav className="space-y-2">
-        {items.map(i=> (<Link key={i.href} href={i.href}><a className="block py-3 px-3 rounded hover:bg-gray-800 text-gray-200">{i.icon}<span className="ml-3">{i.label}</span></a></Link>))}
+        {items.map(i => (
+          <Link
+            key={i.href}
+            href={i.href}
+            className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors"
+          >
+            <span className="text-xl">{i.icon}</span>
+            <span className="ml-3">{i.label}</span>
+          </Link>
+        ))}
       </nav>
     </aside>
   )
