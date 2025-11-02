@@ -173,6 +173,14 @@ export default function StocksPage() {
             type="text"
             value={stockSymbol}
             onChange={(e) => setStockSymbol(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                // Scroll to chart section when Enter is pressed
+                const chartSection = document.querySelector('.bg-\\[--panel\\].rounded-xl.p-6.border.border-gray-800:has(#technical-analysis)')
+                  || document.getElementById('technical-analysis')
+                chartSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+            }}
             placeholder="VD: VNM, HPG, VIC, VHM..."
             className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-purple-500 uppercase"
           />

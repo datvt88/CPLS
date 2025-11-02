@@ -127,5 +127,33 @@ export const mockVietnameseStocks: StockInfo[] = [
 
 // Get stock data by symbol
 export function getStockBySymbol(symbol: string): StockInfo | undefined {
-  return mockVietnameseStocks.find((stock) => stock.symbol === symbol)
+  // First try to find in predefined stocks
+  const existing = mockVietnameseStocks.find((stock) => stock.symbol === symbol)
+  if (existing) {
+    return existing
+  }
+
+  // If not found, generate mock data for the entered symbol
+  if (symbol && symbol.trim() !== '') {
+    // Generate random but reasonable stock data
+    const referencePrice = Number((30 + Math.random() * 70).toFixed(2)) // Random price between 30-100
+    const changePercent = Number(((Math.random() - 0.5) * 6).toFixed(2)) // Random change between -3% to +3%
+    const change = Number((referencePrice * changePercent / 100).toFixed(2))
+    const lastPrice = Number((referencePrice + change).toFixed(2))
+    const volume = Math.floor(1000000 + Math.random() * 10000000)
+
+    return {
+      symbol: symbol.toUpperCase(),
+      name: `Cổ phiếu ${symbol.toUpperCase()}`,
+      referencePrice,
+      lastPrice,
+      change,
+      changePercent,
+      volume,
+      floorPrice: Number((referencePrice * 0.93).toFixed(2)), // -7%
+      ceilingPrice: Number((referencePrice * 1.07).toFixed(2)), // +7%
+    }
+  }
+
+  return undefined
 }
