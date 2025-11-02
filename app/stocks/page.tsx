@@ -64,7 +64,7 @@ export default function StocksPage() {
   // Generate mock data for selected stock with correct reference price (3 years = 1095 days)
   const rawHistoricalData = useMemo(() => {
     if (!stockInfo) return []
-    return generateMockStockData(1095, stockInfo.referencePrice)
+    return generateMockStockData(1095, stockInfo.referencePrice, stockInfo.lastPrice)
   }, [stockSymbol, stockInfo])
 
   // Aggregate data based on timeframe

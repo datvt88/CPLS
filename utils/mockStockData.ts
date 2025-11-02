@@ -1,33 +1,83 @@
 import type { StockPriceData, StockInfo } from '@/types/stock'
 
 // Generate mock stock price data
-export function generateMockStockData(days: number = 180, referencePrice: number = 75): StockPriceData[] {
+export function generateMockStockData(
+  days: number = 180,
+  referencePrice: number = 75,
+  lastPrice: number = 75
+): StockPriceData[] {
   const data: StockPriceData[] = []
-  let currentPrice = referencePrice
   const today = new Date()
+
+  // Start from a reasonable historical price (80% to 120% of current price)
+  const startPrice = lastPrice * (0.8 + Math.random() * 0.4)
+  let currentPrice = startPrice
 
   for (let i = days; i >= 0; i--) {
     const date = new Date(today)
     date.setDate(date.getDate() - i)
 
-    // Simulate price movement with some volatility
-    const change = (Math.random() - 0.5) * 3
-    currentPrice = Math.max(10, currentPrice + change)
+    // For the last 2 days, use actual prices
+    if (i === 1) {
+      // Yesterday should close at referencePrice
+      currentPrice = referencePrice
+      const open = referencePrice + (Math.random() - 0.5) * 1
+      const close = referencePrice
+      const high = Math.max(open, close) + Math.random() * 0.5
+      const low = Math.min(open, close) - Math.random() * 0.5
+      const nmVolume = Math.floor(1000000 + Math.random() * 9000000)
 
-    const open = currentPrice + (Math.random() - 0.5) * 2
-    const close = currentPrice + (Math.random() - 0.5) * 2
-    const high = Math.max(open, close) + Math.random() * 1.5
-    const low = Math.min(open, close) - Math.random() * 1.5
-    const nmVolume = Math.floor(1000000 + Math.random() * 9000000)
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        nmVolume,
+      })
+    } else if (i === 0) {
+      // Today should close at lastPrice
+      const open = referencePrice + (Math.random() - 0.5) * 1
+      const close = lastPrice
+      const high = Math.max(open, close, referencePrice) + Math.random() * 0.5
+      const low = Math.min(open, close, referencePrice) - Math.random() * 0.5
+      const nmVolume = Math.floor(1000000 + Math.random() * 9000000)
 
-    data.push({
-      date: date.toISOString().split('T')[0],
-      open: Number(open.toFixed(2)),
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
-      close: Number(close.toFixed(2)),
-      nmVolume,
-    })
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        nmVolume,
+      })
+    } else {
+      // Historical days: gradually move from startPrice towards referencePrice
+      // Add some random walk but bias towards referencePrice as we get closer to today
+      const daysFromEnd = i
+      const progressToToday = 1 - (daysFromEnd / days)
+      const targetPrice = startPrice + (referencePrice - startPrice) * progressToToday
+
+      // Add random volatility (smaller as we get closer to today for stability)
+      const volatility = 2 * (1 - progressToToday * 0.5)
+      const change = (Math.random() - 0.5) * volatility
+      currentPrice = Math.max(10, targetPrice + change)
+
+      const open = currentPrice + (Math.random() - 0.5) * 1.5
+      const close = currentPrice + (Math.random() - 0.5) * 1.5
+      const high = Math.max(open, close) + Math.random() * 1
+      const low = Math.min(open, close) - Math.random() * 1
+      const nmVolume = Math.floor(1000000 + Math.random() * 9000000)
+
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        nmVolume,
+      })
+    }
   }
 
   return data
