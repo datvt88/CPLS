@@ -1,3 +1,15 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = { experimental: { serverActions: true } }
+const nextConfig = {
+  reactStrictMode: true,
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
+  },
+  images: {
+    domains: [],
+  },
+}
+
 module.exports = nextConfig
