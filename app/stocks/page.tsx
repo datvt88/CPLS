@@ -59,7 +59,9 @@ export default function StocksPage() {
   const [timeframe, setTimeframe] = useState<Timeframe>('1d')
   const [chartType, setChartType] = useState<'candlestick' | 'line'>('candlestick')
 
-  const stockInfo = getStockBySymbol(stockSymbol)
+  const stockInfo = useMemo(() => {
+    return getStockBySymbol(stockSymbol)
+  }, [stockSymbol])
 
   // Generate mock data for selected stock with correct reference price (3 years = 1095 days)
   const rawHistoricalData = useMemo(() => {
@@ -70,11 +72,8 @@ export default function StocksPage() {
   // Aggregate data based on timeframe
   const historicalData = useMemo(() => {
     if (rawHistoricalData.length === 0) {
-      console.log('No raw data available')
       return []
     }
-
-    console.log('Raw data length:', rawHistoricalData.length, 'Timeframe:', timeframe)
 
     if (timeframe === '1d') {
       return rawHistoricalData
@@ -126,7 +125,6 @@ export default function StocksPage() {
       }
     })
 
-    console.log('Aggregated data length:', aggregated.length)
     return aggregated
   }, [rawHistoricalData, timeframe])
 
@@ -144,9 +142,7 @@ export default function StocksPage() {
     }
 
     // Take last N data points
-    const result = historicalData.slice(-limitDays)
-    console.log('Display data limited to:', result.length, 'points (last 6 months)')
-    return result
+    return historicalData.slice(-limitDays)
   }, [historicalData, timeframe])
 
   // Calculate pivot points
