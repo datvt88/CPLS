@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { Timeframe, StockPriceData } from '@/types/stock'
 import {
@@ -58,6 +58,7 @@ export default function StocksPage() {
   const [stockSymbol, setStockSymbol] = useState('VNM')
   const [timeframe, setTimeframe] = useState<Timeframe>('1d')
   const [chartType, setChartType] = useState<'candlestick' | 'line'>('candlestick')
+  const [dataRange, setDataRange] = useState<'6m' | '1y' | '3y'>('3y') // Default to 3 years
 
   const stockInfo = useMemo(() => {
     return getStockBySymbol(stockSymbol)
@@ -128,27 +129,48 @@ export default function StocksPage() {
     return aggregated
   }, [rawHistoricalData, timeframe])
 
-  // Default to show last 6 months (180 days for daily, proportional for weekly/monthly)
+  // Display data based on selected range
   const displayData = useMemo(() => {
     if (historicalData.length === 0) return []
 
-    let limitDays = 180 // Default 6 months
+    // Calculate limit based on data range and timeframe
+    let limitDays: number
 
-    // Adjust limit based on timeframe
-    if (timeframe === '1w') {
-      limitDays = Math.ceil(180 / 7) // ~26 weeks
-    } else if (timeframe === '1m') {
-      limitDays = 6 // 6 months
+    if (dataRange === '6m') {
+      limitDays = timeframe === '1d' ? 180 : timeframe === '1w' ? 26 : 6
+    } else if (dataRange === '1y') {
+      limitDays = timeframe === '1d' ? 365 : timeframe === '1w' ? 52 : 12
+    } else { // 3y
+      // Show all data for 3 years
+      return historicalData
     }
 
     // Take last N data points
     return historicalData.slice(-limitDays)
-  }, [historicalData, timeframe])
+  }, [historicalData, timeframe, dataRange])
 
   // Calculate pivot points
   const pivotPoints = useMemo(() => {
     return calculateWoodiePivotPoints(displayData)
   }, [displayData])
+
+  // Memoized callbacks for better performance
+  const handleStockSymbolChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setStockSymbol(e.target.value.toUpperCase())
+  }, [])
+
+  const handleScrollToChart = useCallback(() => {
+    const technicalSection = document.getElementById('technical-analysis')
+    technicalSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const chartSection = document.querySelector('.bg-\\[--panel\\].rounded-xl.p-6.border.border-gray-800:has(#technical-analysis)')
+        || document.getElementById('technical-analysis')
+      chartSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -168,24 +190,13 @@ export default function StocksPage() {
             id="stock-symbol"
             type="text"
             value={stockSymbol}
-            onChange={(e) => setStockSymbol(e.target.value.toUpperCase())}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                // Scroll to chart section when Enter is pressed
-                const chartSection = document.querySelector('.bg-\\[--panel\\].rounded-xl.p-6.border.border-gray-800:has(#technical-analysis)')
-                  || document.getElementById('technical-analysis')
-                chartSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-            }}
+            onChange={handleStockSymbolChange}
+            onKeyDown={handleKeyDown}
             placeholder="VD: VNM, HPG, VIC, VHM..."
             className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-purple-500 uppercase"
           />
           <button
-            onClick={() => {
-              // Scroll to technical analysis section
-              const technicalSection = document.getElementById('technical-analysis')
-              technicalSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }}
+            onClick={handleScrollToChart}
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium whitespace-nowrap"
           >
             📊 Xem PTKT
@@ -282,27 +293,52 @@ export default function StocksPage() {
 
       {/* Chart Controls */}
       <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
-          {/* Timeframe Selection */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[--muted] mr-2">Khung thời gian:</span>
-            {(['1d', '1w', '1m'] as Timeframe[]).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  timeframe === tf
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
-                {tf === '1d' ? 'Ngày' : tf === '1w' ? 'Tuần' : 'Tháng'}
-              </button>
-            ))}
+        <div className="flex flex-col gap-4">
+          {/* First row: Timeframe and Data Range */}
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            {/* Timeframe Selection */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[--muted] mr-2">Khung thời gian:</span>
+              {(['1d', '1w', '1m'] as Timeframe[]).map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => setTimeframe(tf)}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    timeframe === tf
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {tf === '1d' ? 'Ngày' : tf === '1w' ? 'Tuần' : 'Tháng'}
+                </button>
+              ))}
+            </div>
+
+            {/* Data Range Selection */}
+            <div className="flex items-center gap-2 flex-wrap md:ml-auto">
+              <span className="text-[--muted] mr-2">Khoảng thời gian:</span>
+              {[
+                { value: '6m' as const, label: '6 tháng' },
+                { value: '1y' as const, label: '1 năm' },
+                { value: '3y' as const, label: '3 năm' }
+              ].map((range) => (
+                <button
+                  key={range.value}
+                  onClick={() => setDataRange(range.value)}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    dataRange === range.value
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Chart Type Selection */}
-          <div className="flex items-center gap-2 flex-wrap md:ml-auto">
+          {/* Second row: Chart Type */}
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[--muted] mr-2">Loại biểu đồ:</span>
             <button
               onClick={() => setChartType('candlestick')}
@@ -336,7 +372,8 @@ export default function StocksPage() {
           </h3>
           <div className="text-sm text-[--muted]">
             {displayData.length} điểm dữ liệu
-            {timeframe === '1d' ? ' (ngày)' : timeframe === '1w' ? ' (tuần)' : ' (tháng)'} - 6 tháng gần nhất
+            {timeframe === '1d' ? ' (ngày)' : timeframe === '1w' ? ' (tuần)' : ' (tháng)'} -
+            {dataRange === '6m' ? ' 6 tháng gần nhất' : dataRange === '1y' ? ' 1 năm gần nhất' : ' 3 năm'}
           </div>
         </div>
 
