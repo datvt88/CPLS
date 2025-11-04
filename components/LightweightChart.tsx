@@ -20,6 +20,7 @@ export function calculateWoodiePivotPoints(data: StockPriceData[]): PivotPoints 
   const pp = (high + low + 2 * close) / 4
   const r3 = high + 2 * (pp - low)
   const s3 = low - 2 * (high - pp)
+
   return {
     R3: Math.round(r3 * 100) / 100,
     S3: Math.round(s3 * 100) / 100
@@ -51,11 +52,8 @@ const LightweightChart = memo(({
   // Initialize chart once
   useEffect(() => {
     if (!chartContainerRef.current) {
-      console.error('Chart container ref not available')
       return
     }
-
-    console.log('Initializing lightweight-charts...')
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -73,8 +71,6 @@ const LightweightChart = memo(({
         secondsVisible: false,
       },
     })
-
-    console.log('Chart created successfully')
 
     // Create all series
     const candlestickSeries = chart.addCandlestickSeries({
@@ -126,8 +122,6 @@ const LightweightChart = memo(({
       s3: s3Series,
     }
 
-    console.log('All series created:', Object.keys(seriesRefs.current))
-
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth })
@@ -137,7 +131,6 @@ const LightweightChart = memo(({
     window.addEventListener('resize', handleResize)
 
     return () => {
-      console.log('Cleaning up chart...')
       window.removeEventListener('resize', handleResize)
       chart.remove()
     }
@@ -147,12 +140,6 @@ const LightweightChart = memo(({
   useEffect(() => {
     const series = seriesRefs.current
     if (!series.candlestick || !series.line || !series.volume || historicalData.length === 0) {
-      console.log('Chart not ready or no data:', {
-        hasCandlestick: !!series.candlestick,
-        hasLine: !!series.line,
-        hasVolume: !!series.volume,
-        dataLength: historicalData.length
-      })
       return
     }
 
@@ -160,13 +147,6 @@ const LightweightChart = memo(({
       const sortedData = [...historicalData].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
-
-      console.log('Setting chart data:', {
-        dataPoints: sortedData.length,
-        firstDate: sortedData[0]?.date,
-        lastDate: sortedData[sortedData.length - 1]?.date,
-        chartType
-      })
 
       // Candlestick data with proper Time typing
       const candleData: CandlestickData[] = sortedData.map(d => ({
@@ -201,8 +181,6 @@ const LightweightChart = memo(({
 
       series.volume.setData(volumeData)
 
-      console.log(`${chartType} and volume data set successfully`)
-
       // Pivot points (R3 - Resistance, S3 - Support) - only show in last 1 month (~30 days)
       if (pivotPoints && candleData.length > 0) {
         // Calculate start index for last 1 month (approximately 30 data points)
@@ -220,12 +198,9 @@ const LightweightChart = memo(({
           { time: startTime, value: pivotPoints.S3 },
           { time: lastTime, value: pivotPoints.S3 },
         ])
-
-        console.log('Pivot points set (last 1 month):', { R3: pivotPoints.R3, S3: pivotPoints.S3, startIndex, totalPoints: candleData.length, daysShown: candleData.length - startIndex })
       }
 
       chartRef.current?.timeScale().fitContent()
-      console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
