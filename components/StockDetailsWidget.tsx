@@ -87,7 +87,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     const bbUpperSeries = chart.addLineSeries({
       color: '#2962FF',
       lineWidth: 1,
-      lineStyle: 2,
+      lineStyle: 0,  // Solid line
       priceLineVisible: false,
       lastValueVisible: false,
     })
@@ -95,7 +95,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     const bbMiddleSeries = chart.addLineSeries({
       color: '#FF6D00',
       lineWidth: 1,
-      lineStyle: 2,
+      lineStyle: 0,  // Solid line
       priceLineVisible: false,
       lastValueVisible: false,
     })
@@ -103,7 +103,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     const bbLowerSeries = chart.addLineSeries({
       color: '#2962FF',
       lineWidth: 1,
-      lineStyle: 2,
+      lineStyle: 0,  // Solid line
       priceLineVisible: false,
       lastValueVisible: false,
     })
@@ -112,7 +112,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     const s3LineSeries = chart.addLineSeries({
       color: '#22c55e',
       lineWidth: 2,
-      lineStyle: 0,
+      lineStyle: 2,  // Dashed line
       priceLineVisible: false,
       lastValueVisible: true,
       title: 'Buy T+ (S3)',
@@ -122,7 +122,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     const r3LineSeries = chart.addLineSeries({
       color: '#ef4444',
       lineWidth: 2,
-      lineStyle: 0,
+      lineStyle: 2,  // Dashed line
       priceLineVisible: false,
       lastValueVisible: true,
       title: 'Sell T+ (R3)',
@@ -386,6 +386,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           <>
           {/* Quick Info Panel */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {/* 1. Thị giá */}
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-gray-400 text-xs mb-1">Thị giá</div>
               <div className={`text-xl font-bold ${
@@ -396,20 +397,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               </div>
             </div>
 
-            <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-700/30">
-              <div className="text-purple-400 text-xs mb-1">Giá trần</div>
-              <div className="text-xl font-bold text-purple-300">
-                {(latestData.close * 1.07).toFixed(2)}
-              </div>
-            </div>
-
-            <div className="bg-cyan-900/20 rounded-lg p-3 border border-cyan-700/30">
-              <div className="text-cyan-400 text-xs mb-1">Giá sàn</div>
-              <div className="text-xl font-bold text-cyan-300">
-                {(latestData.close * 0.93).toFixed(2)}
-              </div>
-            </div>
-
+            {/* 2. Thay đổi */}
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-gray-400 text-xs mb-1">Thay đổi</div>
               <div className={`text-xl font-bold ${
@@ -422,6 +410,23 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               </div>
             </div>
 
+            {/* 3. Giá trần */}
+            <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-700/30">
+              <div className="text-purple-400 text-xs mb-1">Giá trần</div>
+              <div className="text-xl font-bold text-purple-300">
+                {(latestData.close * 1.07).toFixed(2)}
+              </div>
+            </div>
+
+            {/* 4. Giá sàn */}
+            <div className="bg-cyan-900/20 rounded-lg p-3 border border-cyan-700/30">
+              <div className="text-cyan-400 text-xs mb-1">Giá sàn</div>
+              <div className="text-xl font-bold text-cyan-300">
+                {(latestData.close * 0.93).toFixed(2)}
+              </div>
+            </div>
+
+            {/* 5. Khối lượng */}
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-gray-400 text-xs mb-1">Khối lượng</div>
               <div className="text-lg font-bold text-white">
@@ -429,6 +434,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               </div>
             </div>
 
+            {/* 6. Giá trị */}
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-gray-400 text-xs mb-1">Giá trị (tỷ VNĐ)</div>
               <div className="text-lg font-bold text-white">
@@ -586,21 +592,21 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           {/* Legend */}
           <div className="flex flex-wrap gap-4 text-sm text-gray-400">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-blue-500" style={{ borderTop: '2px dashed #2962FF' }}></div>
+              <div className="w-4 h-0.5 bg-blue-500" style={{ borderTop: '2px solid #2962FF' }}></div>
               <span>Bollinger Bands (30, 3)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-orange-500" style={{ borderTop: '2px dashed #FF6D00' }}></div>
+              <div className="w-4 h-0.5 bg-orange-500" style={{ borderTop: '2px solid #FF6D00' }}></div>
               <span>BB Middle (MA-30)</span>
             </div>
             {pivotPoints && (
               <>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-0.5 bg-green-500"></div>
+                  <div className="w-4 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #22c55e' }}></div>
                   <span>Buy T+ (S3) - 30 phiên</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-0.5 bg-red-500"></div>
+                  <div className="w-4 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef4444' }}></div>
                   <span>Sell T+ (R3) - 30 phiên</span>
                 </div>
               </>
