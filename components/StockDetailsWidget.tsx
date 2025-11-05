@@ -220,7 +220,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const bollingerBands = useMemo(() => {
     if (!chartData.closePrices.length) return { upper: [], middle: [], lower: [] }
 
-    const bb = calculateBollingerBands(chartData.closePrices, 20, 2)
+    const bb = calculateBollingerBands(chartData.closePrices, 30, 3)
 
     const bbUpperData: LineData[] = displayData.map((d, i) => ({
       time: d.date as Time,
@@ -456,6 +456,43 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
         {latestData && (
           <>
+          {/* Bollinger Bands Signals */}
+          {bollingerBands.upper.length > 0 && (
+            <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-lg p-4 border border-cyan-700/30">
+              <h4 className="text-sm font-semibold text-white mb-3">
+                📊 Bollinger Bands (30, 3)
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <span className="text-cyan-400 font-semibold">Hỗ trợ mạnh (Lower):</span>
+                  <span className="ml-2 text-white font-bold">
+                    {bollingerBands.lower[bollingerBands.lower.length - 1]?.value.toFixed(2) || 'N/A'}
+                  </span>
+                  <p className="text-xs text-gray-400 mt-1">Dải dưới BB</p>
+                </div>
+                <div>
+                  <span className="text-orange-400 font-semibold">Trung bình (MA-30):</span>
+                  <span className="ml-2 text-white font-bold">
+                    {bollingerBands.middle[bollingerBands.middle.length - 1]?.value.toFixed(2) || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-purple-400 font-semibold">Kháng cự mạnh (Upper):</span>
+                  <span className="ml-2 text-white font-bold">
+                    {bollingerBands.upper[bollingerBands.upper.length - 1]?.value.toFixed(2) || 'N/A'}
+                  </span>
+                  <p className="text-xs text-gray-400 mt-1">Dải trên BB</p>
+                </div>
+                <div>
+                  <span className="text-gray-400 font-semibold">Giá hiện tại:</span>
+                  <span className="ml-2 text-white font-bold">
+                    {latestData.close.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Woodie Pivot Points - T+ Signals */}
           {pivotPoints && (
             <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-lg p-4 border border-blue-700/30">
@@ -494,11 +531,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           <div className="flex flex-wrap gap-4 text-sm text-gray-400">
             <div className="flex items-center gap-2">
               <div className="w-4 h-0.5 bg-blue-500" style={{ borderTop: '2px dashed #2962FF' }}></div>
-              <span>Bollinger Bands</span>
+              <span>Bollinger Bands (30, 3)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-0.5 bg-orange-500" style={{ borderTop: '2px dashed #FF6D00' }}></div>
-              <span>BB Middle (MA-20)</span>
+              <span>BB Middle (MA-30)</span>
             </div>
           </div>
           </>
