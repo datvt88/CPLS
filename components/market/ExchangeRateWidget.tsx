@@ -50,9 +50,25 @@ export default function ExchangeRateWidget() {
     return () => clearInterval(interval)
   }, [])
 
+  // Don't render anything until mounted on client
+  if (!mounted) {
+    return (
+      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-gray-700 rounded w-1/3"></div>
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-20 bg-gray-700 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-700">
+      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-gray-700 rounded w-1/3"></div>
           <div className="space-y-3">
@@ -145,11 +161,6 @@ export default function ExchangeRateWidget() {
         </div>
       )}
 
-      {mounted && (
-        <div className="mt-4 text-xs text-gray-500 text-right">
-          Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
-        </div>
-      )}
     </div>
   )
 }
