@@ -33,7 +33,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     bbUpper: ISeriesApi<'Line'> | null
     bbMiddle: ISeriesApi<'Line'> | null
     bbLower: ISeriesApi<'Line'> | null
-    s3Line: ISeriesApi<'Line'> | null
+    s2Line: ISeriesApi<'Line'> | null
     r3Line: ISeriesApi<'Line'> | null
   }>({
     candlestick: null,
@@ -41,7 +41,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     bbUpper: null,
     bbMiddle: null,
     bbLower: null,
-    s3Line: null,
+    s2Line: null,
     r3Line: null,
   })
 
@@ -107,14 +107,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       lastValueVisible: false,
     })
 
-    // S3 Line (Buy T+ - Support)
-    const s3LineSeries = chart.addLineSeries({
+    // S2 Line (Buy T+ - Support)
+    const s2LineSeries = chart.addLineSeries({
       color: '#22c55e',
       lineWidth: 2,
       lineStyle: 2,  // Dashed line
       priceLineVisible: false,
       lastValueVisible: true,
-      title: 'Buy T+ (S3)',
+      title: 'Buy T+ (S2)',
     })
 
     // R3 Line (Sell T+ - Resistance)
@@ -134,7 +134,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       bbUpper: bbUpperSeries,
       bbMiddle: bbMiddleSeries,
       bbLower: bbLowerSeries,
-      s3Line: s3LineSeries,
+      s2Line: s2LineSeries,
       r3Line: r3LineSeries,
     }
 
@@ -275,14 +275,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   // Memoize pivot lines data to avoid recalculation
   const pivotLinesData = useMemo(() => {
     if (!pivotPoints || !displayData.length) {
-      return { s3Data: [], r3Data: [] }
+      return { s2Data: [], r3Data: [] }
     }
 
     const last30Sessions = displayData.slice(-30)
 
-    const s3Data: LineData[] = last30Sessions.map(d => ({
+    const s2Data: LineData[] = last30Sessions.map(d => ({
       time: d.date as Time,
-      value: pivotPoints.S3,
+      value: pivotPoints.S2,
     }))
 
     const r3Data: LineData[] = last30Sessions.map(d => ({
@@ -290,7 +290,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       value: pivotPoints.R3,
     }))
 
-    return { s3Data, r3Data }
+    return { s2Data, r3Data }
   }, [pivotPoints, displayData])
 
   // Update chart when data or settings change
@@ -314,8 +314,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     series.bbMiddle?.setData(bollingerBands.middle)
     series.bbLower?.setData(bollingerBands.lower)
 
-    // Draw S3 and R3 lines for last 30 sessions
-    series.s3Line?.setData(pivotLinesData.s3Data)
+    // Draw S2 and R3 lines for last 30 sessions
+    series.s2Line?.setData(pivotLinesData.s2Data)
     series.r3Line?.setData(pivotLinesData.r3Data)
 
     chartRef.current?.timeScale().fitContent()
@@ -503,7 +503,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               <h4 className="text-sm font-semibold text-white mb-3">
                 📊 Phân tích kỹ thuật ngắn hạn
               </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                 {/* Current Price - First */}
                 <div>
                   <span className="text-yellow-400 font-semibold">Giá hiện tại:</span>
@@ -516,18 +516,16 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 {bollingerBands.upper.length > 0 && (
                   <>
                     <div>
-                      <span className="text-purple-400 font-semibold">Kháng cự mạnh (Upper):</span>
+                      <span className="text-purple-400 font-semibold">BB Upper:</span>
                       <span className="ml-2 text-white font-bold">
                         {bollingerBands.upper[bollingerBands.upper.length - 1]?.value.toFixed(2) || 'N/A'}
                       </span>
-                      <p className="text-xs text-gray-400 mt-1">Dải trên BB</p>
                     </div>
                     <div>
-                      <span className="text-cyan-400 font-semibold">Hỗ trợ mạnh (Lower):</span>
+                      <span className="text-cyan-400 font-semibold">BB Lower:</span>
                       <span className="ml-2 text-white font-bold">
                         {bollingerBands.lower[bollingerBands.lower.length - 1]?.value.toFixed(2) || 'N/A'}
                       </span>
-                      <p className="text-xs text-gray-400 mt-1">Dải dưới BB</p>
                     </div>
                   </>
                 )}
@@ -536,25 +534,20 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 {pivotPoints && (
                   <>
                     <div>
-                      <span className="text-green-400 font-semibold">Buy T+ (S3):</span>
-                      <span className="ml-2 text-white font-bold">{pivotPoints.S3}</span>
-                      <p className="text-xs text-gray-400 mt-1">Mức hỗ trợ mạnh</p>
+                      <span className="text-green-400 font-semibold">Buy T+ (S2):</span>
+                      <span className="ml-2 text-white font-bold">{pivotPoints.S2}</span>
                     </div>
                     <div>
                       <span className="text-red-400 font-semibold">Sell T+ (R3):</span>
                       <span className="ml-2 text-white font-bold">{pivotPoints.R3}</span>
-                      <p className="text-xs text-gray-400 mt-1">Mức kháng cự mạnh</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 font-semibold">Pivot:</span>
+                      <span className="ml-2 text-white font-bold">{pivotPoints.pivot}</span>
                     </div>
                   </>
                 )}
               </div>
-              {pivotPoints && (
-                <div className="mt-3 text-xs text-gray-400">
-                  <strong>Pivot Point:</strong> {pivotPoints.pivot} |
-                  <strong className="ml-2">R1:</strong> {pivotPoints.R1} |
-                  <strong className="ml-2">S1:</strong> {pivotPoints.S1}
-                </div>
-              )}
             </div>
           )}
 
@@ -568,7 +561,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #22c55e' }}></div>
-                  <span>Buy T+ (S3) - 30 phiên</span>
+                  <span>Buy T+ (S2) - 30 phiên</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef4444' }}></div>
