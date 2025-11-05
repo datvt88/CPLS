@@ -14,6 +14,9 @@ function generateMockRatios(code: string) {
     { value: 1.6368184900074352, ratioCode: 'PRICE_TO_BOOK' },
     { value: 0.0, ratioCode: 'DIVIDEND_YIELD' },
     { value: 16342.679511079135, ratioCode: 'BVPS_CR' },
+    { value: 0.1211320978931443, ratioCode: 'ROAE_TR_AVG5Q' },
+    { value: 0.062428745865153325, ratioCode: 'ROAA_TR_AVG5Q' },
+    { value: 1875.812624517499, ratioCode: 'EPS_TR' },
   ]
 }
 
@@ -40,7 +43,10 @@ export async function GET(request: NextRequest) {
       'PRICE_TO_EARNINGS',
       'PRICE_TO_BOOK',
       'DIVIDEND_YIELD',
-      'BVPS_CR'
+      'BVPS_CR',
+      'ROAE_TR_AVG5Q',
+      'ROAA_TR_AVG5Q',
+      'EPS_TR'
     ]
 
     const filter = ratios.join(',')

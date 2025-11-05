@@ -80,8 +80,14 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
 
       case 'FREEFLOAT':
       case 'DIVIDEND_YIELD':
+      case 'ROAE_TR_AVG5Q':
+      case 'ROAA_TR_AVG5Q':
         // Percentages
         return `${(value * 100).toFixed(2)}%`
+
+      case 'EPS_TR':
+        // EPS in VND
+        return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`
 
       case 'BETA':
       case 'PRICE_TO_EARNINGS':
@@ -98,10 +104,13 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
     { key: 'MARKETCAP', label: 'Vốn hóa thị trường', icon: '💰' },
     { key: 'PRICE_TO_EARNINGS', label: 'P/E (Giá/Thu nhập)', icon: '📊' },
     { key: 'PRICE_TO_BOOK', label: 'P/B (Giá/Sổ sách)', icon: '📖' },
+    { key: 'EPS_TR', label: 'EPS (Thu nhập/CP)', icon: '💵' },
     { key: 'BVPS_CR', label: 'BVPS (Giá trị sổ sách/CP)', icon: '📚' },
+    { key: 'ROAE_TR_AVG5Q', label: 'ROE TB 5 quý', icon: '📈' },
+    { key: 'ROAA_TR_AVG5Q', label: 'ROA TB 5 quý', icon: '🏦' },
     { key: 'BETA', label: 'Beta (Độ biến động)', icon: '📉' },
     { key: 'DIVIDEND_YIELD', label: 'Tỷ suất cổ tức', icon: '💎' },
-    { key: 'OUTSTANDING_SHARES', label: 'Số lượng CP lưu hành', icon: '📈' },
+    { key: 'OUTSTANDING_SHARES', label: 'Số lượng CP lưu hành', icon: '📊' },
     { key: 'FREEFLOAT', label: 'Tỷ lệ Free Float', icon: '🔓' },
     { key: 'NMVOLUME_AVG_CR_10D', label: 'KL TB 10 ngày', icon: '📊' },
     { key: 'PRICE_HIGHEST_CR_52W', label: 'Giá cao nhất 52 tuần', icon: '⬆️' },
