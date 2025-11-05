@@ -1,29 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
-
-// Dynamic imports to avoid SSR issues
-const SecuritiesWidget = dynamic(
-  () => import('@/components/market/SecuritiesWidget'),
-  { ssr: false }
-)
-const TopGainersWidget = dynamic(
-  () => import('@/components/market/TopGainersWidget'),
-  { ssr: false }
-)
-const WorldIndicesWidget = dynamic(
-  () => import('@/components/market/WorldIndicesWidget'),
-  { ssr: false }
-)
-const CommoditiesWidget = dynamic(
-  () => import('@/components/market/CommoditiesWidget'),
-  { ssr: false }
-)
-const ExchangeRateWidget = dynamic(
-  () => import('@/components/market/ExchangeRateWidget'),
-  { ssr: false }
-)
+import SimpleSecuritiesWidget from '@/components/market/SimpleSecuritiesWidget'
+import SimpleTopGainersWidget from '@/components/market/SimpleTopGainersWidget'
+import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
+import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
+import SimpleExchangeRateWidget from '@/components/market/SimpleExchangeRateWidget'
 
 type TabType = 'securities' | 'world' | 'commodities' | 'exchange'
 
@@ -43,7 +25,7 @@ export default function MarketPage() {
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <h1 className="text-3xl font-bold text-white mb-2">🌐 Thị trường</h1>
         <p className="text-[--muted]">
-          Theo dõi thị trường chứng khoán và tài chính thời gian thực
+          Thông tin thị trường chứng khoán và tài chính (dữ liệu mẫu)
         </p>
       </div>
 
@@ -71,12 +53,9 @@ export default function MarketPage() {
           </div>
         </div>
 
-        {/* Live Indicator */}
-        <div className="mt-4 flex items-center gap-2 text-sm">
-          <div className="flex items-center gap-2 bg-gray-800/50 px-4 py-2 rounded-full">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-gray-400">Dữ liệu được cập nhật mỗi 3 giây</span>
-          </div>
+        {/* Info */}
+        <div className="mt-4 text-sm text-gray-400">
+          Chọn tab để xem các chỉ số khác nhau
         </div>
       </div>
 
@@ -84,16 +63,16 @@ export default function MarketPage() {
       <div className="space-y-6">
         {activeTab === 'securities' && (
           <>
-            <SecuritiesWidget />
-            <TopGainersWidget />
+            <SimpleSecuritiesWidget />
+            <SimpleTopGainersWidget />
           </>
         )}
 
-        {activeTab === 'world' && <WorldIndicesWidget />}
+        {activeTab === 'world' && <SimpleWorldIndicesWidget />}
 
-        {activeTab === 'commodities' && <CommoditiesWidget />}
+        {activeTab === 'commodities' && <SimpleCommoditiesWidget />}
 
-        {activeTab === 'exchange' && <ExchangeRateWidget />}
+        {activeTab === 'exchange' && <SimpleExchangeRateWidget />}
       </div>
 
       {/* Footer Notice */}
