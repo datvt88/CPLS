@@ -1,9 +1,7 @@
 import { StockPriceResponse, FinancialRatiosResponse } from '@/types/vndirect'
 
-const VNDIRECT_API_BASE = 'https://api-finfo.vndirect.com.vn/v4'
-
 /**
- * Fetch historical stock prices from VNDirect API
+ * Fetch historical stock prices via Next.js API route (to avoid CORS)
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  * @param size - Number of data points to fetch (default: 270)
  */
@@ -12,7 +10,7 @@ export async function fetchStockPrices(
   size: number = 270
 ): Promise<StockPriceResponse> {
   try {
-    const url = `${VNDIRECT_API_BASE}/stock_prices?sort=date&q=code:${stockCode.toUpperCase()}&size=${size}`
+    const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}`
 
     const response = await fetch(url, {
       headers: {
@@ -21,7 +19,8 @@ export async function fetchStockPrices(
     })
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
@@ -33,38 +32,14 @@ export async function fetchStockPrices(
 }
 
 /**
- * Fetch financial ratios from VNDirect API
+ * Fetch financial ratios via Next.js API route (to avoid CORS)
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  */
 export async function fetchFinancialRatios(
   stockCode: string
 ): Promise<FinancialRatiosResponse> {
   try {
-    const ratios = [
-      'MARKETCAP',
-      'PE',
-      'PB',
-      'PS',
-      'BETA',
-      'EPS',
-      'BVPS',
-      'ROAE',
-      'ROAA',
-      'DIVIDEND',
-      'PAYOUTRATIO',
-      'EBITDA',
-      'EVEBITDA',
-      'DEBTEQUITY',
-      'QUICKRATIO',
-      'CURRENTRATIO',
-      'GROSSPROFITMARGIN',
-      'NETPROFITMARGIN',
-      'ASSETTURNOVER',
-      'INVENTORYTURNOVER'
-    ]
-
-    const filter = ratios.map(r => `ratioCode:${r}`).join(',')
-    const url = `${VNDIRECT_API_BASE}/ratios/latest?filter=${filter}&where=code:${stockCode.toUpperCase()}`
+    const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}`
 
     const response = await fetch(url, {
       headers: {
@@ -73,7 +48,8 @@ export async function fetchFinancialRatios(
     })
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()

@@ -8,9 +8,10 @@ import type { StockPriceData, WoodiePivotPoints } from '@/types/vndirect'
 
 interface StockDetailsWidgetProps {
   initialSymbol?: string
+  onSymbolChange?: (symbol: string) => void
 }
 
-const StockDetailsWidget = memo(({ initialSymbol = 'VNM' }: StockDetailsWidgetProps) => {
+const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: StockDetailsWidgetProps) => {
   const [symbol, setSymbol] = useState(initialSymbol)
   const [inputSymbol, setInputSymbol] = useState(initialSymbol)
   const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M'>('1D')
@@ -202,7 +203,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM' }: StockDetailsWidgetPr
 
   const handleSearch = () => {
     if (inputSymbol.trim()) {
-      setSymbol(inputSymbol.trim().toUpperCase())
+      const newSymbol = inputSymbol.trim().toUpperCase()
+      setSymbol(newSymbol)
+      onSymbolChange?.(newSymbol)
     }
   }
 

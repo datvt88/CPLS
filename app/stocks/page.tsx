@@ -19,7 +19,10 @@ export default function StocksPage() {
       </div>
 
       {/* Stock Details Widget with Chart */}
-      <StockDetailsWidget initialSymbol={currentSymbol} />
+      <StockDetailsWidget
+        initialSymbol={currentSymbol}
+        onSymbolChange={setCurrentSymbol}
+      />
 
       {/* Stock Financials Widget */}
       <StockFinancialsWidget symbol={currentSymbol} />
