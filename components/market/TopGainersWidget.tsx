@@ -39,6 +39,7 @@ export default function TopGainersWidget() {
   const [stocks, setStocks] = useState<TopGainerStock[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   const fetchTopGainers = async () => {
     try {
@@ -57,6 +58,7 @@ export default function TopGainersWidget() {
   }
 
   useEffect(() => {
+    setMounted(true)
     fetchTopGainers()
     const interval = setInterval(fetchTopGainers, 3000) // Refresh every 3 seconds
     return () => clearInterval(interval)
@@ -154,9 +156,11 @@ export default function TopGainersWidget() {
         </table>
       </div>
 
-      <div className="mt-4 text-xs text-gray-500 text-right">
-        Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
-      </div>
+      {mounted && (
+        <div className="mt-4 text-xs text-gray-500 text-right">
+          Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
+        </div>
+      )}
     </div>
   )
 }

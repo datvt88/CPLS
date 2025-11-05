@@ -29,6 +29,7 @@ export default function WorldIndicesWidget() {
   const [indices, setIndices] = useState<WorldIndexData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   const fetchWorldIndices = async () => {
     try {
@@ -47,6 +48,7 @@ export default function WorldIndicesWidget() {
   }
 
   useEffect(() => {
+    setMounted(true)
     fetchWorldIndices()
     const interval = setInterval(fetchWorldIndices, 3000) // Refresh every 3 seconds
     return () => clearInterval(interval)
@@ -132,9 +134,11 @@ export default function WorldIndicesWidget() {
         })}
       </div>
 
-      <div className="mt-4 text-xs text-gray-500 text-right">
-        Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
-      </div>
+      {mounted && (
+        <div className="mt-4 text-xs text-gray-500 text-right">
+          Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
+        </div>
+      )}
     </div>
   )
 }

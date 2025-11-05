@@ -29,6 +29,7 @@ export default function CommoditiesWidget() {
   const [commodities, setCommodities] = useState<CommodityData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   const fetchCommodities = async () => {
     try {
@@ -47,6 +48,7 @@ export default function CommoditiesWidget() {
   }
 
   useEffect(() => {
+    setMounted(true)
     fetchCommodities()
     const interval = setInterval(fetchCommodities, 3000) // Refresh every 3 seconds
     return () => clearInterval(interval)
@@ -133,9 +135,11 @@ export default function CommoditiesWidget() {
         </div>
       )}
 
-      <div className="mt-4 text-xs text-gray-500 text-right">
-        Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
-      </div>
+      {mounted && (
+        <div className="mt-4 text-xs text-gray-500 text-right">
+          Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
+        </div>
+      )}
     </div>
   )
 }

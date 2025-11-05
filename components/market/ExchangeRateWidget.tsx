@@ -25,6 +25,7 @@ export default function ExchangeRateWidget() {
   const [rates, setRates] = useState<ExchangeRateData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   const fetchExchangeRates = async () => {
     try {
@@ -43,6 +44,7 @@ export default function ExchangeRateWidget() {
   }
 
   useEffect(() => {
+    setMounted(true)
     fetchExchangeRates()
     const interval = setInterval(fetchExchangeRates, 3000) // Refresh every 3 seconds
     return () => clearInterval(interval)
@@ -143,9 +145,11 @@ export default function ExchangeRateWidget() {
         </div>
       )}
 
-      <div className="mt-4 text-xs text-gray-500 text-right">
-        Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
-      </div>
+      {mounted && (
+        <div className="mt-4 text-xs text-gray-500 text-right">
+          Cập nhật: {new Date().toLocaleTimeString('vi-VN')}
+        </div>
+      )}
     </div>
   )
 }
