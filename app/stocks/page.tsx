@@ -51,7 +51,7 @@ export default function StocksPage() {
           ⚠️ Lưu ý quan trọng
         </h3>
         <p className="text-sm text-gray-300">
-          Dữ liệu từ nguồn công khai (VNDirect API). Không chịu trách nhiệm về độ tin cậy của dữ liệu.
+          Dữ liệu được lấy từ các nguồn công khai trực tuyến. Không chịu trách nhiệm về độ tin cậy của dữ liệu.
           Công cụ phục vụ mục đích thử nghiệm và tham khảo. Không khuyến khích sử dụng để ra quyết định đầu tư.
         </p>
       </div>

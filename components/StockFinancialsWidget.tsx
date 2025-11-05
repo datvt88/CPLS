@@ -140,13 +140,6 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
           )
         })}
       </div>
-
-      <div className="mt-6 text-xs text-gray-500">
-        <p>
-          <strong>Lưu ý:</strong> Các chỉ số tài chính được cập nhật định kỳ từ báo cáo tài chính của doanh nghiệp.
-          Dữ liệu mang tính tham khảo, không phải là lời khuyên đầu tư.
-        </p>
-      </div>
     </div>
   )
 }
