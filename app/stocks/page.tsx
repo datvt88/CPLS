@@ -43,7 +43,7 @@ export default function StocksPage() {
       />
 
       {/* Stock Financials Widget */}
-      <StockFinancialsWidget symbol={currentSymbol} />
+      <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
 
       {/* Disclaimer */}
       <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 border border-yellow-700/30">
