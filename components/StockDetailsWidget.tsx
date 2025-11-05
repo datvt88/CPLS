@@ -36,7 +36,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
   // Initialize chart
   useEffect(() => {
-    if (!chartContainerRef.current) return
+    console.log('🚀 Chart initialization effect running...')
+
+    if (!chartContainerRef.current) {
+      console.log('❌ Chart container ref not available')
+      return
+    }
+
+    console.log('✅ Chart container ref available, creating chart...')
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -95,6 +102,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       bbLower: bbLowerSeries,
     }
 
+    console.log('✅ Chart and all series created successfully')
+
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth })
@@ -115,7 +124,10 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     setError(null)
 
     try {
+      console.log('🔍 Fetching stock data for:', stockSymbol)
       const response = await fetchStockPrices(stockSymbol, 270)
+
+      console.log('📦 API Response:', response)
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Không tìm thấy dữ liệu cho mã này')
@@ -126,16 +138,23 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
 
+      console.log('✅ Data sorted:', {
+        total: sortedData.length,
+        first: sortedData[0],
+        last: sortedData[sortedData.length - 1]
+      })
+
       setStockData(sortedData)
 
       // Calculate pivot points from previous day
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
         const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
+        console.log('📊 Pivot Points:', pivots)
         setPivotPoints(pivots)
       }
     } catch (err) {
-      console.error('Error loading stock data:', err)
+      console.error('❌ Error loading stock data:', err)
       setError(err instanceof Error ? err.message : 'Lỗi tải dữ liệu')
     } finally {
       setLoading(false)
@@ -151,7 +170,17 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
   // Update chart when data or timeframe changes
   useEffect(() => {
-    if (!stockData.length || !seriesRefs.current.candlestick) return
+    console.log('🎨 Chart update effect triggered:', {
+      hasData: !!stockData.length,
+      dataLength: stockData.length,
+      hasSeries: !!seriesRefs.current.candlestick,
+      timeframe
+    })
+
+    if (!stockData.length || !seriesRefs.current.candlestick) {
+      console.log('⚠️ Cannot update chart - missing data or series')
+      return
+    }
 
     const series = seriesRefs.current
 
@@ -159,10 +188,17 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     let displayData = stockData
 
     if (timeframe === '1W') {
+      console.log('📅 Aggregating to weekly...')
       displayData = aggregateWeekly(stockData)
     } else if (timeframe === '1M') {
+      console.log('📅 Aggregating to monthly...')
       displayData = aggregateMonthly(stockData)
     }
+
+    console.log('📊 Display data prepared:', {
+      count: displayData.length,
+      sample: displayData[0]
+    })
 
     // Prepare candlestick data
     const candleData: CandlestickData[] = displayData.map(d => ({
@@ -173,6 +209,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       close: d.close,
     }))
 
+    console.log('🕯️ Setting candlestick data:', candleData.length, 'candles')
     series.candlestick.setData(candleData)
 
     // Calculate and draw Bollinger Bands
@@ -194,11 +231,18 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       value: bb.lower[i],
     })).filter(d => !isNaN(d.value))
 
+    console.log('📈 Setting Bollinger Bands:', {
+      upper: bbUpperData.length,
+      middle: bbMiddleData.length,
+      lower: bbLowerData.length
+    })
+
     series.bbUpper?.setData(bbUpperData)
     series.bbMiddle?.setData(bbMiddleData)
     series.bbLower?.setData(bbLowerData)
 
     chartRef.current?.timeScale().fitContent()
+    console.log('✅ Chart update complete!')
   }, [stockData, timeframe])
 
   const handleSearch = () => {

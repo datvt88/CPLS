@@ -1,8 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import StockDetailsWidget from '@/components/StockDetailsWidget'
+import dynamic from 'next/dynamic'
 import StockFinancialsWidget from '@/components/StockFinancialsWidget'
+
+// Dynamic import to avoid SSR issues with lightweight-charts
+const StockDetailsWidget = dynamic(
+  () => import('@/components/StockDetailsWidget'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+        <div className="flex items-center justify-center h-[600px]">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400 text-lg">Đang tải biểu đồ...</p>
+          </div>
+        </div>
+      </div>
+    ),
+  }
+)
 
 export default function StocksPage() {
   const [currentSymbol, setCurrentSymbol] = useState('VNM')
