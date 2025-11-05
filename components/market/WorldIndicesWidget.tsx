@@ -56,7 +56,7 @@ export default function WorldIndicesWidget() {
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-gray-700">
+      <div className="bg-[--panel] rounded-xl p-6 border border-gray-700">
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-gray-700 rounded w-1/3"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -71,14 +71,14 @@ export default function WorldIndicesWidget() {
 
   if (error) {
     return (
-      <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-red-700">
+      <div className="bg-[--panel] rounded-xl p-6 border border-red-800">
         <p className="text-red-500">{error}</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl p-6 border border-gray-700 shadow-xl">
+    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
       <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
         🌍 Thị trường thế giới
         <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full animate-pulse">

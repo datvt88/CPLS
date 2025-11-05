@@ -1,11 +1,29 @@
 'use client'
 
 import { useState } from 'react'
-import SecuritiesWidget from '@/components/market/SecuritiesWidget'
-import TopGainersWidget from '@/components/market/TopGainersWidget'
-import WorldIndicesWidget from '@/components/market/WorldIndicesWidget'
-import CommoditiesWidget from '@/components/market/CommoditiesWidget'
-import ExchangeRateWidget from '@/components/market/ExchangeRateWidget'
+import dynamic from 'next/dynamic'
+
+// Dynamic imports to avoid SSR issues
+const SecuritiesWidget = dynamic(
+  () => import('@/components/market/SecuritiesWidget'),
+  { ssr: false }
+)
+const TopGainersWidget = dynamic(
+  () => import('@/components/market/TopGainersWidget'),
+  { ssr: false }
+)
+const WorldIndicesWidget = dynamic(
+  () => import('@/components/market/WorldIndicesWidget'),
+  { ssr: false }
+)
+const CommoditiesWidget = dynamic(
+  () => import('@/components/market/CommoditiesWidget'),
+  { ssr: false }
+)
+const ExchangeRateWidget = dynamic(
+  () => import('@/components/market/ExchangeRateWidget'),
+  { ssr: false }
+)
 
 type TabType = 'securities' | 'world' | 'commodities' | 'exchange'
 
