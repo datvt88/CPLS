@@ -7,7 +7,7 @@ export default function Header(){
       <div className="container flex items-center justify-between py-3">
         <div className="text-sm text-[--muted]">CPLS — AI trading signals</div>
         <div className="flex items-center gap-3">
-          <Link href="/login"><a className="text-sm text-[--muted]">Login</a></Link>
+          <Link href="/login" className="text-sm text-[--muted]">Login</Link>
           <ThemeToggle />
         </div>
       </div>
