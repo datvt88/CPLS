@@ -29,12 +29,16 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     bbUpper: ISeriesApi<'Line'> | null
     bbMiddle: ISeriesApi<'Line'> | null
     bbLower: ISeriesApi<'Line'> | null
+    s3Line: ISeriesApi<'Line'> | null
+    r3Line: ISeriesApi<'Line'> | null
   }>({
     candlestick: null,
     line: null,
     bbUpper: null,
     bbMiddle: null,
     bbLower: null,
+    s3Line: null,
+    r3Line: null,
   })
 
   // Initialize chart
@@ -104,6 +108,26 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       lastValueVisible: false,
     })
 
+    // S3 Line (Buy T+ - Support)
+    const s3LineSeries = chart.addLineSeries({
+      color: '#22c55e',
+      lineWidth: 2,
+      lineStyle: 0,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: 'Buy T+ (S3)',
+    })
+
+    // R3 Line (Sell T+ - Resistance)
+    const r3LineSeries = chart.addLineSeries({
+      color: '#ef4444',
+      lineWidth: 2,
+      lineStyle: 0,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: 'Sell T+ (R3)',
+    })
+
     chartRef.current = chart
     seriesRefs.current = {
       candlestick: candlestickSeries,
@@ -111,6 +135,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       bbUpper: bbUpperSeries,
       bbMiddle: bbMiddleSeries,
       bbLower: bbLowerSeries,
+      s3Line: s3LineSeries,
+      r3Line: r3LineSeries,
     }
 
     console.log('✅ Chart and all series created successfully')
@@ -282,9 +308,39 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     series.bbMiddle?.setData(bollingerBands.middle)
     series.bbLower?.setData(bollingerBands.lower)
 
+    // Draw S3 and R3 lines for last 30 sessions
+    if (pivotPoints && displayData.length > 0) {
+      const last30Sessions = displayData.slice(-30)
+
+      // Create horizontal line data for S3 (Buy T+)
+      const s3Data: LineData[] = last30Sessions.map(d => ({
+        time: d.date as Time,
+        value: pivotPoints.S3,
+      }))
+
+      // Create horizontal line data for R3 (Sell T+)
+      const r3Data: LineData[] = last30Sessions.map(d => ({
+        time: d.date as Time,
+        value: pivotPoints.R3,
+      }))
+
+      console.log('📍 Setting S3/R3 pivot lines for last 30 sessions:', {
+        S3: pivotPoints.S3,
+        R3: pivotPoints.R3,
+        sessions: last30Sessions.length
+      })
+
+      series.s3Line?.setData(s3Data)
+      series.r3Line?.setData(r3Data)
+    } else {
+      // Clear S3/R3 lines if no pivot points
+      series.s3Line?.setData([])
+      series.r3Line?.setData([])
+    }
+
     chartRef.current?.timeScale().fitContent()
     console.log('✅ Chart update complete!')
-  }, [displayData, chartType, chartData, bollingerBands])
+  }, [displayData, chartType, chartData, bollingerBands, pivotPoints])
 
   const handleSearch = () => {
     if (inputSymbol.trim()) {
@@ -537,6 +593,18 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               <div className="w-4 h-0.5 bg-orange-500" style={{ borderTop: '2px dashed #FF6D00' }}></div>
               <span>BB Middle (MA-30)</span>
             </div>
+            {pivotPoints && (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-0.5 bg-green-500"></div>
+                  <span>Buy T+ (S3) - 30 phiên</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-0.5 bg-red-500"></div>
+                  <span>Sell T+ (R3) - 30 phiên</span>
+                </div>
+              </>
+            )}
           </div>
           </>
         )}
