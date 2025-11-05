@@ -4,11 +4,11 @@ import { StockPriceResponse, FinancialRatiosResponse } from '@/types/vndirect'
  * Fetch historical stock prices via Next.js API proxy
  * This avoids CORS issues and API access restrictions
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
- * @param size - Number of data points to fetch (default: 270)
+ * @param size - Number of data points to fetch (default: 810 for 3+ years of data)
  */
 export async function fetchStockPrices(
   stockCode: string,
-  size: number = 270
+  size: number = 810
 ): Promise<StockPriceResponse> {
   try {
     const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}`

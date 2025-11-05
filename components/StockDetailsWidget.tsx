@@ -15,6 +15,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const [symbol, setSymbol] = useState(initialSymbol)
   const [inputSymbol, setInputSymbol] = useState(initialSymbol)
   const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M'>('1D')
+  const [chartType, setChartType] = useState<'candlestick' | 'line'>('candlestick')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stockData, setStockData] = useState<StockPriceData[]>([])
@@ -24,11 +25,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRefs = useRef<{
     candlestick: ISeriesApi<'Candlestick'> | null
+    line: ISeriesApi<'Line'> | null
     bbUpper: ISeriesApi<'Line'> | null
     bbMiddle: ISeriesApi<'Line'> | null
     bbLower: ISeriesApi<'Line'> | null
   }>({
     candlestick: null,
+    line: null,
     bbUpper: null,
     bbMiddle: null,
     bbLower: null,
@@ -70,6 +73,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       wickDownColor: '#ef5350',
     })
 
+    const lineSeries = chart.addLineSeries({
+      color: '#2962FF',
+      lineWidth: 2,
+      priceLineVisible: true,
+      lastValueVisible: true,
+    })
+
     const bbUpperSeries = chart.addLineSeries({
       color: '#2962FF',
       lineWidth: 1,
@@ -97,6 +107,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     chartRef.current = chart
     seriesRefs.current = {
       candlestick: candlestickSeries,
+      line: lineSeries,
       bbUpper: bbUpperSeries,
       bbMiddle: bbMiddleSeries,
       bbLower: bbLowerSeries,
@@ -125,7 +136,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     try {
       console.log('🔍 Fetching stock data for:', stockSymbol)
-      const response = await fetchStockPrices(stockSymbol, 270)
+      const response = await fetchStockPrices(stockSymbol, 810)
 
       console.log('📦 API Response:', response)
 
@@ -168,13 +179,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     }
   }, [symbol])
 
-  // Update chart when data or timeframe changes
+  // Update chart when data, timeframe, or chartType changes
   useEffect(() => {
     console.log('🎨 Chart update effect triggered:', {
       hasData: !!stockData.length,
       dataLength: stockData.length,
       hasSeries: !!seriesRefs.current.candlestick,
-      timeframe
+      timeframe,
+      chartType
     })
 
     if (!stockData.length || !seriesRefs.current.candlestick) {
@@ -200,7 +212,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       sample: displayData[0]
     })
 
-    // Prepare candlestick data
+    // Prepare candlestick and line data
     const candleData: CandlestickData[] = displayData.map(d => ({
       time: d.date as Time,
       open: d.open,
@@ -209,8 +221,21 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       close: d.close,
     }))
 
-    console.log('🕯️ Setting candlestick data:', candleData.length, 'candles')
-    series.candlestick.setData(candleData)
+    const lineData: LineData[] = displayData.map(d => ({
+      time: d.date as Time,
+      value: d.close,
+    }))
+
+    // Show/hide series based on chart type
+    if (chartType === 'candlestick') {
+      console.log('🕯️ Setting candlestick data:', candleData.length, 'candles')
+      series.candlestick.setData(candleData)
+      series.line?.setData([]) // Hide line series
+    } else {
+      console.log('📈 Setting line data:', lineData.length, 'points')
+      series.line?.setData(lineData)
+      series.candlestick.setData([]) // Hide candlestick series
+    }
 
     // Calculate and draw Bollinger Bands
     const closePrices = displayData.map(d => d.close)
@@ -243,7 +268,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     chartRef.current?.timeScale().fitContent()
     console.log('✅ Chart update complete!')
-  }, [stockData, timeframe])
+  }, [stockData, timeframe, chartType])
 
   const handleSearch = () => {
     if (inputSymbol.trim()) {
@@ -337,22 +362,50 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             </div>
           </div>
 
-          {/* Timeframe Controls */}
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm mr-2">Khung thời gian:</span>
-            {(['1D', '1W', '1M'] as const).map((tf) => (
+          {/* Chart Controls */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Timeframe Controls */}
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 text-sm mr-2">Khung thời gian:</span>
+              {(['1D', '1W', '1M'] as const).map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => setTimeframe(tf)}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    timeframe === tf
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+
+            {/* Chart Type Controls */}
+            <div className="flex items-center gap-2 border-l border-gray-700 pl-4">
+              <span className="text-gray-400 text-sm mr-2">Loại biểu đồ:</span>
               <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => setChartType('candlestick')}
                 className={`px-4 py-2 rounded-lg transition-colors ${
-                  timeframe === tf
-                    ? 'bg-purple-600 text-white'
+                  chartType === 'candlestick'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
               >
-                {tf}
+                🕯️ Nến
               </button>
-            ))}
+              <button
+                onClick={() => setChartType('line')}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  chartType === 'line'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                📈 Đường
+              </button>
+            </div>
           </div>
 
           {/* Chart */}
