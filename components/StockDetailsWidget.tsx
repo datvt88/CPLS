@@ -122,7 +122,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       lineStyle: 2,  // Dashed line
       priceLineVisible: false,
       lastValueVisible: true,
-      title: 'Buy T+ (S2)',
+      title: 'Buy T+',
     })
 
     // R3 Line (Sell T+ - Resistance)
@@ -132,7 +132,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       lineStyle: 2,  // Dashed line
       priceLineVisible: false,
       lastValueVisible: true,
-      title: 'Sell T+ (R3)',
+      title: 'Sell T+',
     })
 
     chartRef.current = chart
@@ -524,13 +524,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 {bollingerBands.upper.length > 0 && (
                   <>
                     <div>
-                      <span className="text-purple-400 font-semibold">BB Upper:</span>
+                      <span className="text-purple-400 font-semibold">Hỗ trợ mạnh:</span>
                       <span className="ml-2 text-white font-bold">
                         {bollingerBands.upper[bollingerBands.upper.length - 1]?.value.toFixed(2) || 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-cyan-400 font-semibold">BB Lower:</span>
+                      <span className="text-cyan-400 font-semibold">Kháng cự mạnh:</span>
                       <span className="ml-2 text-white font-bold">
                         {bollingerBands.lower[bollingerBands.lower.length - 1]?.value.toFixed(2) || 'N/A'}
                       </span>
@@ -542,11 +542,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 {pivotPoints && (
                   <>
                     <div>
-                      <span className="text-green-400 font-semibold">Buy T+ (S2):</span>
+                      <span className="text-green-400 font-semibold">Buy T+:</span>
                       <span className="ml-2 text-white font-bold">{pivotPoints.S2}</span>
                     </div>
                     <div>
-                      <span className="text-red-400 font-semibold">Sell T+ (R3):</span>
+                      <span className="text-red-400 font-semibold">Sell T+:</span>
                       <span className="ml-2 text-white font-bold">{pivotPoints.R3}</span>
                     </div>
                     <div>
@@ -569,11 +569,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #22c55e' }}></div>
-                  <span>Buy T+ (S2) - 30 phiên</span>
+                  <span>Buy T+ - 30 phiên</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef4444' }}></div>
-                  <span>Sell T+ (R3) - 30 phiên</span>
+                  <span>Sell T+ - 30 phiên</span>
                 </div>
               </>
             )}
