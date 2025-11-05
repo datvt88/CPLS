@@ -32,7 +32,7 @@ export default function StocksPage() {
         <h1 className="text-3xl font-bold text-white mb-2">📈 Phân tích Cổ phiếu</h1>
         <p className="text-[--muted]">
           Công cụ phân tích chuyên sâu với biểu đồ kỹ thuật, chỉ báo Bollinger Bands,
-          Woodie Pivot Points và các chỉ số tài chính cơ bản
+          Pivot Points và các chỉ số tài chính cơ bản
         </p>
       </div>
 
@@ -51,7 +51,7 @@ export default function StocksPage() {
           ⚠️ Lưu ý quan trọng
         </h3>
         <p className="text-sm text-gray-300">
-          Dữ liệu được lấy từ các nguồn công khai trực tuyến. Không chịu trách nhiệm về độ tin cậy của dữ liệu.
+          Dữ liệu cổ phiếu được lấy từ các nguồn công khai trực tuyến. Webapp không chịu trách nhiệm về độ tin cậy của dữ liệu.
           Công cụ phục vụ mục đích thử nghiệm và tham khảo. Không khuyến khích sử dụng để ra quyết định đầu tư.
         </p>
       </div>
