@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, memo } from 'react'
+import { useState, useEffect, useRef, memo, useMemo } from 'react'
 import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { CandlestickData, LineData } from 'lightweight-charts'
 import { fetchStockPrices, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
@@ -136,7 +136,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     try {
       console.log('🔍 Fetching stock data for:', stockSymbol)
-      const response = await fetchStockPrices(stockSymbol, 810)
+      const response = await fetchStockPrices(stockSymbol, 270)
 
       console.log('📦 API Response:', response)
 
@@ -179,40 +179,25 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     }
   }, [symbol])
 
-  // Update chart when data, timeframe, or chartType changes
-  useEffect(() => {
-    console.log('🎨 Chart update effect triggered:', {
-      hasData: !!stockData.length,
-      dataLength: stockData.length,
-      hasSeries: !!seriesRefs.current.candlestick,
-      timeframe,
-      chartType
-    })
-
-    if (!stockData.length || !seriesRefs.current.candlestick) {
-      console.log('⚠️ Cannot update chart - missing data or series')
-      return
-    }
-
-    const series = seriesRefs.current
-
-    // Aggregate data based on timeframe
-    let displayData = stockData
+  // Memoize aggregated data based on timeframe
+  const displayData = useMemo(() => {
+    if (!stockData.length) return []
 
     if (timeframe === '1W') {
       console.log('📅 Aggregating to weekly...')
-      displayData = aggregateWeekly(stockData)
+      return aggregateWeekly(stockData)
     } else if (timeframe === '1M') {
       console.log('📅 Aggregating to monthly...')
-      displayData = aggregateMonthly(stockData)
+      return aggregateMonthly(stockData)
     }
 
-    console.log('📊 Display data prepared:', {
-      count: displayData.length,
-      sample: displayData[0]
-    })
+    return stockData
+  }, [stockData, timeframe])
 
-    // Prepare candlestick and line data
+  // Memoize chart data
+  const chartData = useMemo(() => {
+    if (!displayData.length) return { candleData: [], lineData: [], closePrices: [] }
+
     const candleData: CandlestickData[] = displayData.map(d => ({
       time: d.date as Time,
       open: d.open,
@@ -226,20 +211,16 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       value: d.close,
     }))
 
-    // Show/hide series based on chart type
-    if (chartType === 'candlestick') {
-      console.log('🕯️ Setting candlestick data:', candleData.length, 'candles')
-      series.candlestick.setData(candleData)
-      series.line?.setData([]) // Hide line series
-    } else {
-      console.log('📈 Setting line data:', lineData.length, 'points')
-      series.line?.setData(lineData)
-      series.candlestick.setData([]) // Hide candlestick series
-    }
-
-    // Calculate and draw Bollinger Bands
     const closePrices = displayData.map(d => d.close)
-    const bb = calculateBollingerBands(closePrices, 20, 2)
+
+    return { candleData, lineData, closePrices }
+  }, [displayData])
+
+  // Memoize Bollinger Bands
+  const bollingerBands = useMemo(() => {
+    if (!chartData.closePrices.length) return { upper: [], middle: [], lower: [] }
+
+    const bb = calculateBollingerBands(chartData.closePrices, 20, 2)
 
     const bbUpperData: LineData[] = displayData.map((d, i) => ({
       time: d.date as Time,
@@ -256,19 +237,54 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       value: bb.lower[i],
     })).filter(d => !isNaN(d.value))
 
-    console.log('📈 Setting Bollinger Bands:', {
-      upper: bbUpperData.length,
-      middle: bbMiddleData.length,
-      lower: bbLowerData.length
+    return { upper: bbUpperData, middle: bbMiddleData, lower: bbLowerData }
+  }, [chartData.closePrices, displayData])
+
+  // Update chart when data or settings change
+  useEffect(() => {
+    console.log('🎨 Chart update effect triggered:', {
+      hasData: !!displayData.length,
+      dataLength: displayData.length,
+      hasSeries: !!seriesRefs.current.candlestick,
+      chartType
     })
 
-    series.bbUpper?.setData(bbUpperData)
-    series.bbMiddle?.setData(bbMiddleData)
-    series.bbLower?.setData(bbLowerData)
+    if (!displayData.length || !seriesRefs.current.candlestick) {
+      console.log('⚠️ Cannot update chart - missing data or series')
+      return
+    }
+
+    const series = seriesRefs.current
+
+    console.log('📊 Display data prepared:', {
+      count: displayData.length,
+      sample: displayData[0]
+    })
+
+    // Show/hide series based on chart type
+    if (chartType === 'candlestick') {
+      console.log('🕯️ Setting candlestick data:', chartData.candleData.length, 'candles')
+      series.candlestick.setData(chartData.candleData)
+      series.line?.setData([]) // Hide line series
+    } else {
+      console.log('📈 Setting line data:', chartData.lineData.length, 'points')
+      series.line?.setData(chartData.lineData)
+      series.candlestick.setData([]) // Hide candlestick series
+    }
+
+    console.log('📈 Setting Bollinger Bands:', {
+      upper: bollingerBands.upper.length,
+      middle: bollingerBands.middle.length,
+      lower: bollingerBands.lower.length
+    })
+
+    series.bbUpper?.setData(bollingerBands.upper)
+    series.bbMiddle?.setData(bollingerBands.middle)
+    series.bbLower?.setData(bollingerBands.lower)
 
     chartRef.current?.timeScale().fitContent()
     console.log('✅ Chart update complete!')
-  }, [stockData, timeframe, chartType])
+  }, [displayData, chartType, chartData, bollingerBands])
 
   const handleSearch = () => {
     if (inputSymbol.trim()) {
@@ -307,8 +323,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         </div>
       )}
 
-      {latestData && (
-        <>
+      {/* Chart Container - Always render for chart initialization */}
+      <div className="space-y-4">
+        {/* Chart Controls - Show only when data is loaded */}
+        {latestData && (
+          <>
           {/* Quick Info Panel */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="bg-gray-800/50 rounded-lg p-3">
@@ -407,10 +426,36 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               </button>
             </div>
           </div>
+          </>
+        )}
 
-          {/* Chart */}
+        {/* Chart - Always render for initialization */}
+        <div className="relative">
           <div ref={chartContainerRef} className="w-full" style={{ minHeight: '500px' }} />
 
+          {/* Loading Overlay */}
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[--panel]/90 rounded-lg">
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-400 text-lg">Đang tải dữ liệu biểu đồ...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!loading && !stockData.length && !error && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-6xl mb-4">📊</div>
+                <p className="text-gray-400 text-lg">Nhập mã cổ phiếu để xem biểu đồ</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {latestData && (
+          <>
           {/* Woodie Pivot Points - T+ Signals */}
           {pivotPoints && (
             <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-lg p-4 border border-blue-700/30">
@@ -456,8 +501,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               <span>BB Middle (MA-20)</span>
             </div>
           </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   )
 })
