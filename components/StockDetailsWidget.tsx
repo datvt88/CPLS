@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, memo, useMemo } from 'react'
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react'
 import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { CandlestickData, LineData } from 'lightweight-charts'
 import { fetchStockPrices, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
@@ -10,6 +10,10 @@ interface StockDetailsWidgetProps {
   initialSymbol?: string
   onSymbolChange?: (symbol: string) => void
 }
+
+// Data cache to avoid redundant API calls
+const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>()
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: StockDetailsWidgetProps) => {
   const [symbol, setSymbol] = useState(initialSymbol)
@@ -43,14 +47,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
   // Initialize chart
   useEffect(() => {
-    console.log('🚀 Chart initialization effect running...')
-
     if (!chartContainerRef.current) {
-      console.log('❌ Chart container ref not available')
       return
     }
-
-    console.log('✅ Chart container ref available, creating chart...')
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -139,8 +138,6 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       r3Line: r3LineSeries,
     }
 
-    console.log('✅ Chart and all series created successfully')
-
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth })
@@ -155,16 +152,32 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     }
   }, [])
 
-  // Fetch stock data
-  const loadStockData = async (stockSymbol: string) => {
+  // Fetch stock data with caching
+  const loadStockData = useCallback(async (stockSymbol: string) => {
     setLoading(true)
     setError(null)
 
     try {
-      console.log('🔍 Fetching stock data for:', stockSymbol)
-      const response = await fetchStockPrices(stockSymbol, 270)
+      // Check cache first
+      const cached = dataCache.get(stockSymbol)
+      const now = Date.now()
 
-      console.log('📦 API Response:', response)
+      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+        // Use cached data
+        setStockData(cached.data)
+
+        // Calculate pivot points from cached data
+        if (cached.data.length >= 2) {
+          const prevDay = cached.data[cached.data.length - 2]
+          const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
+          setPivotPoints(pivots)
+        }
+        setLoading(false)
+        return
+      }
+
+      // Fetch fresh data - reduced from 270 to 150 days for better performance
+      const response = await fetchStockPrices(stockSymbol, 150)
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Không tìm thấy dữ liệu cho mã này')
@@ -175,11 +188,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
 
-      console.log('✅ Data sorted:', {
-        total: sortedData.length,
-        first: sortedData[0],
-        last: sortedData[sortedData.length - 1]
-      })
+      // Cache the data
+      dataCache.set(stockSymbol, { data: sortedData, timestamp: now })
 
       setStockData(sortedData)
 
@@ -187,33 +197,29 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
         const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
-        console.log('📊 Pivot Points:', pivots)
         setPivotPoints(pivots)
       }
     } catch (err) {
-      console.error('❌ Error loading stock data:', err)
       setError(err instanceof Error ? err.message : 'Lỗi tải dữ liệu')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   // Load data when symbol changes
   useEffect(() => {
     if (symbol) {
       loadStockData(symbol)
     }
-  }, [symbol])
+  }, [symbol, loadStockData])
 
   // Memoize aggregated data based on timeframe
   const displayData = useMemo(() => {
     if (!stockData.length) return []
 
     if (timeframe === '1W') {
-      console.log('📅 Aggregating to weekly...')
       return aggregateWeekly(stockData)
     } else if (timeframe === '1M') {
-      console.log('📅 Aggregating to monthly...')
       return aggregateMonthly(stockData)
     }
 
@@ -266,89 +272,62 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return { upper: bbUpperData, middle: bbMiddleData, lower: bbLowerData }
   }, [chartData.closePrices, displayData])
 
+  // Memoize pivot lines data to avoid recalculation
+  const pivotLinesData = useMemo(() => {
+    if (!pivotPoints || !displayData.length) {
+      return { s3Data: [], r3Data: [] }
+    }
+
+    const last30Sessions = displayData.slice(-30)
+
+    const s3Data: LineData[] = last30Sessions.map(d => ({
+      time: d.date as Time,
+      value: pivotPoints.S3,
+    }))
+
+    const r3Data: LineData[] = last30Sessions.map(d => ({
+      time: d.date as Time,
+      value: pivotPoints.R3,
+    }))
+
+    return { s3Data, r3Data }
+  }, [pivotPoints, displayData])
+
   // Update chart when data or settings change
   useEffect(() => {
-    console.log('🎨 Chart update effect triggered:', {
-      hasData: !!displayData.length,
-      dataLength: displayData.length,
-      hasSeries: !!seriesRefs.current.candlestick,
-      chartType
-    })
-
     if (!displayData.length || !seriesRefs.current.candlestick) {
-      console.log('⚠️ Cannot update chart - missing data or series')
       return
     }
 
     const series = seriesRefs.current
 
-    console.log('📊 Display data prepared:', {
-      count: displayData.length,
-      sample: displayData[0]
-    })
-
     // Show/hide series based on chart type
     if (chartType === 'candlestick') {
-      console.log('🕯️ Setting candlestick data:', chartData.candleData.length, 'candles')
       series.candlestick.setData(chartData.candleData)
       series.line?.setData([]) // Hide line series
     } else {
-      console.log('📈 Setting line data:', chartData.lineData.length, 'points')
       series.line?.setData(chartData.lineData)
       series.candlestick.setData([]) // Hide candlestick series
     }
-
-    console.log('📈 Setting Bollinger Bands:', {
-      upper: bollingerBands.upper.length,
-      middle: bollingerBands.middle.length,
-      lower: bollingerBands.lower.length
-    })
 
     series.bbUpper?.setData(bollingerBands.upper)
     series.bbMiddle?.setData(bollingerBands.middle)
     series.bbLower?.setData(bollingerBands.lower)
 
     // Draw S3 and R3 lines for last 30 sessions
-    if (pivotPoints && displayData.length > 0) {
-      const last30Sessions = displayData.slice(-30)
-
-      // Create horizontal line data for S3 (Buy T+)
-      const s3Data: LineData[] = last30Sessions.map(d => ({
-        time: d.date as Time,
-        value: pivotPoints.S3,
-      }))
-
-      // Create horizontal line data for R3 (Sell T+)
-      const r3Data: LineData[] = last30Sessions.map(d => ({
-        time: d.date as Time,
-        value: pivotPoints.R3,
-      }))
-
-      console.log('📍 Setting S3/R3 pivot lines for last 30 sessions:', {
-        S3: pivotPoints.S3,
-        R3: pivotPoints.R3,
-        sessions: last30Sessions.length
-      })
-
-      series.s3Line?.setData(s3Data)
-      series.r3Line?.setData(r3Data)
-    } else {
-      // Clear S3/R3 lines if no pivot points
-      series.s3Line?.setData([])
-      series.r3Line?.setData([])
-    }
+    series.s3Line?.setData(pivotLinesData.s3Data)
+    series.r3Line?.setData(pivotLinesData.r3Data)
 
     chartRef.current?.timeScale().fitContent()
-    console.log('✅ Chart update complete!')
-  }, [displayData, chartType, chartData, bollingerBands, pivotPoints])
+  }, [displayData, chartType, chartData, bollingerBands, pivotLinesData])
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     if (inputSymbol.trim()) {
       const newSymbol = inputSymbol.trim().toUpperCase()
       setSymbol(newSymbol)
       onSymbolChange?.(newSymbol)
     }
-  }
+  }, [inputSymbol, onSymbolChange])
 
   const latestData = stockData[stockData.length - 1]
 
