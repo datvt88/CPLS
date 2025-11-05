@@ -40,49 +40,72 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
     loadRatios()
   }, [symbol])
 
-  const formatValue = (ratio: FinancialRatio | undefined): string => {
-    if (!ratio) return 'N/A'
+  const formatValue = (ratioCode: string, value: number | undefined): string => {
+    if (value === undefined || value === null) return 'N/A'
 
-    const value = ratio.value
+    // Format based on ratio type
+    switch (ratioCode) {
+      case 'MARKETCAP':
+        // Market cap in VND
+        if (value >= 1000000000000) {
+          return `${(value / 1000000000000).toFixed(2)} nghìn tỷ`
+        } else if (value >= 1000000000) {
+          return `${(value / 1000000000).toFixed(2)} tỷ`
+        }
+        return `${value.toFixed(2)}`
 
-    if (ratio.unit === 'VND') {
-      if (value >= 1000000000000) {
-        return `${(value / 1000000000000).toFixed(2)} nghìn tỷ`
-      } else if (value >= 1000000000) {
-        return `${(value / 1000000000).toFixed(2)} tỷ`
-      } else if (value >= 1000000) {
-        return `${(value / 1000000).toFixed(2)} triệu`
-      }
+      case 'NMVOLUME_AVG_CR_10D':
+        // Volume - show in millions
+        if (value >= 1000000) {
+          return `${(value / 1000000).toFixed(2)}M`
+        } else if (value >= 1000) {
+          return `${(value / 1000).toFixed(2)}K`
+        }
+        return `${value.toFixed(0)}`
+
+      case 'PRICE_HIGHEST_CR_52W':
+      case 'PRICE_LOWEST_CR_52W':
+      case 'BVPS_CR':
+        // Prices in VND
+        return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`
+
+      case 'OUTSTANDING_SHARES':
+        // Shares - show in billions/millions
+        if (value >= 1000000000) {
+          return `${(value / 1000000000).toFixed(2)} tỷ CP`
+        } else if (value >= 1000000) {
+          return `${(value / 1000000).toFixed(2)} triệu CP`
+        }
+        return `${value.toFixed(0)}`
+
+      case 'FREEFLOAT':
+      case 'DIVIDEND_YIELD':
+        // Percentages
+        return `${(value * 100).toFixed(2)}%`
+
+      case 'BETA':
+      case 'PRICE_TO_EARNINGS':
+      case 'PRICE_TO_BOOK':
+        // Ratios - 2 decimal places
+        return `${value.toFixed(2)}`
+
+      default:
+        return `${value.toFixed(2)}`
     }
-
-    if (ratio.unit === '%') {
-      return `${value.toFixed(2)}%`
-    }
-
-    return value.toFixed(2)
   }
 
   const financialMetrics = [
     { key: 'MARKETCAP', label: 'Vốn hóa thị trường', icon: '💰' },
-    { key: 'PE', label: 'P/E (Giá/Thu nhập)', icon: '📊' },
-    { key: 'PB', label: 'P/B (Giá/Sổ sách)', icon: '📖' },
-    { key: 'PS', label: 'P/S (Giá/Doanh thu)', icon: '💵' },
-    { key: 'EPS', label: 'EPS (Thu nhập/cổ phiếu)', icon: '💸' },
-    { key: 'BVPS', label: 'BVPS (Giá trị sổ sách/cổ phiếu)', icon: '📚' },
-    { key: 'ROAE', label: 'ROE (Lợi nhuận/Vốn CSH)', icon: '📈' },
-    { key: 'ROAA', label: 'ROA (Lợi nhuận/Tổng tài sản)', icon: '🏦' },
+    { key: 'PRICE_TO_EARNINGS', label: 'P/E (Giá/Thu nhập)', icon: '📊' },
+    { key: 'PRICE_TO_BOOK', label: 'P/B (Giá/Sổ sách)', icon: '📖' },
+    { key: 'BVPS_CR', label: 'BVPS (Giá trị sổ sách/CP)', icon: '📚' },
     { key: 'BETA', label: 'Beta (Độ biến động)', icon: '📉' },
-    { key: 'DIVIDEND', label: 'Tỷ suất cổ tức', icon: '💎' },
-    { key: 'PAYOUTRATIO', label: 'Tỷ lệ chi trả cổ tức', icon: '🎁' },
-    { key: 'EBITDA', label: 'EBITDA', icon: '💹' },
-    { key: 'EVEBITDA', label: 'EV/EBITDA', icon: '🔢' },
-    { key: 'DEBTEQUITY', label: 'Nợ/Vốn CSH', icon: '⚖️' },
-    { key: 'CURRENTRATIO', label: 'Tỷ số thanh toán hiện hành', icon: '💧' },
-    { key: 'QUICKRATIO', label: 'Tỷ số thanh toán nhanh', icon: '⚡' },
-    { key: 'GROSSPROFITMARGIN', label: 'Biên lợi nhuận gộp', icon: '📊' },
-    { key: 'NETPROFITMARGIN', label: 'Biên lợi nhuận ròng', icon: '💰' },
-    { key: 'ASSETTURNOVER', label: 'Vòng quay tài sản', icon: '🔄' },
-    { key: 'INVENTORYTURNOVER', label: 'Vòng quay hàng tồn kho', icon: '📦' },
+    { key: 'DIVIDEND_YIELD', label: 'Tỷ suất cổ tức', icon: '💎' },
+    { key: 'OUTSTANDING_SHARES', label: 'Số lượng CP lưu hành', icon: '📈' },
+    { key: 'FREEFLOAT', label: 'Tỷ lệ Free Float', icon: '🔓' },
+    { key: 'NMVOLUME_AVG_CR_10D', label: 'KL TB 10 ngày', icon: '📊' },
+    { key: 'PRICE_HIGHEST_CR_52W', label: 'Giá cao nhất 52 tuần', icon: '⬆️' },
+    { key: 'PRICE_LOWEST_CR_52W', label: 'Giá thấp nhất 52 tuần', icon: '⬇️' },
   ]
 
   if (loading) {
@@ -117,7 +140,7 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {financialMetrics.map(metric => {
           const ratio = ratios[metric.key]
-          const value = formatValue(ratio)
+          const value = formatValue(metric.key, ratio?.value)
 
           return (
             <div
@@ -131,11 +154,6 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
               <div className="text-xl font-bold text-white">
                 {value}
               </div>
-              {ratio && ratio.unit && (
-                <div className="text-xs text-gray-500 mt-1">
-                  {ratio.unit}
-                </div>
-              )}
             </div>
           )
         })}

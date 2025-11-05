@@ -2,35 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // Development mock data fallback
 function generateMockRatios(code: string) {
-  const ratioConfigs = [
-    { ratioCode: 'MARKETCAP', name: 'Market Capitalization', value: 150000000000000, unit: 'VND' },
-    { ratioCode: 'PE', name: 'P/E Ratio', value: 15.5, unit: '' },
-    { ratioCode: 'PB', name: 'P/B Ratio', value: 2.3, unit: '' },
-    { ratioCode: 'PS', name: 'P/S Ratio', value: 1.8, unit: '' },
-    { ratioCode: 'BETA', name: 'Beta', value: 0.95, unit: '' },
-    { ratioCode: 'EPS', name: 'Earnings Per Share', value: 5200, unit: 'VND' },
-    { ratioCode: 'BVPS', name: 'Book Value Per Share', value: 35000, unit: 'VND' },
-    { ratioCode: 'ROAE', name: 'Return on Equity', value: 18.5, unit: '%' },
-    { ratioCode: 'ROAA', name: 'Return on Assets', value: 12.3, unit: '%' },
-    { ratioCode: 'DIVIDEND', name: 'Dividend Yield', value: 3.2, unit: '%' },
-    { ratioCode: 'PAYOUTRATIO', name: 'Payout Ratio', value: 45.0, unit: '%' },
-    { ratioCode: 'EBITDA', name: 'EBITDA', value: 25000000000000, unit: 'VND' },
-    { ratioCode: 'EVEBITDA', name: 'EV/EBITDA', value: 8.5, unit: '' },
-    { ratioCode: 'DEBTEQUITY', name: 'Debt to Equity', value: 0.65, unit: '' },
-    { ratioCode: 'QUICKRATIO', name: 'Quick Ratio', value: 1.2, unit: '' },
-    { ratioCode: 'CURRENTRATIO', name: 'Current Ratio', value: 1.8, unit: '' },
-    { ratioCode: 'GROSSPROFITMARGIN', name: 'Gross Profit Margin', value: 35.5, unit: '%' },
-    { ratioCode: 'NETPROFITMARGIN', name: 'Net Profit Margin', value: 15.2, unit: '%' },
-    { ratioCode: 'ASSETTURNOVER', name: 'Asset Turnover', value: 0.8, unit: '' },
-    { ratioCode: 'INVENTORYTURNOVER', name: 'Inventory Turnover', value: 6.5, unit: '' },
+  return [
+    { value: 2.0531871162125E14, ratioCode: 'MARKETCAP' },
+    { value: 2.79847917E7, ratioCode: 'NMVOLUME_AVG_CR_10D' },
+    { value: 30350.0, ratioCode: 'PRICE_HIGHEST_CR_52W' },
+    { value: 17749.0, ratioCode: 'PRICE_LOWEST_CR_52W' },
+    { value: 7.675465855E9, ratioCode: 'OUTSTANDING_SHARES' },
+    { value: 0.6077503096390232, ratioCode: 'FREEFLOAT' },
+    { value: 1.1390154356678337, ratioCode: 'BETA' },
+    { value: 14.260486175627856, ratioCode: 'PRICE_TO_EARNINGS' },
+    { value: 1.6368184900074352, ratioCode: 'PRICE_TO_BOOK' },
+    { value: 0.0, ratioCode: 'DIVIDEND_YIELD' },
+    { value: 16342.679511079135, ratioCode: 'BVPS_CR' },
   ]
-
-  return ratioConfigs.map(config => ({
-    ...config,
-    code: code.toUpperCase(),
-    icbName: 'Technology',
-    icbCode: '10',
-  }))
 }
 
 export async function GET(request: NextRequest) {
@@ -47,29 +31,20 @@ export async function GET(request: NextRequest) {
   try {
     const ratios = [
       'MARKETCAP',
-      'PE',
-      'PB',
-      'PS',
+      'NMVOLUME_AVG_CR_10D',
+      'PRICE_HIGHEST_CR_52W',
+      'PRICE_LOWEST_CR_52W',
+      'OUTSTANDING_SHARES',
+      'FREEFLOAT',
       'BETA',
-      'EPS',
-      'BVPS',
-      'ROAE',
-      'ROAA',
-      'DIVIDEND',
-      'PAYOUTRATIO',
-      'EBITDA',
-      'EVEBITDA',
-      'DEBTEQUITY',
-      'QUICKRATIO',
-      'CURRENTRATIO',
-      'GROSSPROFITMARGIN',
-      'NETPROFITMARGIN',
-      'ASSETTURNOVER',
-      'INVENTORYTURNOVER'
+      'PRICE_TO_EARNINGS',
+      'PRICE_TO_BOOK',
+      'DIVIDEND_YIELD',
+      'BVPS_CR'
     ]
 
-    const filter = ratios.map(r => `ratioCode:${r}`).join(',')
-    const url = `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=${filter}&where=code:${code.toUpperCase()}`
+    const filter = ratios.join(',')
+    const url = `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=ratioCode:${filter}&where=code:${code.toUpperCase()}&order=reportDate&fields=ratioCode,value`
 
     console.log('🔄 Proxy fetching ratios from VNDirect:', url)
 

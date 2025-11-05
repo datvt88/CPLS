@@ -27,13 +27,8 @@ export interface FinancialRatiosResponse {
 }
 
 export interface FinancialRatio {
-  code: string
   ratioCode: string
-  name: string
   value: number
-  unit: string
-  icbName: string
-  icbCode: string
 }
 
 export interface StockQuote {
