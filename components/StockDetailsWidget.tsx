@@ -25,13 +25,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const [stockData, setStockData] = useState<StockPriceData[]>([])
   const [pivotPoints, setPivotPoints] = useState<WoodiePivotPoints | null>(null)
 
-  // Sync with external symbol changes
+  // Sync with external symbol changes only when initialSymbol changes
   useEffect(() => {
-    if (initialSymbol && initialSymbol !== symbol) {
+    if (initialSymbol && initialSymbol !== inputSymbol) {
       setSymbol(initialSymbol)
       setInputSymbol(initialSymbol)
     }
-  }, [initialSymbol, symbol])
+  }, [initialSymbol])
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
