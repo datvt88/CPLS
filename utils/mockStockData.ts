@@ -1,0 +1,238 @@
+import type { StockPriceData, StockInfo } from '@/types/stock'
+
+// Simple seeded random number generator for consistent data
+function seededRandom(seed: number): () => number {
+  let state = seed
+  return () => {
+    state = (state * 9301 + 49297) % 233280
+    return state / 233280
+  }
+}
+
+// Generate mock stock price data
+export function generateMockStockData(
+  days: number = 180,
+  referencePrice: number = 75,
+  lastPrice: number = 75
+): StockPriceData[] {
+  const data: StockPriceData[] = []
+  const today = new Date()
+
+  // Create seeded random generator for consistent data (seed based on lastPrice)
+  const seed = Math.floor(lastPrice * 1000)
+  const random = seededRandom(seed)
+
+  // Start from a reasonable historical price (80% to 120% of current price)
+  const startPrice = lastPrice * (0.8 + random() * 0.4)
+  let currentPrice = startPrice
+
+  for (let i = days; i >= 0; i--) {
+    const date = new Date(today)
+    date.setDate(date.getDate() - i)
+
+    // For the last 2 days, use actual prices
+    if (i === 1) {
+      // Yesterday should close at referencePrice
+      currentPrice = referencePrice
+      const open = referencePrice + (random() - 0.5) * 1
+      const close = referencePrice
+      const high = Math.max(open, close) + random() * 0.5
+      const low = Math.min(open, close) - random() * 0.5
+      const nmVolume = Math.floor(1000000 + random() * 9000000)
+
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        nmVolume,
+      })
+    } else if (i === 0) {
+      // Today should close at lastPrice
+      const open = referencePrice + (random() - 0.5) * 1
+      const close = lastPrice
+      const high = Math.max(open, close, referencePrice) + random() * 0.5
+      const low = Math.min(open, close, referencePrice) - random() * 0.5
+      const nmVolume = Math.floor(1000000 + random() * 9000000)
+
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        nmVolume,
+      })
+    } else {
+      // Historical days: gradually move from startPrice towards referencePrice
+      // Add some random walk but bias towards referencePrice as we get closer to today
+      const daysFromEnd = i
+      const progressToToday = 1 - (daysFromEnd / days)
+      const targetPrice = startPrice + (referencePrice - startPrice) * progressToToday
+
+      // Add random volatility (smaller as we get closer to today for stability)
+      const volatility = 2 * (1 - progressToToday * 0.5)
+      const change = (random() - 0.5) * volatility
+      currentPrice = Math.max(10, targetPrice + change)
+
+      const open = currentPrice + (random() - 0.5) * 1.5
+      const close = currentPrice + (random() - 0.5) * 1.5
+      const high = Math.max(open, close) + random() * 1
+      const low = Math.min(open, close) - random() * 1
+      const nmVolume = Math.floor(1000000 + random() * 9000000)
+
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        nmVolume,
+      })
+    }
+  }
+
+  return data
+}
+
+// Mock Vietnamese stock data
+export const mockVietnameseStocks: StockInfo[] = [
+  {
+    symbol: 'VNM',
+    name: 'Vinamilk',
+    referencePrice: 77.3,
+    lastPrice: 78.5,
+    change: 1.2,
+    changePercent: 1.55,
+    volume: 3456789,
+    floorPrice: 71.9, // -7%
+    ceilingPrice: 82.7, // +7%
+  },
+  {
+    symbol: 'VIC',
+    name: 'Vingroup',
+    referencePrice: 46.1,
+    lastPrice: 45.3,
+    change: -0.8,
+    changePercent: -1.74,
+    volume: 8765432,
+    floorPrice: 42.9,
+    ceilingPrice: 49.3,
+  },
+  {
+    symbol: 'HPG',
+    name: 'Hòa Phát',
+    referencePrice: 22.9,
+    lastPrice: 23.4,
+    change: 0.5,
+    changePercent: 2.18,
+    volume: 12345678,
+    floorPrice: 21.3,
+    ceilingPrice: 24.5,
+  },
+  {
+    symbol: 'VHM',
+    name: 'Vinhomes',
+    referencePrice: 69.3,
+    lastPrice: 67.8,
+    change: -1.5,
+    changePercent: -2.16,
+    volume: 5678901,
+    floorPrice: 64.5,
+    ceilingPrice: 74.2,
+  },
+  {
+    symbol: 'TCB',
+    name: 'Techcombank',
+    referencePrice: 33.7,
+    lastPrice: 34.6,
+    change: 0.9,
+    changePercent: 2.67,
+    volume: 7890123,
+    floorPrice: 31.3,
+    ceilingPrice: 36.1,
+  },
+  {
+    symbol: 'VPB',
+    name: 'VPBank',
+    referencePrice: 18.6,
+    lastPrice: 18.9,
+    change: 0.3,
+    changePercent: 1.61,
+    volume: 9012345,
+    floorPrice: 17.3,
+    ceilingPrice: 19.9,
+  },
+  {
+    symbol: 'GAS',
+    name: 'PV Gas',
+    referencePrice: 87.1,
+    lastPrice: 89.2,
+    change: 2.1,
+    changePercent: 2.41,
+    volume: 2345678,
+    floorPrice: 81.0,
+    ceilingPrice: 93.2,
+  },
+  {
+    symbol: 'MSN',
+    name: 'Masan Group',
+    referencePrice: 57.3,
+    lastPrice: 56.7,
+    change: -0.6,
+    changePercent: -1.05,
+    volume: 4567890,
+    floorPrice: 53.3,
+    ceilingPrice: 61.3,
+  },
+]
+
+// Cache for generated stock info to maintain consistency
+const generatedStocksCache = new Map<string, StockInfo>()
+
+// Get stock data by symbol
+export function getStockBySymbol(symbol: string): StockInfo | undefined {
+  // First try to find in predefined stocks
+  const existing = mockVietnameseStocks.find((stock) => stock.symbol === symbol)
+  if (existing) {
+    return existing
+  }
+
+  // Check cache for previously generated stocks
+  const upperSymbol = symbol.toUpperCase()
+  if (generatedStocksCache.has(upperSymbol)) {
+    return generatedStocksCache.get(upperSymbol)
+  }
+
+  // If not found, generate mock data for the entered symbol
+  if (symbol && symbol.trim() !== '') {
+    // Generate random but reasonable stock data using symbol as seed for consistency
+    const seed = upperSymbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const randomWithSeed = (seed % 100) / 100 // Pseudo-random based on symbol
+
+    const referencePrice = Number((30 + randomWithSeed * 70).toFixed(2)) // Price between 30-100
+    const changePercent = Number(((randomWithSeed - 0.5) * 6).toFixed(2)) // Change between -3% to +3%
+    const change = Number((referencePrice * changePercent / 100).toFixed(2))
+    const lastPrice = Number((referencePrice + change).toFixed(2))
+    const volume = Math.floor(1000000 + randomWithSeed * 10000000)
+
+    const stockInfo: StockInfo = {
+      symbol: upperSymbol,
+      name: `Cổ phiếu ${upperSymbol}`,
+      referencePrice,
+      lastPrice,
+      change,
+      changePercent,
+      volume,
+      floorPrice: Number((referencePrice * 0.93).toFixed(2)), // -7%
+      ceilingPrice: Number((referencePrice * 1.07).toFixed(2)), // +7%
+    }
+
+    // Cache it for future use
+    generatedStocksCache.set(upperSymbol, stockInfo)
+    return stockInfo
+  }
+
+  return undefined
+}

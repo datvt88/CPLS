@@ -8,25 +8,18 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Check if user is already logged in and redirect
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Kiểm tra hoặc tạo profile
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        router.push('/dashboard');
+      }
+    };
+    checkUser();
 
-        if (!existingProfile) {
-          await supabase.from('profiles').insert([
-            {
-              id: session.user.id,
-              email: session.user.email,
-              plan: 'Free',
-              created_at: new Date().toISOString(),
-            },
-          ]);
-        }
+    // Listen for auth changes and redirect
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
         router.push('/dashboard');
       }
     });
@@ -34,7 +27,7 @@ export default function Home() {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-4">

@@ -1,3 +1,5 @@
+'use client'
+
 import dynamic from 'next/dynamic'
 const SignalCard = dynamic(()=>import('../../components/SignalCard'),{ ssr:false })
 
