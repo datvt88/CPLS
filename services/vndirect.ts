@@ -1,7 +1,9 @@
 import { StockPriceResponse, FinancialRatiosResponse } from '@/types/vndirect'
 
+const VNDIRECT_API_BASE = 'https://api-finfo.vndirect.com.vn/v4'
+
 /**
- * Fetch historical stock prices via Next.js API route (to avoid CORS)
+ * Fetch historical stock prices from VNDirect API
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  * @param size - Number of data points to fetch (default: 270)
  */
@@ -10,52 +12,84 @@ export async function fetchStockPrices(
   size: number = 270
 ): Promise<StockPriceResponse> {
   try {
-    const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}`
+    const url = `${VNDIRECT_API_BASE}/stock_prices?sort=date&q=code:${stockCode.toUpperCase()}&size=${size}`
+
+    console.log('📡 Calling VNDirect API:', url)
 
     const response = await fetch(url, {
+      method: 'GET',
       headers: {
         'Accept': 'application/json',
       },
+      cache: 'no-store',
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`)
+      throw new Error(`VNDirect API Error: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
+    console.log('✅ VNDirect API response received:', data.data?.length, 'records')
     return data
   } catch (error) {
-    console.error('Error fetching stock prices:', error)
+    console.error('❌ Error fetching stock prices from VNDirect:', error)
     throw error
   }
 }
 
 /**
- * Fetch financial ratios via Next.js API route (to avoid CORS)
+ * Fetch financial ratios from VNDirect API
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  */
 export async function fetchFinancialRatios(
   stockCode: string
 ): Promise<FinancialRatiosResponse> {
   try {
-    const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}`
+    const ratios = [
+      'MARKETCAP',
+      'PE',
+      'PB',
+      'PS',
+      'BETA',
+      'EPS',
+      'BVPS',
+      'ROAE',
+      'ROAA',
+      'DIVIDEND',
+      'PAYOUTRATIO',
+      'EBITDA',
+      'EVEBITDA',
+      'DEBTEQUITY',
+      'QUICKRATIO',
+      'CURRENTRATIO',
+      'GROSSPROFITMARGIN',
+      'NETPROFITMARGIN',
+      'ASSETTURNOVER',
+      'INVENTORYTURNOVER'
+    ]
+
+    const filter = ratios.map(r => `ratioCode:${r}`).join(',')
+    const url = `${VNDIRECT_API_BASE}/ratios/latest?filter=${filter}&where=code:${stockCode.toUpperCase()}`
+
+    console.log('📡 Calling VNDirect Ratios API:', url)
 
     const response = await fetch(url, {
+      method: 'GET',
       headers: {
         'Accept': 'application/json',
       },
+      cache: 'no-store',
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `API Error: ${response.status} ${response.statusText}`)
+      throw new Error(`VNDirect API Error: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
+    console.log('✅ VNDirect Ratios API response received:', data.data?.length, 'ratios')
     return data
   } catch (error) {
-    console.error('Error fetching financial ratios:', error)
+    console.error('❌ Error fetching financial ratios from VNDirect:', error)
     throw error
   }
 }
