@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { authService } from '@/services/auth.service'
 
 interface ZaloLoginButtonProps {
   onSuccess?: () => void
@@ -21,22 +20,41 @@ export default function ZaloLoginButton({
   const handleZaloLogin = async () => {
     try {
       setLoading(true)
-      const { error } = await authService.signInWithZalo({
-        redirectTo: `${window.location.origin}/auth/callback`,
-      })
 
-      if (error) {
-        throw error
+      // Get Zalo authorization URL from our API (secure, doesn't expose secrets)
+      const appId = process.env.NEXT_PUBLIC_ZALO_APP_ID
+
+      if (!appId) {
+        throw new Error('Zalo App ID not configured')
       }
 
-      // OAuth will redirect to Zalo, so we might not reach here
-      // But if we do, call onSuccess
+      // Build Zalo OAuth URL - redirect directly to Zalo
+      const redirectUri = `${window.location.origin}/auth/callback`
+      const state = generateState() // CSRF protection
+
+      // Store state in sessionStorage for verification in callback
+      sessionStorage.setItem('zalo_oauth_state', state)
+
+      const authUrl = new URL('https://oauth.zaloapp.com/v4/permission')
+      authUrl.searchParams.set('app_id', appId)
+      authUrl.searchParams.set('redirect_uri', redirectUri)
+      authUrl.searchParams.set('state', state)
+
+      // Redirect to Zalo OAuth
+      window.location.href = authUrl.toString()
+
+      // Will redirect, so this won't be reached normally
       onSuccess?.()
     } catch (error) {
       console.error('Zalo login error:', error)
       onError?.(error as Error)
       setLoading(false)
     }
+  }
+
+  const generateState = (): string => {
+    return Math.random().toString(36).substring(2, 15) +
+           Math.random().toString(36).substring(2, 15)
   }
 
   return (

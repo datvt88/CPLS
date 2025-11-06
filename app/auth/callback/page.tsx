@@ -16,43 +16,112 @@ export default function AuthCallbackPage() {
 
   const handleCallback = async () => {
     try {
-      // Get session after OAuth redirect
-      const { session, error: sessionError } = await authService.handleOAuthCallback()
+      // Get URL parameters from Zalo OAuth redirect
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      const state = urlParams.get('state')
+      const error = urlParams.get('error')
 
-      if (sessionError || !session) {
-        throw new Error(sessionError?.message || 'Không thể xác thực. Vui lòng thử lại.')
+      // Check for OAuth errors
+      if (error) {
+        throw new Error(`Zalo OAuth error: ${error}`)
       }
 
-      // Get user metadata from OAuth provider
-      const { metadata, error: metadataError } = await authService.getUserMetadata()
+      if (!code) {
+        throw new Error('Không nhận được authorization code từ Zalo')
+      }
 
-      if (!metadataError && metadata) {
-        // Check if profile exists
-        const { profile } = await profileService.getProfile(session.user.id)
+      // Verify CSRF state parameter
+      const storedState = sessionStorage.getItem('zalo_oauth_state')
+      if (state !== storedState) {
+        throw new Error('Invalid state parameter - possible CSRF attack')
+      }
 
-        if (profile && metadata.providerId) {
-          // Update existing profile with OAuth data
-          await profileService.linkZaloAccount(
-            session.user.id,
-            metadata.providerId,
-            {
-              full_name: metadata.fullName,
-              phone_number: metadata.phoneNumber,
-              avatar_url: metadata.avatarUrl,
-            }
-          )
-        } else if (!profile) {
-          // Create new profile for OAuth user
-          await profileService.upsertProfile({
-            id: session.user.id,
-            email: session.user.email || metadata.email || '',
-            full_name: metadata.fullName,
-            phone_number: metadata.phoneNumber,
-            avatar_url: metadata.avatarUrl,
-            zalo_id: metadata.providerId,
-            membership: 'free',
-          })
+      // Clean up stored state
+      sessionStorage.removeItem('zalo_oauth_state')
+
+      // Step 1: Exchange authorization code for access token (server-side)
+      const tokenResponse = await fetch('/api/auth/zalo/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json()
+        throw new Error(errorData.error || 'Failed to exchange authorization code')
+      }
+
+      const { access_token } = await tokenResponse.json()
+
+      // Step 2: Get user info from Zalo (server-side)
+      const userResponse = await fetch('/api/auth/zalo/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token }),
+      })
+
+      if (!userResponse.ok) {
+        const errorData = await userResponse.json()
+        throw new Error(errorData.error || 'Failed to get user info from Zalo')
+      }
+
+      const zaloUser = await userResponse.json()
+
+      // Step 3: Create/sign in user with Supabase
+      // Use Zalo ID as pseudo-email since Zalo doesn't always provide email
+      const pseudoEmail = `zalo_${zaloUser.id}@cpls.app`
+
+      // Try to sign in first (user might already exist)
+      let session
+      const { data: signInData, error: signInError } = await authService.signIn({
+        email: pseudoEmail,
+        password: `zalo_${zaloUser.id}_secure_password_${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10)}`,
+      })
+
+      if (signInError) {
+        // User doesn't exist, create new account
+        const { data: signUpData, error: signUpError } = await authService.signUp({
+          email: pseudoEmail,
+          password: `zalo_${zaloUser.id}_secure_password_${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10)}`,
+        })
+
+        if (signUpError) {
+          throw new Error(`Failed to create user: ${signUpError.message}`)
         }
+
+        session = signUpData.session
+      } else {
+        session = signInData.session
+      }
+
+      if (!session) {
+        throw new Error('Failed to create session')
+      }
+
+      // Step 4: Create/update profile with Zalo data
+      const { profile } = await profileService.getProfile(session.user.id)
+
+      if (profile) {
+        // Update existing profile with Zalo data
+        await profileService.linkZaloAccount(
+          session.user.id,
+          zaloUser.id,
+          {
+            full_name: zaloUser.name,
+            avatar_url: zaloUser.picture,
+          }
+        )
+      } else {
+        // Create new profile
+        await profileService.upsertProfile({
+          id: session.user.id,
+          email: pseudoEmail,
+          full_name: zaloUser.name,
+          avatar_url: zaloUser.picture,
+          zalo_id: zaloUser.id,
+          membership: 'free',
+        })
       }
 
       setStatus('success')
