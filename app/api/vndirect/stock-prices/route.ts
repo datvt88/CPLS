@@ -18,9 +18,9 @@ function generateMockStockData(code: string, size: number) {
 
     data.unshift({
       date: currentDate.toISOString().split('T')[0],
-      open: Number(open.toFixed(2)),
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
+      open: Number(adOpen.toFixed(2)),
+      high: Number(adHigh.toFixed(2)),
+      low: Number(adLow.toFixed(2)),
       close: Number(adClose.toFixed(2)),
       nmVolume: Math.floor(Math.random() * 10000000) + 1000000,
       nmValue: Math.floor(Math.random() * 500000000000) + 100000000000,
