@@ -301,6 +301,29 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return { s2Data, r3Data }
   }, [pivotPoints, displayData])
 
+  // Calculate MA20 and MA50
+  const movingAverages = useMemo(() => {
+    if (!chartData.closePrices.length) return { ma20: null, ma50: null }
+
+    const closePrices = chartData.closePrices
+
+    // Calculate MA20
+    let ma20 = null
+    if (closePrices.length >= 20) {
+      const sum20 = closePrices.slice(-20).reduce((acc, val) => acc + val, 0)
+      ma20 = sum20 / 20
+    }
+
+    // Calculate MA50
+    let ma50 = null
+    if (closePrices.length >= 50) {
+      const sum50 = closePrices.slice(-50).reduce((acc, val) => acc + val, 0)
+      ma50 = sum50 / 50
+    }
+
+    return { ma20, ma50 }
+  }, [chartData.closePrices])
+
   // Update chart when data or settings change
   useEffect(() => {
     if (!displayData.length || !seriesRefs.current.candlestick) {
@@ -556,6 +579,35 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                   </>
                 )}
               </div>
+
+              {/* MA20 and MA50 Trend Analysis */}
+              {movingAverages.ma20 !== null && movingAverages.ma50 !== null && (
+                <div className="mt-4 pt-4 border-t border-cyan-700/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-blue-400 font-semibold">MA20:</span>
+                      <span className="ml-2 text-white font-bold">
+                        {movingAverages.ma20.toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-orange-400 font-semibold">MA50:</span>
+                      <span className="ml-2 text-white font-bold">
+                        {movingAverages.ma50.toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className={`font-semibold ${
+                        movingAverages.ma20 < movingAverages.ma50 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {movingAverages.ma20 < movingAverages.ma50
+                          ? '📈 Xu hướng kỹ thuật: Tăng giá'
+                          : '📉 Xu hướng kỹ thuật: Giảm giá'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
