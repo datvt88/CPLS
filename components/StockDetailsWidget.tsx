@@ -301,27 +301,20 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return { s2Data, r3Data }
   }, [pivotPoints, displayData])
 
-  // Calculate MA20 and MA50
+  // Calculate MA10
   const movingAverages = useMemo(() => {
-    if (!chartData.closePrices.length) return { ma20: null, ma50: null }
+    if (!chartData.closePrices.length) return { ma10: null }
 
     const closePrices = chartData.closePrices
 
-    // Calculate MA20
-    let ma20: number | null = null
-    if (closePrices.length >= 20) {
-      const sum20 = closePrices.slice(-20).reduce((acc, val) => acc + val, 0)
-      ma20 = sum20 / 20
+    // Calculate MA10
+    let ma10: number | null = null
+    if (closePrices.length >= 10) {
+      const sum10 = closePrices.slice(-10).reduce((acc, val) => acc + val, 0)
+      ma10 = sum10 / 10
     }
 
-    // Calculate MA50
-    let ma50: number | null = null
-    if (closePrices.length >= 50) {
-      const sum50 = closePrices.slice(-50).reduce((acc, val) => acc + val, 0)
-      ma50 = sum50 / 50
-    }
-
-    return { ma20, ma50 }
+    return { ma10 }
   }, [chartData.closePrices])
 
   // Update chart when data or settings change
@@ -580,29 +573,29 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 )}
               </div>
 
-              {/* MA20 and MA50 Trend Analysis */}
-              {movingAverages.ma20 !== null && movingAverages.ma50 !== null && (
+              {/* MA10 vs MA30 (BB Middle) Trend Analysis */}
+              {movingAverages.ma10 !== null && bollingerBands.middle.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-cyan-700/30">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <span className="text-blue-400 font-semibold">MA20:</span>
+                      <span className="text-blue-400 font-semibold">MA10:</span>
                       <span className="ml-2 text-white font-bold">
-                        {movingAverages.ma20.toFixed(2)}
+                        {movingAverages.ma10.toFixed(2)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-orange-400 font-semibold">MA50:</span>
+                      <span className="text-orange-400 font-semibold">MA30:</span>
                       <span className="ml-2 text-white font-bold">
-                        {movingAverages.ma50.toFixed(2)}
+                        {bollingerBands.middle[bollingerBands.middle.length - 1]?.value.toFixed(2) || 'N/A'}
                       </span>
                     </div>
                     <div>
                       <span className={`font-semibold ${
-                        movingAverages.ma20 > movingAverages.ma50 ? 'text-green-400' : 'text-red-400'
+                        movingAverages.ma10 > (bollingerBands.middle[bollingerBands.middle.length - 1]?.value || 0) ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {movingAverages.ma20 > movingAverages.ma50
-                          ? '📈 Xu hướng Trung hạn: Tăng giá'
-                          : '📉 Xu hướng Trung hạn: Giảm giá'}
+                        {movingAverages.ma10 > (bollingerBands.middle[bollingerBands.middle.length - 1]?.value || 0)
+                          ? '📈 Xu hướng: Tăng giá'
+                          : '📉 Xu hướng: Giảm giá'}
                       </span>
                     </div>
                   </div>
