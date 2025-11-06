@@ -14,10 +14,19 @@ const currencyInfo: Record<string, { name: string; flag: string }> = {
   'THB_VND': { name: 'Bạt Thái', flag: '🇹🇭' },
 }
 
-const formatVND = (value: number): string => {
+const formatVND = (value: number, currencyCode?: string): string => {
+  // JPY has smaller values, needs decimal places
+  if (currencyCode?.includes('JPY')) {
+    return value.toLocaleString('vi-VN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })
+  }
+
+  // Other currencies use whole numbers
   return value.toLocaleString('vi-VN', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   })
 }
 
@@ -130,7 +139,7 @@ export default function ExchangeRateWidget() {
               <div className="mb-3">
                 <div className="text-xs text-gray-400 mb-1">Giá hiện tại</div>
                 <div className="text-2xl font-bold text-white">
-                  {formatVND(rate.price)}
+                  {formatVND(rate.price, rate.code)}
                 </div>
               </div>
 
@@ -139,13 +148,13 @@ export default function ExchangeRateWidget() {
                   <div>
                     <div className="text-xs text-gray-400 mb-1">Thay đổi</div>
                     <div className={`text-lg font-bold ${changeColor}`}>
-                      {isPositive ? '+' : ''}{formatVND(rate.change)}
+                      {isPositive ? '+' : ''}{formatVND(rate.change, rate.code)}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-gray-400 mb-1">Giá đầu kỳ</div>
                     <div className="text-sm font-semibold text-gray-300">
-                      {formatVND(rate.bopPrice)}
+                      {formatVND(rate.bopPrice, rate.code)}
                     </div>
                   </div>
                 </div>

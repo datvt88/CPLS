@@ -67,9 +67,13 @@ export interface ExchangeRateData {
 // API Response wrappers
 export interface VNDirectResponse<T> {
   data: T[]
+  currentPage?: number
+  size?: number
+  totalElements?: number
+  totalPages?: number
+  // Legacy fields for backwards compatibility
   total?: number
   page?: number
-  size?: number
 }
 
 // Helper types
