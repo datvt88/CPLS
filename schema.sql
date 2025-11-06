@@ -5,9 +5,37 @@ create extension if not exists "pgcrypto";
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique,
-  role text default 'user' check (role in ('user','vip')),
-  created_at timestamptz default now()
+  full_name text,
+  phone_number text,
+  stock_account_number text,
+  avatar_url text,
+  zalo_id text unique,
+  membership text default 'free' check (membership in ('free','premium')),
+  membership_expires_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
+
+-- Index for faster lookup by zalo_id
+create index if not exists idx_profiles_zalo_id on profiles(zalo_id);
+
+-- Index for faster lookup by phone_number
+create index if not exists idx_profiles_phone_number on profiles(phone_number);
+
+-- Function to update updated_at timestamp
+create or replace function update_updated_at_column()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+-- Trigger to auto-update updated_at
+create trigger update_profiles_updated_at
+  before update on profiles
+  for each row
+  execute function update_updated_at_column();
 
 create table if not exists signals (
   id uuid primary key default gen_random_uuid(),

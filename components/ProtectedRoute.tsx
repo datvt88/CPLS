@@ -5,13 +5,22 @@ import { supabase } from '@/lib/supabaseClient'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
+  requirePremium?: boolean
+  /** @deprecated Use requirePremium instead */
   requireVIP?: boolean
 }
 
-export default function ProtectedRoute({ children, requireVIP = false }: ProtectedRouteProps){
+export default function ProtectedRoute({
+  children,
+  requirePremium = false,
+  requireVIP = false
+}: ProtectedRouteProps){
   const [allowed, setAllowed] = useState(false)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+
+  // Support both requirePremium and requireVIP for backward compatibility
+  const needsPremium = requirePremium || requireVIP
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -23,16 +32,31 @@ export default function ProtectedRoute({ children, requireVIP = false }: Protect
           return
         }
 
-        if (requireVIP) {
+        if (needsPremium) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('role')
+            .select('membership, membership_expires_at')
             .eq('id', session.user.id)
             .single()
 
-          if (profile?.role === 'vip') {
-            setAllowed(true)
+          // Check if user has premium membership
+          if (profile?.membership === 'premium') {
+            // Check if membership has expired
+            if (profile.membership_expires_at) {
+              const expiresAt = new Date(profile.membership_expires_at)
+              const now = new Date()
+              if (expiresAt > now) {
+                setAllowed(true)
+              } else {
+                // Expired premium membership
+                router.push('/upgrade')
+              }
+            } else {
+              // No expiration date means lifetime premium
+              setAllowed(true)
+            }
           } else {
+            // Free user trying to access premium content
             router.push('/upgrade')
           }
         } else {
@@ -47,7 +71,7 @@ export default function ProtectedRoute({ children, requireVIP = false }: Protect
     }
 
     checkAuth()
-  }, [requireVIP, router])
+  }, [needsPremium, router])
 
   if (loading) {
     return (

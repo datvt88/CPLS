@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { authService } from '@/services/auth.service';
 import { validateEmail, validatePassword, sanitizeInput } from '@/utils/validation';
+import ZaloLoginButton from './ZaloLoginButton';
 
 export function AuthForm() {
   const [email, setEmail] = useState('');
@@ -121,6 +122,27 @@ export function AuthForm() {
           }
         </button>
       </form>
+
+      {/* Divider */}
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-zinc-700"></div>
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-2 bg-zinc-900 text-gray-400">hoặc</span>
+        </div>
+      </div>
+
+      {/* Zalo OAuth Login */}
+      <ZaloLoginButton
+        onSuccess={() => {
+          setMessage('Đang chuyển hướng đến Zalo...')
+        }}
+        onError={(error) => {
+          setMessage(`Lỗi đăng nhập Zalo: ${error.message}`)
+        }}
+        fullWidth
+      />
 
       <p
         onClick={() => {

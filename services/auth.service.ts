@@ -5,9 +5,14 @@ export interface AuthCredentials {
   password: string
 }
 
+export interface ZaloAuthOptions {
+  redirectTo?: string
+  scopes?: string
+}
+
 export const authService = {
   /**
-   * Sign up a new user
+   * Sign up a new user with email and password
    */
   async signUp({ email, password }: AuthCredentials) {
     const { data, error } = await supabase.auth.signUp({ email, password })
@@ -20,6 +25,42 @@ export const authService = {
   async signIn({ email, password }: AuthCredentials) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     return { data, error }
+  },
+
+  /**
+   * Sign in with Zalo OAuth
+   * Requires Zalo OAuth to be configured in Supabase
+   */
+  async signInWithZalo(options?: ZaloAuthOptions) {
+    const redirectTo = options?.redirectTo || `${window.location.origin}/auth/callback`
+    const scopes = options?.scopes || 'id,name,picture,phone'
+
+    // Using Supabase OAuth with custom provider
+    // Note: This requires configuring a custom OAuth provider in Supabase
+    // or using Supabase's third-party provider support
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'zalo' as any, // Custom provider
+      options: {
+        redirectTo,
+        scopes,
+        queryParams: {
+          app_id: process.env.NEXT_PUBLIC_ZALO_APP_ID || '',
+        },
+      },
+    })
+
+    return { data, error }
+  },
+
+  /**
+   * Handle OAuth callback
+   * This should be called in the callback page after OAuth redirect
+   */
+  async handleOAuthCallback() {
+    // Supabase automatically handles the OAuth callback
+    // Just get the session which should be available after redirect
+    const { data, error } = await supabase.auth.getSession()
+    return { session: data.session, error }
   },
 
   /**
@@ -39,9 +80,37 @@ export const authService = {
   },
 
   /**
+   * Get current user
+   */
+  async getUser() {
+    const { data, error } = await supabase.auth.getUser()
+    return { user: data.user, error }
+  },
+
+  /**
    * Subscribe to auth state changes
    */
   onAuthStateChange(callback: (event: string, session: any) => void) {
     return supabase.auth.onAuthStateChange(callback)
-  }
+  },
+
+  /**
+   * Get user metadata (includes OAuth provider data)
+   */
+  async getUserMetadata() {
+    const { user, error } = await this.getUser()
+    if (error || !user) return { metadata: null, error }
+
+    return {
+      metadata: {
+        email: user.email,
+        fullName: user.user_metadata?.full_name || user.user_metadata?.name,
+        avatarUrl: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+        phoneNumber: user.user_metadata?.phone_number || user.user_metadata?.phone,
+        provider: user.app_metadata?.provider,
+        providerId: user.user_metadata?.sub || user.user_metadata?.provider_id,
+      },
+      error: null,
+    }
+  },
 }
