@@ -598,9 +598,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                     </div>
                     <div>
                       <span className={`font-semibold ${
-                        movingAverages.ma20 < movingAverages.ma50 ? 'text-green-400' : 'text-red-400'
+                        movingAverages.ma20 > movingAverages.ma50 ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {movingAverages.ma20 < movingAverages.ma50
+                        {movingAverages.ma20 > movingAverages.ma50
                           ? '📈 Xu hướng kỹ thuật: Tăng giá'
                           : '📉 Xu hướng kỹ thuật: Giảm giá'}
                       </span>
