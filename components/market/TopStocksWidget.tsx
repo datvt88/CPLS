@@ -35,16 +35,22 @@ const formatVolume = (volume: number): string => {
   return volume.toFixed(0)
 }
 
-const isCeilingPrice = (pctChange: number): boolean => {
-  // HOSE/HNX: 6.85% - 7.1%
-  if (pctChange >= 6.85 && pctChange <= 7.1) return true
-  // UPCOM: 14.8% - 15.2%
-  if (pctChange >= 14.8 && pctChange <= 15.2) return true
+const isCeilingPrice = (pctChange: number, exchange: Exchange): boolean => {
+  // HNX: Giá trần khi gần 10% (9.8% - 10.2%)
+  if (exchange === 'HNX') {
+    return pctChange >= 9.8 && pctChange <= 10.2
+  }
+
+  // HOSE và VN30: Giá trần khi gần 7% (6.85% - 7.1%)
+  if (exchange === 'HOSE' || exchange === 'VN30') {
+    return pctChange >= 6.85 && pctChange <= 7.1
+  }
+
   return false
 }
 
-const getPriceColor = (pctChange: number): string => {
-  if (isCeilingPrice(pctChange)) return 'text-purple-500'
+const getPriceColor = (pctChange: number, exchange: Exchange): string => {
+  if (isCeilingPrice(pctChange, exchange)) return 'text-purple-500'
   if (pctChange > 0) return 'text-green-500'
   if (pctChange < 0) return 'text-red-500'
   return 'text-yellow-500'
@@ -152,8 +158,8 @@ export default function TopStocksWidget() {
             </thead>
             <tbody>
               {stocks.map((stock, index) => {
-                const isCeiling = isCeilingPrice(stock.priceChgPctCr1D)
-                const colorClass = getPriceColor(stock.priceChgPctCr1D)
+                const isCeiling = isCeilingPrice(stock.priceChgPctCr1D, activeExchange)
+                const colorClass = getPriceColor(stock.priceChgPctCr1D, activeExchange)
 
                 return (
                   <tr
