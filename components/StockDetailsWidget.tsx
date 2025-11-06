@@ -301,6 +301,22 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return { s2Data, r3Data }
   }, [pivotPoints, displayData])
 
+  // Calculate MA10
+  const movingAverages = useMemo(() => {
+    if (!chartData.closePrices.length) return { ma10: null }
+
+    const closePrices = chartData.closePrices
+
+    // Calculate MA10
+    let ma10: number | null = null
+    if (closePrices.length >= 10) {
+      const sum10 = closePrices.slice(-10).reduce((acc, val) => acc + val, 0)
+      ma10 = sum10 / 10
+    }
+
+    return { ma10 }
+  }, [chartData.closePrices])
+
   // Update chart when data or settings change
   useEffect(() => {
     if (!displayData.length || !seriesRefs.current.candlestick) {
@@ -556,6 +572,35 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                   </>
                 )}
               </div>
+
+              {/* MA10 vs MA30 (BB Middle) Trend Analysis */}
+              {movingAverages.ma10 !== null && bollingerBands.middle.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-cyan-700/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-blue-400 font-semibold">MA10:</span>
+                      <span className="ml-2 text-white font-bold">
+                        {movingAverages.ma10.toFixed(2)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-orange-400 font-semibold">MA30:</span>
+                      <span className="ml-2 text-white font-bold">
+                        {bollingerBands.middle[bollingerBands.middle.length - 1]?.value.toFixed(2) || 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className={`font-semibold ${
+                        movingAverages.ma10 > (bollingerBands.middle[bollingerBands.middle.length - 1]?.value || 0) ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {movingAverages.ma10 > (bollingerBands.middle[bollingerBands.middle.length - 1]?.value || 0)
+                          ? '📈 Xu hướng: Tăng giá'
+                          : '📉 Xu hướng: Giảm giá'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
