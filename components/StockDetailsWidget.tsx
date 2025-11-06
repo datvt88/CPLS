@@ -601,8 +601,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                         movingAverages.ma20 > movingAverages.ma50 ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {movingAverages.ma20 > movingAverages.ma50
-                          ? '📈 Xu hướng kỹ thuật: Tăng giá'
-                          : '📉 Xu hướng kỹ thuật: Giảm giá'}
+                          ? '📈 Xu hướng Trung hạn: Tăng giá'
+                          : '📉 Xu hướng Trung hạn: Giảm giá'}
                       </span>
                     </div>
                   </div>
