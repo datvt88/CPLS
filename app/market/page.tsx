@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import SimpleSecuritiesWidget from '@/components/market/SimpleSecuritiesWidget'
-import SimpleTopGainersWidget from '@/components/market/SimpleTopGainersWidget'
+import TopStocksWidget from '@/components/market/TopStocksWidget'
 import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
 import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
 import SimpleExchangeRateWidget from '@/components/market/SimpleExchangeRateWidget'
@@ -25,7 +25,7 @@ export default function MarketPage() {
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <h1 className="text-3xl font-bold text-white mb-2">🌐 Thị trường</h1>
         <p className="text-[--muted]">
-          Thông tin thị trường chứng khoán và tài chính (dữ liệu mẫu)
+          Theo dõi thị trường chứng khoán và tài chính
         </p>
       </div>
 
@@ -64,7 +64,7 @@ export default function MarketPage() {
         {activeTab === 'securities' && (
           <>
             <SimpleSecuritiesWidget />
-            <SimpleTopGainersWidget />
+            <TopStocksWidget />
           </>
         )}
 
