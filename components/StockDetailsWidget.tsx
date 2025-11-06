@@ -43,6 +43,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     bbLower: ISeriesApi<'Line'> | null
     s2Line: ISeriesApi<'Line'> | null
     r3Line: ISeriesApi<'Line'> | null
+    volume: ISeriesApi<'Histogram'> | null
   }>({
     candlestick: null,
     line: null,
@@ -51,6 +52,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     bbLower: null,
     s2Line: null,
     r3Line: null,
+    volume: null,
   })
 
   // Initialize chart
@@ -135,6 +137,23 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       title: 'Sell T+',
     })
 
+    // Volume Histogram
+    const volumeSeries = chart.addHistogramSeries({
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: 'volume',
+    })
+
+    // Configure volume scale
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    })
+
     chartRef.current = chart
     seriesRefs.current = {
       candlestick: candlestickSeries,
@@ -144,6 +163,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       bbLower: bbLowerSeries,
       s2Line: s2LineSeries,
       r3Line: r3LineSeries,
+      volume: volumeSeries,
     }
 
     const handleResize = () => {
@@ -236,7 +256,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
   // Memoize chart data (using adjusted prices for accurate historical comparison)
   const chartData = useMemo(() => {
-    if (!displayData.length) return { candleData: [], lineData: [], closePrices: [] }
+    if (!displayData.length) return { candleData: [], lineData: [], closePrices: [], volumeData: [] }
 
     const candleData: CandlestickData[] = displayData.map(d => ({
       time: d.date as Time,
@@ -253,7 +273,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     const closePrices = displayData.map(d => d.adClose)
 
-    return { candleData, lineData, closePrices }
+    const volumeData = displayData.map(d => ({
+      time: d.date as Time,
+      value: d.nmVolume,
+      color: d.adClose >= d.adOpen ? '#26a69a' : '#ef5350',
+    }))
+
+    return { candleData, lineData, closePrices, volumeData }
   }, [displayData])
 
   // Memoize Bollinger Bands
@@ -341,6 +367,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     // Draw S2 and R3 lines for last 30 sessions
     series.s2Line?.setData(pivotLinesData.s2Data)
     series.r3Line?.setData(pivotLinesData.r3Data)
+
+    // Update volume data
+    series.volume?.setData(chartData.volumeData)
 
     chartRef.current?.timeScale().fitContent()
   }, [displayData, chartType, chartData, bollingerBands, pivotLinesData])
