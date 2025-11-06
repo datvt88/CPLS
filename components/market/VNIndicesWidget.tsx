@@ -64,8 +64,11 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
       setError(null)
     } catch (err) {
       console.error('Error fetching indices:', err)
-      setError('Không thể tải dữ liệu')
-      setIndices([])
+      // Only show error if we have no data yet
+      if (indices.length === 0) {
+        setError('Không thể tải dữ liệu')
+      }
+      // Keep old data if update fails
     } finally {
       setLoading(false)
     }
@@ -84,7 +87,8 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
     }
   }, [mounted, isActive])
 
-  if (!mounted) {
+  // Only show loading skeleton on initial load
+  if (!mounted || (loading && indices.length === 0)) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <div className="animate-pulse space-y-4">
@@ -99,22 +103,8 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
     )
   }
 
-  if (loading) {
-    return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-700 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-24 bg-gray-700 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
+  // Show error only if we have no data
+  if (error && indices.length === 0) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-red-800">
         <p className="text-red-500">{error}</p>
@@ -133,7 +123,7 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
   })
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 transition-all duration-300">
       <h3 className="text-xl font-bold mb-6 text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -144,7 +134,7 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
           return (
             <div
               key={index.code}
-              className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-all border border-gray-700"
+              className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-all duration-300 border border-gray-700"
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="font-semibold text-white">{info.name}</span>

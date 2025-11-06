@@ -68,7 +68,10 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
   const [mounted, setMounted] = useState(false)
 
   const fetchTopStocks = async (exchange: Exchange) => {
-    setLoading(true)
+    // Only show loading on first load
+    if (stocks.length === 0) {
+      setLoading(true)
+    }
     setError(null)
 
     try {
@@ -79,8 +82,11 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
       setStocks(data.data || [])
     } catch (err) {
       console.error('Error fetching top stocks:', err)
-      setError('Không thể tải dữ liệu')
-      setStocks([])
+      // Only show error if we have no data yet
+      if (stocks.length === 0) {
+        setError('Không thể tải dữ liệu')
+      }
+      // Keep old data if update fails
     } finally {
       setLoading(false)
     }
@@ -99,7 +105,8 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
     }
   }, [activeExchange, mounted, isActive])
 
-  if (!mounted) {
+  // Only show loading skeleton on initial load
+  if (!mounted || (loading && stocks.length === 0)) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <div className="animate-pulse space-y-4">
@@ -116,7 +123,7 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 transition-all duration-300">
       <h3 className="text-xl font-bold mb-4 text-white">🚀 Top 10 cổ phiếu tăng giá</h3>
 
       {/* Exchange Tabs */}
@@ -126,7 +133,7 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
             key={exchange}
             onClick={() => setActiveExchange(exchange)}
             className={`
-              px-4 py-2 rounded-lg font-semibold transition-all text-sm
+              px-4 py-2 rounded-lg font-semibold transition-all duration-300 text-sm
               ${
                 activeExchange === exchange
                   ? 'bg-purple-600 text-white'
@@ -139,13 +146,7 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
         ))}
       </div>
 
-      {loading ? (
-        <div className="animate-pulse space-y-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-12 bg-gray-700 rounded"></div>
-          ))}
-        </div>
-      ) : error ? (
+      {error && stocks.length === 0 ? (
         <div className="text-center py-8 text-red-500">{error}</div>
       ) : stocks.length === 0 ? (
         <div className="text-center py-8 text-gray-400">Không có dữ liệu</div>
@@ -171,7 +172,7 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
                 return (
                   <tr
                     key={stock.code}
-                    className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors"
+                    className="border-b border-gray-800 hover:bg-gray-800/50 transition-all duration-300"
                   >
                     <td className="py-3 px-2 text-gray-400">#{index + 1}</td>
                     <td className="py-3 px-2">

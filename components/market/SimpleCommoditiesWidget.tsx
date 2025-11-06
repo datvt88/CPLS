@@ -47,6 +47,7 @@ export default function SimpleCommoditiesWidget({ isActive = true }: SimpleCommo
         setCommodities(data.data || [])
       } catch (error) {
         console.error('Error fetching commodities:', error)
+        // Keep old data if update fails
       } finally {
         setLoading(false)
       }
@@ -71,7 +72,8 @@ export default function SimpleCommoditiesWidget({ isActive = true }: SimpleCommo
     return '▬'
   }
 
-  if (!mounted || loading) {
+  // Only show loading skeleton on initial load
+  if (!mounted || (loading && commodities.length === 0)) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <h3 className="text-xl font-bold mb-6 text-white">🛢️ Hàng hóa</h3>
@@ -87,7 +89,7 @@ export default function SimpleCommoditiesWidget({ isActive = true }: SimpleCommo
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 transition-all duration-300">
       <h3 className="text-xl font-bold mb-6 text-white">🛢️ Hàng hóa</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -98,7 +100,7 @@ export default function SimpleCommoditiesWidget({ isActive = true }: SimpleCommo
           return (
             <div
               key={commodity.code}
-              className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-all border border-gray-700"
+              className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-all duration-300 border border-gray-700"
             >
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl">{info.icon}</span>
