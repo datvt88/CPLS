@@ -567,17 +567,17 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-0.5 bg-blue-500" style={{ borderTop: '2px solid #2962FF' }}></div>
-              <span>Bollinger Bands (30, 3)</span>
+              <span>Bollinger Bands</span>
             </div>
             {pivotPoints && (
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-0.5 bg-green-500" style={{ borderTop: '2px dashed #22c55e' }}></div>
-                  <span>Buy T+ - 30 phiên</span>
+                  <span>Buy T+ - theo Pivot</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-0.5 bg-red-500" style={{ borderTop: '2px dashed #ef4444' }}></div>
-                  <span>Sell T+ - 30 phiên</span>
+                  <span>Sell T+ - theo Pivot</span>
                 </div>
               </>
             )}
