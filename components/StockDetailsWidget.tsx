@@ -308,14 +308,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     const closePrices = chartData.closePrices
 
     // Calculate MA20
-    let ma20 = null
+    let ma20: number | null = null
     if (closePrices.length >= 20) {
       const sum20 = closePrices.slice(-20).reduce((acc, val) => acc + val, 0)
       ma20 = sum20 / 20
     }
 
     // Calculate MA50
-    let ma50 = null
+    let ma50: number | null = null
     if (closePrices.length >= 50) {
       const sum50 = closePrices.slice(-50).reduce((acc, val) => acc + val, 0)
       ma50 = sum50 / 50
