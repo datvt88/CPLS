@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import SimpleSecuritiesWidget from '@/components/market/SimpleSecuritiesWidget'
+import VNIndicesWidget from '@/components/market/VNIndicesWidget'
 import TopStocksWidget from '@/components/market/TopStocksWidget'
 import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
 import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
@@ -63,7 +63,7 @@ export default function MarketPage() {
       <div className="space-y-6">
         {activeTab === 'securities' && (
           <>
-            <SimpleSecuritiesWidget />
+            <VNIndicesWidget />
             <TopStocksWidget />
           </>
         )}
