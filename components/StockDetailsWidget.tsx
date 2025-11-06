@@ -240,15 +240,15 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     const candleData: CandlestickData[] = displayData.map(d => ({
       time: d.date as Time,
-      open: d.adopen,
-      high: d.adhigh,
-      low: d.adlow,
-      close: d.adclose,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
     }))
 
     const lineData: LineData[] = displayData.map(d => ({
       time: d.date as Time,
-      value: d.adclose,
+      value: d.close,
     }))
 
     const closePrices = displayData.map(d => d.close)
