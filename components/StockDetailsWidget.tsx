@@ -201,10 +201,10 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
       setStockData(sortedData)
 
-      // Calculate pivot points from previous day
+      // Calculate pivot points from previous day (using adjusted prices)
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
-        const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
+        const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
         setPivotPoints(pivots)
       }
     } catch (err) {
@@ -234,24 +234,24 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return stockData
   }, [stockData, timeframe])
 
-  // Memoize chart data
+  // Memoize chart data (using adjusted prices for accurate historical comparison)
   const chartData = useMemo(() => {
     if (!displayData.length) return { candleData: [], lineData: [], closePrices: [] }
 
     const candleData: CandlestickData[] = displayData.map(d => ({
       time: d.date as Time,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
+      open: d.adOpen,
+      high: d.adHigh,
+      low: d.adLow,
+      close: d.adClose,
     }))
 
     const lineData: LineData[] = displayData.map(d => ({
       time: d.date as Time,
-      value: d.close,
+      value: d.adClose,
     }))
 
-    const closePrices = displayData.map(d => d.close)
+    const closePrices = displayData.map(d => d.adClose)
 
     return { candleData, lineData, closePrices }
   }, [displayData])
@@ -562,6 +562,10 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           {/* Legend */}
           <div className="flex flex-wrap gap-4 text-sm text-gray-400">
             <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-purple-600 rounded"></div>
+              <span className="font-semibold text-purple-400">Biểu đồ sử dụng giá điều chỉnh (Adjusted Prices)</span>
+            </div>
+            <div className="flex items-center gap-2">
               <div className="w-4 h-0.5 bg-blue-500" style={{ borderTop: '2px solid #2962FF' }}></div>
               <span>Bollinger Bands (30, 3)</span>
             </div>
@@ -602,24 +606,24 @@ function aggregateWeekly(data: StockPriceData[]): StockPriceData[] {
   })
 
   return Array.from(weeks.values()).map(weekData => {
-    const open = weekData[0].open
-    const close = weekData[weekData.length - 1].close
-    const high = Math.max(...weekData.map(d => d.high))
-    const low = Math.min(...weekData.map(d => d.low))
+    const adOpen = weekData[0].adOpen
+    const adClose = weekData[weekData.length - 1].adClose
+    const adHigh = Math.max(...weekData.map(d => d.adHigh))
+    const adLow = Math.min(...weekData.map(d => d.adLow))
     const nmVolume = weekData.reduce((sum, d) => sum + d.nmVolume, 0)
     const nmValue = weekData.reduce((sum, d) => sum + d.nmValue, 0)
-    const change = close - open
-    const pctChange = (change / open) * 100
+    const adChange = adClose - adOpen
+    const pctChange = (adChange / adOpen) * 100
 
     return {
       ...weekData[weekData.length - 1],
-      open,
-      high,
-      low,
-      close,
+      adOpen,
+      adHigh,
+      adLow,
+      adClose,
       nmVolume,
       nmValue,
-      change,
+      adChange,
       pctChange,
     }
   })
@@ -639,24 +643,24 @@ function aggregateMonthly(data: StockPriceData[]): StockPriceData[] {
   })
 
   return Array.from(months.values()).map(monthData => {
-    const open = monthData[0].open
-    const close = monthData[monthData.length - 1].close
-    const high = Math.max(...monthData.map(d => d.high))
-    const low = Math.min(...monthData.map(d => d.low))
+    const adOpen = monthData[0].adOpen
+    const adClose = monthData[monthData.length - 1].adClose
+    const adHigh = Math.max(...monthData.map(d => d.adHigh))
+    const adLow = Math.min(...monthData.map(d => d.adLow))
     const nmVolume = monthData.reduce((sum, d) => sum + d.nmVolume, 0)
     const nmValue = monthData.reduce((sum, d) => sum + d.nmValue, 0)
-    const change = close - open
-    const pctChange = (change / open) * 100
+    const adChange = adClose - adOpen
+    const pctChange = (adChange / adOpen) * 100
 
     return {
       ...monthData[monthData.length - 1],
-      open,
-      high,
-      low,
-      close,
+      adOpen,
+      adHigh,
+      adLow,
+      adClose,
       nmVolume,
       nmValue,
-      change,
+      adChange,
       pctChange,
     }
   })
