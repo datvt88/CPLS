@@ -21,7 +21,7 @@ function generateMockStockData(code: string, size: number) {
       open: Number(open.toFixed(2)),
       high: Number(high.toFixed(2)),
       low: Number(low.toFixed(2)),
-      close: Number(close.toFixed(2)),
+      close: Number(adClose.toFixed(2)),
       nmVolume: Math.floor(Math.random() * 10000000) + 1000000,
       nmValue: Math.floor(Math.random() * 500000000000) + 100000000000,
       ptVolume: 0,
