@@ -104,8 +104,10 @@ export default function ExchangeRateWidget() {
           const info = currencyInfo[rate.code]
           if (!info) return null
 
-          const spread = rate.sellRate - rate.buyRate
-          const spreadPercent = (spread / rate.buyRate) * 100
+          const isPositive = rate.change > 0
+          const isNegative = rate.change < 0
+          const changeColor = isPositive ? 'text-green-500' : isNegative ? 'text-red-500' : 'text-gray-400'
+          const changeBg = isPositive ? 'bg-green-900/20 border-green-700/30' : isNegative ? 'bg-red-900/20 border-red-700/30' : 'bg-gray-800/50 border-gray-700'
 
           return (
             <div
@@ -114,42 +116,44 @@ export default function ExchangeRateWidget() {
             >
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-3xl">{info.flag}</span>
-                <div>
+                <div className="flex-1">
                   <div className="font-semibold text-white text-lg">{info.name}</div>
                   <div className="text-xs text-gray-400">{rate.code.replace('_VND', '')}</div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-green-900/20 rounded-lg p-3 border border-green-700/30">
-                  <div className="text-xs text-green-400 mb-1">Mua vào</div>
-                  <div className="text-lg font-bold text-green-500">
-                    {formatVND(rate.buyRate)}
-                  </div>
-                </div>
-
-                <div className="bg-red-900/20 rounded-lg p-3 border border-red-800/30">
-                  <div className="text-xs text-red-400 mb-1">Bán ra</div>
-                  <div className="text-lg font-bold text-red-500">
-                    {formatVND(rate.sellRate)}
+                <div className="text-right">
+                  <div className={`text-xs font-semibold ${changeColor}`}>
+                    {isPositive ? '↑' : isNegative ? '↓' : '•'} {rate.changePct.toFixed(2)}%
                   </div>
                 </div>
               </div>
 
-              <div className="mt-3 pt-3 border-t border-gray-700 flex justify-between text-xs">
-                <div className="text-gray-400">
-                  Chênh lệch: <span className="text-yellow-400 font-semibold">{formatVND(spread)}</span>
-                </div>
-                <div className="text-gray-400">
-                  ({spreadPercent.toFixed(2)}%)
+              <div className="mb-3">
+                <div className="text-xs text-gray-400 mb-1">Giá hiện tại</div>
+                <div className="text-2xl font-bold text-white">
+                  {formatVND(rate.price)}
                 </div>
               </div>
 
-              {rate.midRate && (
-                <div className="mt-2 text-xs text-gray-400 text-center">
-                  Giá trung bình: <span className="text-gray-300 font-semibold">{formatVND(rate.midRate)}</span>
+              <div className={`rounded-lg p-3 border ${changeBg}`}>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-xs text-gray-400 mb-1">Thay đổi</div>
+                    <div className={`text-lg font-bold ${changeColor}`}>
+                      {isPositive ? '+' : ''}{formatVND(rate.change)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-400 mb-1">Giá đầu kỳ</div>
+                    <div className="text-sm font-semibold text-gray-300">
+                      {formatVND(rate.bopPrice)}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <div className="mt-2 text-xs text-gray-500 text-center">
+                Cập nhật: {rate.lastUpdated}
+              </div>
             </div>
           )
         })}
