@@ -546,7 +546,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                       </span>
                     </div>
                     <div>
-                      <span className="text-cyan-400 font-semibold">Kháng cự mạnh:</span>
+                      <span className="text-cyan-400 font-semibold">Kháng cự:</span>
                       <span className="ml-2 text-white font-bold">
                         {bollingerBands.upper[bollingerBands.upper.length - 1]?.value.toFixed(2) || 'N/A'}
                       </span>
