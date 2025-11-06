@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 
 interface TopStock {
   code: string
@@ -55,6 +55,58 @@ const getPriceColor = (pctChange: number, exchange: Exchange): string => {
   if (pctChange < 0) return 'text-red-500'
   return 'text-yellow-500'
 }
+
+// Memoized row component to prevent unnecessary re-renders
+const StockRow = memo(({ stock, index, exchange }: { stock: TopStock; index: number; exchange: Exchange }) => {
+  const isCeiling = isCeilingPrice(stock.priceChgPctCr1D, exchange)
+  const colorClass = getPriceColor(stock.priceChgPctCr1D, exchange)
+
+  return (
+    <tr className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors duration-300">
+      <td className="py-3 px-2 text-gray-400">#{index + 1}</td>
+      <td className="py-3 px-2">
+        <div className="flex items-center gap-2">
+          <span className={`font-bold ${colorClass}`}>
+            {stock.code}
+          </span>
+          {isCeiling && (
+            <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full font-semibold">
+              Trần
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="py-3 px-2 text-center text-gray-300">
+        <span className="text-xs bg-gray-700 px-2 py-1 rounded">
+          {exchange}
+        </span>
+      </td>
+      <td className={`py-3 px-2 text-right font-semibold transition-all duration-500 ease-out ${colorClass}`}>
+        {stock.lastPrice.toFixed(2)}
+      </td>
+      <td className={`py-3 px-2 text-right font-semibold transition-all duration-500 ease-out ${colorClass}`}>
+        +{stock.priceChgCr1D.toFixed(2)}
+      </td>
+      <td className={`py-3 px-2 text-right font-bold transition-all duration-500 ease-out ${colorClass}`}>
+        +{stock.priceChgPctCr1D.toFixed(2)}%
+      </td>
+      <td className="py-3 px-2 text-right text-gray-300 transition-all duration-500 ease-out">
+        {formatVolume(stock.nmVolumeAvgCr20D)}
+      </td>
+    </tr>
+  )
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if data actually changed
+  return (
+    prevProps.stock.lastPrice === nextProps.stock.lastPrice &&
+    prevProps.stock.priceChgCr1D === nextProps.stock.priceChgCr1D &&
+    prevProps.stock.priceChgPctCr1D === nextProps.stock.priceChgPctCr1D &&
+    prevProps.stock.nmVolumeAvgCr20D === nextProps.stock.nmVolumeAvgCr20D &&
+    prevProps.exchange === nextProps.exchange
+  )
+})
+
+StockRow.displayName = 'StockRow'
 
 interface TopStocksWidgetProps {
   isActive?: boolean
@@ -165,48 +217,14 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
               </tr>
             </thead>
             <tbody>
-              {stocks.map((stock, index) => {
-                const isCeiling = isCeilingPrice(stock.priceChgPctCr1D, activeExchange)
-                const colorClass = getPriceColor(stock.priceChgPctCr1D, activeExchange)
-
-                return (
-                  <tr
-                    key={stock.code}
-                    className="border-b border-gray-800 hover:bg-gray-800/50 transition-all duration-300"
-                  >
-                    <td className="py-3 px-2 text-gray-400">#{index + 1}</td>
-                    <td className="py-3 px-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-bold ${colorClass}`}>
-                          {stock.code}
-                        </span>
-                        {isCeiling && (
-                          <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full font-semibold">
-                            Trần
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-2 text-center text-gray-300">
-                      <span className="text-xs bg-gray-700 px-2 py-1 rounded">
-                        {activeExchange}
-                      </span>
-                    </td>
-                    <td className={`py-3 px-2 text-right font-semibold ${colorClass}`}>
-                      {stock.lastPrice.toFixed(2)}
-                    </td>
-                    <td className={`py-3 px-2 text-right font-semibold ${colorClass}`}>
-                      +{stock.priceChgCr1D.toFixed(2)}
-                    </td>
-                    <td className={`py-3 px-2 text-right font-bold ${colorClass}`}>
-                      +{stock.priceChgPctCr1D.toFixed(2)}%
-                    </td>
-                    <td className="py-3 px-2 text-right text-gray-300">
-                      {formatVolume(stock.nmVolumeAvgCr20D)}
-                    </td>
-                  </tr>
-                )
-              })}
+              {stocks.map((stock, index) => (
+                <StockRow
+                  key={stock.code}
+                  stock={stock}
+                  index={index}
+                  exchange={activeExchange}
+                />
+              ))}
             </tbody>
           </table>
         </div>

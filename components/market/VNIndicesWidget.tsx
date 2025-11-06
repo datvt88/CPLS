@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 
 interface IndexData {
   code: string
@@ -41,6 +41,39 @@ const getPriceIcon = (change: number): string => {
   if (change < 0) return '▼'
   return '▬'
 }
+
+// Memoized card component to prevent unnecessary re-renders
+const IndexCard = memo(({ index, name }: { index: IndexData; name: string }) => {
+  return (
+    <div
+      className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-colors duration-300 border border-gray-700"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-semibold text-white">{name}</span>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-2xl font-bold text-white transition-all duration-500 ease-out">
+          {index.price.toFixed(2)}
+        </div>
+        <div className={`text-sm font-semibold transition-all duration-500 ease-out ${getPriceColor(index.change)}`}>
+          {getPriceIcon(index.change)}{' '}
+          {index.change > 0 ? '+' : ''}{index.change.toFixed(2)}{' '}
+          ({index.changePct > 0 ? '+' : ''}{index.changePct.toFixed(2)}%)
+        </div>
+      </div>
+    </div>
+  )
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if data actually changed
+  return (
+    prevProps.index.price === nextProps.index.price &&
+    prevProps.index.change === nextProps.index.change &&
+    prevProps.index.changePct === nextProps.index.changePct
+  )
+})
+
+IndexCard.displayName = 'IndexCard'
 
 interface VNIndicesWidgetProps {
   isActive?: boolean
@@ -132,25 +165,11 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
           if (!info) return null
 
           return (
-            <div
+            <IndexCard
               key={index.code}
-              className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-all duration-300 border border-gray-700"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-semibold text-white">{info.name}</span>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-2xl font-bold text-white">
-                  {index.price.toFixed(2)}
-                </div>
-                <div className={`text-sm font-semibold ${getPriceColor(index.change)}`}>
-                  {getPriceIcon(index.change)}{' '}
-                  {index.change > 0 ? '+' : ''}{index.change.toFixed(2)}{' '}
-                  ({index.changePct > 0 ? '+' : ''}{index.changePct.toFixed(2)}%)
-                </div>
-              </div>
-            </div>
+              index={index}
+              name={info.name}
+            />
           )
         })}
       </div>
