@@ -18,14 +18,17 @@ interface APIResponse {
   data: IndexData[]
 }
 
-const indexInfo: Record<string, { name: string; icon: string }> = {
-  'VNINDEX': { name: 'VN-Index', icon: '🇻🇳' },
-  'HNX': { name: 'HNX-Index', icon: '🏦' },
-  'UPCOM': { name: 'UPCOM-Index', icon: '🏢' },
-  'VN30': { name: 'VN30-Index', icon: '⭐' },
-  'VN30F1M': { name: 'VN30F1M', icon: '📈' },
-  'VN30F2M': { name: 'VN30F2M', icon: '📊' },
+const indexInfo: Record<string, { name: string }> = {
+  'VNINDEX': { name: 'VN-Index' },
+  'HNX': { name: 'HNX-Index' },
+  'UPCOM': { name: 'UPCOM-Index' },
+  'VN30': { name: 'VN30-Index' },
+  'VN30F1M': { name: 'VN30F1M' },
+  'VN30F2M': { name: 'VN30F2M' },
 }
+
+// Define sort order
+const sortOrder = ['VNINDEX', 'HNX', 'UPCOM', 'VN30', 'VN30F1M', 'VN30F2M']
 
 const getPriceColor = (change: number): string => {
   if (change > 0) return 'text-green-500'
@@ -115,12 +118,22 @@ export default function VNIndicesWidget() {
     )
   }
 
+  // Sort indices according to sortOrder
+  const sortedIndices = indices.sort((a, b) => {
+    const indexA = sortOrder.indexOf(a.code)
+    const indexB = sortOrder.indexOf(b.code)
+    // If code not found in sortOrder, put it at the end
+    if (indexA === -1) return 1
+    if (indexB === -1) return -1
+    return indexA - indexB
+  })
+
   return (
     <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
       <h3 className="text-xl font-bold mb-6 text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {indices.map((index) => {
+        {sortedIndices.map((index) => {
           const info = indexInfo[index.code]
           if (!info) return null
 
@@ -130,10 +143,7 @@ export default function VNIndicesWidget() {
               className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-all border border-gray-700"
             >
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{info.icon}</span>
-                  <span className="font-semibold text-white">{info.name}</span>
-                </div>
+                <span className="font-semibold text-white">{info.name}</span>
               </div>
 
               <div className="space-y-1">
