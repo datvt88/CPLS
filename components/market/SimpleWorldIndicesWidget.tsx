@@ -1,6 +1,10 @@
 'use client'
 
-export default function SimpleWorldIndicesWidget() {
+interface SimpleWorldIndicesWidgetProps {
+  isActive?: boolean
+}
+
+export default function SimpleWorldIndicesWidget({ isActive = true }: SimpleWorldIndicesWidgetProps) {
   const indices = [
     { name: 'Dow Jones', flag: '🇺🇸', price: 34567.89, change: 125.45, pct: 0.36 },
     { name: 'Nasdaq', flag: '🇺🇸', price: 13567.23, change: -45.67, pct: -0.34 },

@@ -5,7 +5,7 @@ import VNIndicesWidget from '@/components/market/VNIndicesWidget'
 import TopStocksWidget from '@/components/market/TopStocksWidget'
 import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
 import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
-import SimpleExchangeRateWidget from '@/components/market/SimpleExchangeRateWidget'
+import ExchangeRateWidget from '@/components/market/ExchangeRateWidget'
 
 type TabType = 'securities' | 'world' | 'commodities' | 'exchange'
 
@@ -59,20 +59,26 @@ export default function MarketPage() {
         </div>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content - Keep all mounted, toggle visibility with CSS */}
       <div className="space-y-6">
-        {activeTab === 'securities' && (
-          <>
-            <VNIndicesWidget />
-            <TopStocksWidget />
-          </>
-        )}
+        <div className={activeTab === 'securities' ? 'block' : 'hidden'}>
+          <VNIndicesWidget isActive={activeTab === 'securities'} />
+          <div className="mt-6">
+            <TopStocksWidget isActive={activeTab === 'securities'} />
+          </div>
+        </div>
 
-        {activeTab === 'world' && <SimpleWorldIndicesWidget />}
+        <div className={activeTab === 'world' ? 'block' : 'hidden'}>
+          <SimpleWorldIndicesWidget isActive={activeTab === 'world'} />
+        </div>
 
-        {activeTab === 'commodities' && <SimpleCommoditiesWidget />}
+        <div className={activeTab === 'commodities' ? 'block' : 'hidden'}>
+          <SimpleCommoditiesWidget isActive={activeTab === 'commodities'} />
+        </div>
 
-        {activeTab === 'exchange' && <SimpleExchangeRateWidget />}
+        <div className={activeTab === 'exchange' ? 'block' : 'hidden'}>
+          <ExchangeRateWidget isActive={activeTab === 'exchange'} />
+        </div>
       </div>
 
       {/* Footer Notice */}

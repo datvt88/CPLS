@@ -13,12 +13,19 @@ export interface StockPriceData {
   high: number
   low: number
   close: number
+  // Adjusted prices (giá điều chỉnh) - use these for charts
+  adOpen: number
+  adHigh: number
+  adLow: number
+  adClose: number
+  adAverage: number
   nmVolume: number
   nmValue: number
   ptVolume: number
   ptValue: number
   change: number
   pctChange: number
+  adChange: number
   code: string
 }
 

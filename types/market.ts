@@ -54,20 +54,26 @@ export interface CommodityData {
 // Exchange Rates
 export interface ExchangeRateData {
   code: string
-  locale: string
-  tradingDate: string
-  buyRate: number
-  sellRate: number
-  midRate?: number
+  name: string
+  type: string
+  period: string
+  price: number
+  bopPrice: number
+  change: number
+  changePct: number
   lastUpdated: string
 }
 
 // API Response wrappers
 export interface VNDirectResponse<T> {
   data: T[]
+  currentPage?: number
+  size?: number
+  totalElements?: number
+  totalPages?: number
+  // Legacy fields for backwards compatibility
   total?: number
   page?: number
-  size?: number
 }
 
 // Helper types

@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import AuthListener from '../components/AuthListener'
 
-export const metadata = { title: 'CPLS - Trading Dashboard' }
+export const metadata = { title: 'Master Trader' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

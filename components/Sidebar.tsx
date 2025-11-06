@@ -15,7 +15,7 @@ export default function Sidebar(){
         <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold">CPLS</div>
         <div>
           <div className="text-white font-semibold">CPLS</div>
-          <div className="text-sm text-[--muted]">Trading Dashboard</div>
+          <div className="text-sm text-[--muted]">Master Trader</div>
         </div>
       </div>
       <nav className="space-y-2">
