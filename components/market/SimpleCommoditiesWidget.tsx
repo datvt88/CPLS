@@ -24,7 +24,11 @@ const commodityInfo: Record<string, CommodityInfo> = {
   'GEN1ST_BRENT_OIL': { icon: '🛢️', unit: 'USD/barrel' },
 }
 
-export default function SimpleCommoditiesWidget() {
+interface SimpleCommoditiesWidgetProps {
+  isActive?: boolean
+}
+
+export default function SimpleCommoditiesWidget({ isActive = true }: SimpleCommoditiesWidgetProps) {
   const [commodities, setCommodities] = useState<CommodityData[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -34,7 +38,7 @@ export default function SimpleCommoditiesWidget() {
   }, [])
 
   useEffect(() => {
-    if (!mounted) return
+    if (!mounted || !isActive) return
 
     const fetchCommodities = async () => {
       try {
@@ -49,11 +53,11 @@ export default function SimpleCommoditiesWidget() {
     }
 
     fetchCommodities()
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchCommodities, 30000)
+    // Auto refresh every 3 seconds only when tab is active
+    const interval = setInterval(fetchCommodities, 3000)
 
     return () => clearInterval(interval)
-  }, [mounted])
+  }, [mounted, isActive])
 
   const getPriceColor = (change: number) => {
     if (change > 0) return 'text-green-500'

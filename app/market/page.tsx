@@ -5,7 +5,7 @@ import VNIndicesWidget from '@/components/market/VNIndicesWidget'
 import TopStocksWidget from '@/components/market/TopStocksWidget'
 import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
 import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
-import SimpleExchangeRateWidget from '@/components/market/SimpleExchangeRateWidget'
+import ExchangeRateWidget from '@/components/market/ExchangeRateWidget'
 
 type TabType = 'securities' | 'world' | 'commodities' | 'exchange'
 
@@ -63,16 +63,16 @@ export default function MarketPage() {
       <div className="space-y-6">
         {activeTab === 'securities' && (
           <>
-            <VNIndicesWidget />
-            <TopStocksWidget />
+            <VNIndicesWidget isActive={true} />
+            <TopStocksWidget isActive={true} />
           </>
         )}
 
-        {activeTab === 'world' && <SimpleWorldIndicesWidget />}
+        {activeTab === 'world' && <SimpleWorldIndicesWidget isActive={true} />}
 
-        {activeTab === 'commodities' && <SimpleCommoditiesWidget />}
+        {activeTab === 'commodities' && <SimpleCommoditiesWidget isActive={true} />}
 
-        {activeTab === 'exchange' && <SimpleExchangeRateWidget />}
+        {activeTab === 'exchange' && <ExchangeRateWidget isActive={true} />}
       </div>
 
       {/* Footer Notice */}

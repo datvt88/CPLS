@@ -30,7 +30,11 @@ const formatVND = (value: number, currencyCode?: string): string => {
   })
 }
 
-export default function ExchangeRateWidget() {
+interface ExchangeRateWidgetProps {
+  isActive?: boolean
+}
+
+export default function ExchangeRateWidget({ isActive = true }: ExchangeRateWidgetProps) {
   const [rates, setRates] = useState<ExchangeRateData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -54,10 +58,16 @@ export default function ExchangeRateWidget() {
 
   useEffect(() => {
     setMounted(true)
-    fetchExchangeRates()
-    const interval = setInterval(fetchExchangeRates, 3000) // Refresh every 3 seconds
-    return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (mounted && isActive) {
+      fetchExchangeRates()
+      // Auto refresh every 3 seconds only when tab is active
+      const interval = setInterval(fetchExchangeRates, 3000)
+      return () => clearInterval(interval)
+    }
+  }, [mounted, isActive])
 
   // Don't render anything until mounted on client
   if (!mounted) {

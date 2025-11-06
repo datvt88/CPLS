@@ -56,7 +56,11 @@ const getPriceColor = (pctChange: number, exchange: Exchange): string => {
   return 'text-yellow-500'
 }
 
-export default function TopStocksWidget() {
+interface TopStocksWidgetProps {
+  isActive?: boolean
+}
+
+export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProps) {
   const [activeExchange, setActiveExchange] = useState<Exchange>('HOSE')
   const [stocks, setStocks] = useState<TopStock[]>([])
   const [loading, setLoading] = useState(true)
@@ -87,10 +91,13 @@ export default function TopStocksWidget() {
   }, [])
 
   useEffect(() => {
-    if (mounted) {
+    if (mounted && isActive) {
       fetchTopStocks(activeExchange)
+      // Auto refresh every 3 seconds only when tab is active
+      const interval = setInterval(() => fetchTopStocks(activeExchange), 3000)
+      return () => clearInterval(interval)
     }
-  }, [activeExchange, mounted])
+  }, [activeExchange, mounted, isActive])
 
   if (!mounted) {
     return (

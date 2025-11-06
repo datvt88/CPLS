@@ -42,7 +42,11 @@ const getPriceIcon = (change: number): string => {
   return '▬'
 }
 
-export default function VNIndicesWidget() {
+interface VNIndicesWidgetProps {
+  isActive?: boolean
+}
+
+export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProps) {
   const [indices, setIndices] = useState<IndexData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -72,13 +76,13 @@ export default function VNIndicesWidget() {
   }, [])
 
   useEffect(() => {
-    if (mounted) {
+    if (mounted && isActive) {
       fetchIndices()
-      // Auto refresh every 30 seconds
-      const interval = setInterval(fetchIndices, 30000)
+      // Auto refresh every 3 seconds only when tab is active
+      const interval = setInterval(fetchIndices, 3000)
       return () => clearInterval(interval)
     }
-  }, [mounted])
+  }, [mounted, isActive])
 
   if (!mounted) {
     return (
