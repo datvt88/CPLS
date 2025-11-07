@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { createChart, ColorType, Time } from 'lightweight-charts'
-import type { IChartApi, ISeriesApi, CandlestickData, HistogramData } from 'lightweight-charts'
+import { useEffect, useState, useRef, memo } from 'react'
+import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
+import type { CandlestickData } from 'lightweight-charts'
 
 interface VNIndexData {
   code: string
@@ -28,11 +28,10 @@ interface APIResponse {
   data: VNIndexData[]
 }
 
-export default function VNIndexChartWidget() {
+const VNIndexChartWidget = memo(() => {
   const [data, setData] = useState<VNIndexData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [mounted, setMounted] = useState(false)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRefs = useRef<{
@@ -46,22 +45,17 @@ export default function VNIndexChartWidget() {
   // Fetch data from API
   const fetchData = async () => {
     try {
-      console.log('Fetching VN-INDEX data...')
       const response = await fetch(
         'https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=300&q=code:VNINDEX'
       )
       if (!response.ok) throw new Error('Failed to fetch data')
 
       const result: APIResponse = await response.json()
-      console.log('VN-INDEX data received:', result.data?.length, 'records')
 
       // Sort by date ascending for chart display
       const sortedData = result.data.sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
-
-      console.log('First record:', sortedData[0])
-      console.log('Last record:', sortedData[sortedData.length - 1])
 
       setData(sortedData)
       setError(null)
@@ -73,18 +67,15 @@ export default function VNIndexChartWidget() {
     }
   }
 
-  // Set mounted state
+  // Initialize chart once
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Initialize chart
-  useEffect(() => {
-    if (!mounted || !chartContainerRef.current) return
+    if (!chartContainerRef.current) {
+      return
+    }
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 450,
+      height: 500,
       layout: {
         background: { type: ColorType.Solid, color: '#1a1a1a' },
         textColor: '#d1d4dc',
@@ -96,14 +87,9 @@ export default function VNIndexChartWidget() {
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
-        borderColor: '#2a2e39',
-      },
-      rightPriceScale: {
-        borderColor: '#2a2e39',
       },
     })
 
-    // Create candlestick series
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -112,14 +98,16 @@ export default function VNIndexChartWidget() {
       wickDownColor: '#ef5350',
     })
 
-    // Create volume series with proper scale configuration
+    // Volume Histogram
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
-      priceFormat: { type: 'volume' },
+      priceFormat: {
+        type: 'volume',
+      },
       priceScaleId: 'volume',
     })
 
-    // Configure volume scale to display at bottom
+    // Configure volume scale
     chart.priceScale('volume').applyOptions({
       scaleMargins: {
         top: 0.8,
@@ -133,7 +121,6 @@ export default function VNIndexChartWidget() {
       volume: volumeSeries,
     }
 
-    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chart) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth })
@@ -146,25 +133,21 @@ export default function VNIndexChartWidget() {
       window.removeEventListener('resize', handleResize)
       chart.remove()
     }
-  }, [mounted])
+  }, [])
 
-  // Update chart data
+  // Update chart data when data changes
   useEffect(() => {
-    const series = seriesRefs.current
-    if (!series.candlestick || !series.volume || data.length === 0) {
-      console.log('Skipping chart update:', {
-        hasCandlestick: !!series.candlestick,
-        hasVolume: !!series.volume,
-        dataLength: data.length
-      })
+    if (!data.length || !seriesRefs.current.candlestick) {
       return
     }
 
     try {
-      console.log('Updating chart with', data.length, 'data points')
+      const sortedData = [...data].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      )
 
-      // Prepare candlestick data
-      const candleData: CandlestickData[] = data.map(d => ({
+      // Candlestick data
+      const candleData: CandlestickData[] = sortedData.map(d => ({
         time: d.date as Time,
         open: d.open,
         high: d.high,
@@ -172,21 +155,17 @@ export default function VNIndexChartWidget() {
         close: d.close,
       }))
 
-      // Prepare volume data with color based on price movement
-      const volumeData: HistogramData[] = data.map(d => ({
+      // Volume data
+      const volumeData = sortedData.map(d => ({
         time: d.date as Time,
         value: d.accumulatedVol,
         color: d.close >= d.open ? '#26a69a' : '#ef5350',
       }))
 
-      console.log('Setting candlestick data:', candleData.length, 'candles')
-      series.candlestick.setData(candleData)
-
-      console.log('Setting volume data:', volumeData.length, 'bars')
-      series.volume.setData(volumeData)
+      seriesRefs.current.candlestick.setData(candleData)
+      seriesRefs.current.volume?.setData(volumeData)
 
       chartRef.current?.timeScale().fitContent()
-      console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
@@ -194,27 +173,23 @@ export default function VNIndexChartWidget() {
 
   // Fetch data on mount
   useEffect(() => {
-    if (!mounted) return
-
     fetchData()
     // Auto refresh every 5 minutes
     const interval = setInterval(fetchData, 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [mounted])
+  }, [])
 
-  // Show loading skeleton on initial mount or when loading with no data
-  if (!mounted || (loading && data.length === 0)) {
+  if (loading && data.length === 0) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
-          <div className="h-[450px] bg-gray-700 rounded"></div>
+          <div className="h-[500px] bg-gray-700 rounded"></div>
         </div>
       </div>
     )
   }
 
-  // Show error only if we have no data
   if (error && data.length === 0) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-red-800">
@@ -235,8 +210,9 @@ export default function VNIndexChartWidget() {
   const priceIcon = latestData?.change > 0 ? '▲' : latestData?.change < 0 ? '▼' : '▬'
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h3 className="text-xl font-bold text-white">📈 VN-INDEX</h3>
           {latestData && (
@@ -253,22 +229,35 @@ export default function VNIndexChartWidget() {
         <div className="text-right text-sm text-gray-400">
           {latestData && (
             <>
-              <div>Khối lượng: {(latestData.accumulatedVol / 1000000).toFixed(2)}M</div>
-              <div>Giá trị: {(latestData.accumulatedVal / 1000000000000).toFixed(2)}T VNĐ</div>
+              <div>KL: {(latestData.accumulatedVol / 1000000).toFixed(2)}M</div>
+              <div>GT: {(latestData.accumulatedVal / 1000000000000).toFixed(2)}T VNĐ</div>
             </>
           )}
         </div>
       </div>
 
-      <div
-        ref={chartContainerRef}
-        className="w-full"
-        style={{ minHeight: '450px' }}
-      />
+      {/* Chart */}
+      <div className="relative">
+        <div ref={chartContainerRef} className="w-full" style={{ minHeight: '500px' }} />
 
-      <div className="mt-2 text-xs text-gray-500 text-center">
+        {/* Loading Overlay */}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[--panel]/90 rounded-lg">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-400 text-lg">Đang tải dữ liệu biểu đồ...</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="text-xs text-gray-500 text-center">
         Dữ liệu 300 phiên gần nhất • Cập nhật mỗi 5 phút
       </div>
     </div>
   )
-}
+})
+
+VNIndexChartWidget.displayName = 'VNIndexChartWidget'
+
+export default VNIndexChartWidget
