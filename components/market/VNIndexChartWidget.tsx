@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, memo } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { CandlestickData } from 'lightweight-charts'
 
@@ -28,10 +28,11 @@ interface APIResponse {
   data: VNIndexData[]
 }
 
-const VNIndexChartWidget = memo(() => {
+export default function VNIndexChartWidget() {
   const [data, setData] = useState<VNIndexData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [chartReady, setChartReady] = useState(false)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRefs = useRef<{
@@ -45,103 +46,143 @@ const VNIndexChartWidget = memo(() => {
   // Fetch data from API
   const fetchData = async () => {
     try {
+      console.log('Fetching VN-INDEX data from API...')
       const response = await fetch(
         'https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=300&q=code:VNINDEX'
       )
-      if (!response.ok) throw new Error('Failed to fetch data')
+
+      console.log('API Response status:', response.status)
+      if (!response.ok) throw new Error(`API returned ${response.status}`)
 
       const result: APIResponse = await response.json()
+      console.log('API data received:', result.data?.length, 'records')
+
+      if (!result.data || result.data.length === 0) {
+        throw new Error('No data received from API')
+      }
 
       // Sort by date ascending for chart display
       const sortedData = result.data.sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
 
+      console.log('Data sorted. First:', sortedData[0]?.date, 'Last:', sortedData[sortedData.length - 1]?.date)
+
       setData(sortedData)
       setError(null)
     } catch (err) {
       console.error('Error fetching VN-INDEX data:', err)
-      setError('Không thể tải dữ liệu VN-INDEX')
+      setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu VN-INDEX')
     } finally {
       setLoading(false)
     }
   }
 
-  // Initialize chart once
+  // Initialize chart once - with delay to ensure DOM is ready
   useEffect(() => {
-    if (!chartContainerRef.current) {
-      return
-    }
-
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: 500,
-      layout: {
-        background: { type: ColorType.Solid, color: '#1a1a1a' },
-        textColor: '#d1d4dc',
-      },
-      grid: {
-        vertLines: { color: '#2a2e39' },
-        horzLines: { color: '#2a2e39' },
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    })
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    })
-
-    // Volume Histogram
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: 'volume',
-    })
-
-    // Configure volume scale
-    chart.priceScale('volume').applyOptions({
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
-      },
-    })
-
-    chartRef.current = chart
-    seriesRefs.current = {
-      candlestick: candlestickSeries,
-      volume: volumeSeries,
-    }
-
-    const handleResize = () => {
-      if (chartContainerRef.current && chart) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth })
+    // Small delay to ensure DOM is fully ready
+    const initTimer = setTimeout(() => {
+      if (!chartContainerRef.current) {
+        console.error('Chart container not found')
+        return
       }
-    }
 
-    window.addEventListener('resize', handleResize)
+      try {
+        console.log('Initializing chart...')
+        const containerWidth = chartContainerRef.current.clientWidth
+        console.log('Container width:', containerWidth)
 
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      chart.remove()
-    }
+        const chart = createChart(chartContainerRef.current, {
+          width: containerWidth,
+          height: 500,
+          layout: {
+            background: { type: ColorType.Solid, color: '#1a1a1a' },
+            textColor: '#d1d4dc',
+          },
+          grid: {
+            vertLines: { color: '#2a2e39' },
+            horzLines: { color: '#2a2e39' },
+          },
+          timeScale: {
+            timeVisible: true,
+            secondsVisible: false,
+          },
+        })
+
+        const candlestickSeries = chart.addCandlestickSeries({
+          upColor: '#26a69a',
+          downColor: '#ef5350',
+          borderVisible: false,
+          wickUpColor: '#26a69a',
+          wickDownColor: '#ef5350',
+        })
+
+        // Volume Histogram
+        const volumeSeries = chart.addHistogramSeries({
+          color: '#26a69a',
+          priceFormat: {
+            type: 'volume',
+          },
+          priceScaleId: 'volume',
+        })
+
+        // Configure volume scale
+        chart.priceScale('volume').applyOptions({
+          scaleMargins: {
+            top: 0.8,
+            bottom: 0,
+          },
+        })
+
+        chartRef.current = chart
+        seriesRefs.current = {
+          candlestick: candlestickSeries,
+          volume: volumeSeries,
+        }
+
+        console.log('Chart initialized successfully')
+        setChartReady(true)
+
+        const handleResize = () => {
+          if (chartContainerRef.current && chart) {
+            chart.applyOptions({ width: chartContainerRef.current.clientWidth })
+          }
+        }
+
+        window.addEventListener('resize', handleResize)
+
+        return () => {
+          window.removeEventListener('resize', handleResize)
+          chart.remove()
+          chartRef.current = null
+          seriesRefs.current = {
+            candlestick: null,
+            volume: null,
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing chart:', error)
+      }
+    }, 100) // 100ms delay
+
+    return () => clearTimeout(initTimer)
   }, [])
 
   // Update chart data when data changes
   useEffect(() => {
-    if (!data.length || !seriesRefs.current.candlestick) {
+    if (!chartReady || !data.length || !seriesRefs.current.candlestick || !seriesRefs.current.volume) {
+      console.log('Skipping chart update:', {
+        chartReady,
+        dataLength: data.length,
+        hasCandlestick: !!seriesRefs.current.candlestick,
+        hasVolume: !!seriesRefs.current.volume,
+      })
       return
     }
 
     try {
+      console.log('Updating chart with data:', data.length, 'records')
+
       const sortedData = [...data].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
@@ -162,14 +203,20 @@ const VNIndexChartWidget = memo(() => {
         color: d.close >= d.open ? '#26a69a' : '#ef5350',
       }))
 
+      console.log('Setting candlestick data:', candleData.length)
       seriesRefs.current.candlestick.setData(candleData)
-      seriesRefs.current.volume?.setData(volumeData)
 
+      console.log('Setting volume data:', volumeData.length)
+      seriesRefs.current.volume.setData(volumeData)
+
+      console.log('Fitting content...')
       chartRef.current?.timeScale().fitContent()
+
+      console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
-  }, [data])
+  }, [chartReady, data])
 
   // Fetch data on mount
   useEffect(() => {
@@ -256,8 +303,4 @@ const VNIndexChartWidget = memo(() => {
       </div>
     </div>
   )
-})
-
-VNIndexChartWidget.displayName = 'VNIndexChartWidget'
-
-export default VNIndexChartWidget
+}
