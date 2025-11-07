@@ -1,17 +1,40 @@
 import { supabase } from '@/lib/supabaseClient'
 
+export type MembershipTier = 'free' | 'premium'
+
 export interface Profile {
   id: string
   email: string
-  role: 'user' | 'vip'
+  full_name?: string
+  phone_number?: string
+  stock_account_number?: string
+  avatar_url?: string
+  zalo_id?: string
+  membership: MembershipTier
+  membership_expires_at?: string
+  tcbs_api_key?: string
+  tcbs_connected_at?: string
   created_at: string
+  updated_at?: string
 }
 
 export interface CreateProfileData {
   id: string
   email: string
-  role?: 'user' | 'vip'
+  full_name?: string
+  phone_number?: string
+  stock_account_number?: string
+  avatar_url?: string
+  zalo_id?: string
+  membership?: MembershipTier
   created_at?: string
+}
+
+export interface UpdateProfileData {
+  full_name?: string
+  phone_number?: string
+  stock_account_number?: string
+  avatar_url?: string
 }
 
 export const profileService = {
@@ -38,7 +61,12 @@ export const profileService = {
         {
           id: profileData.id,
           email: profileData.email,
-          role: profileData.role || 'user',
+          full_name: profileData.full_name,
+          phone_number: profileData.phone_number,
+          stock_account_number: profileData.stock_account_number,
+          avatar_url: profileData.avatar_url,
+          zalo_id: profileData.zalo_id,
+          membership: profileData.membership || 'free',
           created_at: profileData.created_at || new Date().toISOString()
         },
         { onConflict: 'id' }
@@ -48,23 +76,154 @@ export const profileService = {
   },
 
   /**
-   * Check if user has VIP role
+   * Update user profile information
    */
-  async isVIP(userId: string) {
-    const { profile, error } = await this.getProfile(userId)
-    if (error || !profile) return false
-    return profile.role === 'vip'
+  async updateProfile(userId: string, updates: UpdateProfileData) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
   },
 
   /**
-   * Update user role
+   * Check if user has Premium membership
    */
-  async updateRole(userId: string, role: 'user' | 'vip') {
+  async isPremium(userId: string) {
+    const { profile, error } = await this.getProfile(userId)
+    if (error || !profile) return false
+
+    // Check if membership is premium and not expired
+    if (profile.membership !== 'premium') return false
+
+    if (profile.membership_expires_at) {
+      const expiresAt = new Date(profile.membership_expires_at)
+      const now = new Date()
+      return expiresAt > now
+    }
+
+    // If no expiration date, consider as lifetime premium
+    return true
+  },
+
+  /**
+   * Update user membership
+   */
+  async updateMembership(
+    userId: string,
+    membership: MembershipTier,
+    expiresAt?: string
+  ) {
+    const updates: any = { membership }
+    if (expiresAt) {
+      updates.membership_expires_at = expiresAt
+    }
+
     const { data, error } = await supabase
       .from('profiles')
-      .update({ role })
+      .update(updates)
       .eq('id', userId)
+      .select()
+      .single()
 
-    return { data, error }
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Get profile by Zalo ID
+   */
+  async getProfileByZaloId(zaloId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('zalo_id', zaloId)
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Link Zalo account to existing profile
+   */
+  async linkZaloAccount(userId: string, zaloId: string, zaloData?: Partial<Profile>) {
+    const updates: any = { zalo_id: zaloId }
+
+    // Optionally update profile with Zalo data
+    if (zaloData?.full_name) updates.full_name = zaloData.full_name
+    if (zaloData?.phone_number) updates.phone_number = zaloData.phone_number
+    if (zaloData?.avatar_url) updates.avatar_url = zaloData.avatar_url
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * @deprecated Use isPremium instead
+   * Check if user has VIP role (for backward compatibility)
+   */
+  async isVIP(userId: string) {
+    return this.isPremium(userId)
+  },
+
+  /**
+   * @deprecated Use updateMembership instead
+   * Update user role (for backward compatibility)
+   */
+  async updateRole(userId: string, role: 'user' | 'vip') {
+    const membership: MembershipTier = role === 'vip' ? 'premium' : 'free'
+    return this.updateMembership(userId, membership)
+  },
+
+  /**
+   * Update TCBS API key
+   * Note: In production, this should be encrypted before storage
+   */
+  async updateTCBSApiKey(userId: string, apiKey: string) {
+    const updates: any = {
+      tcbs_api_key: apiKey,
+      tcbs_connected_at: new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Remove TCBS API key
+   */
+  async removeTCBSApiKey(userId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        tcbs_api_key: null,
+        tcbs_connected_at: null
+      })
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Check if TCBS is connected
+   */
+  hasTCBSConnected(profile: Profile): boolean {
+    return !!profile.tcbs_api_key && !!profile.tcbs_connected_at
   }
 }
