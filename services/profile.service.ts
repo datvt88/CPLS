@@ -12,6 +12,8 @@ export interface Profile {
   zalo_id?: string
   membership: MembershipTier
   membership_expires_at?: string
+  tcbs_api_key?: string
+  tcbs_connected_at?: string
   created_at: string
   updated_at?: string
 }
@@ -179,5 +181,49 @@ export const profileService = {
   async updateRole(userId: string, role: 'user' | 'vip') {
     const membership: MembershipTier = role === 'vip' ? 'premium' : 'free'
     return this.updateMembership(userId, membership)
+  },
+
+  /**
+   * Update TCBS API key
+   * Note: In production, this should be encrypted before storage
+   */
+  async updateTCBSApiKey(userId: string, apiKey: string) {
+    const updates: any = {
+      tcbs_api_key: apiKey,
+      tcbs_connected_at: new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Remove TCBS API key
+   */
+  async removeTCBSApiKey(userId: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        tcbs_api_key: null,
+        tcbs_connected_at: null
+      })
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Check if TCBS is connected
+   */
+  hasTCBSConnected(profile: Profile): boolean {
+    return !!profile.tcbs_api_key && !!profile.tcbs_connected_at
   }
 }

@@ -12,6 +12,8 @@ create table if not exists profiles (
   zalo_id text unique,
   membership text default 'free' check (membership in ('free','premium')),
   membership_expires_at timestamptz,
+  tcbs_api_key text,
+  tcbs_connected_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

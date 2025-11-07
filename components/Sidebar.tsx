@@ -7,7 +7,7 @@ export default function Sidebar(){
     {href:'/market',label:'Thị trường',icon:'🌐'},
     {href:'/stocks',label:'Cổ phiếu',icon:'💹'},
     {href:'/signals',label:'Tín hiệu',icon:'⚡'},
-    {href:'/profile',label:'Hồ sơ',icon:'👤'}
+    {href:'/profile',label:'Cá nhân',icon:'👤'}
   ]
   return (
     <aside className="w-72 hidden md:block bg-[--panel] border-r border-gray-800 min-h-screen p-6">
