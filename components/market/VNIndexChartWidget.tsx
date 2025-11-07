@@ -32,6 +32,7 @@ export default function VNIndexChartWidget() {
   const [data, setData] = useState<VNIndexData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRefs = useRef<{
@@ -45,17 +46,22 @@ export default function VNIndexChartWidget() {
   // Fetch data from API
   const fetchData = async () => {
     try {
+      console.log('Fetching VN-INDEX data...')
       const response = await fetch(
         'https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=300&q=code:VNINDEX'
       )
       if (!response.ok) throw new Error('Failed to fetch data')
 
       const result: APIResponse = await response.json()
+      console.log('VN-INDEX data received:', result.data?.length, 'records')
 
       // Sort by date ascending for chart display
       const sortedData = result.data.sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
+
+      console.log('First record:', sortedData[0])
+      console.log('Last record:', sortedData[sortedData.length - 1])
 
       setData(sortedData)
       setError(null)
@@ -67,9 +73,14 @@ export default function VNIndexChartWidget() {
     }
   }
 
+  // Set mounted state
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   // Initialize chart
   useEffect(() => {
-    if (!chartContainerRef.current) return
+    if (!mounted || !chartContainerRef.current) return
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
@@ -135,14 +146,23 @@ export default function VNIndexChartWidget() {
       window.removeEventListener('resize', handleResize)
       chart.remove()
     }
-  }, [])
+  }, [mounted])
 
   // Update chart data
   useEffect(() => {
     const series = seriesRefs.current
-    if (!series.candlestick || !series.volume || data.length === 0) return
+    if (!series.candlestick || !series.volume || data.length === 0) {
+      console.log('Skipping chart update:', {
+        hasCandlestick: !!series.candlestick,
+        hasVolume: !!series.volume,
+        dataLength: data.length
+      })
+      return
+    }
 
     try {
+      console.log('Updating chart with', data.length, 'data points')
+
       // Prepare candlestick data
       const candleData: CandlestickData[] = data.map(d => ({
         time: d.date as Time,
@@ -159,10 +179,14 @@ export default function VNIndexChartWidget() {
         color: d.close >= d.open ? '#26a69a' : '#ef5350',
       }))
 
+      console.log('Setting candlestick data:', candleData.length, 'candles')
       series.candlestick.setData(candleData)
+
+      console.log('Setting volume data:', volumeData.length, 'bars')
       series.volume.setData(volumeData)
 
       chartRef.current?.timeScale().fitContent()
+      console.log('Chart updated successfully')
     } catch (error) {
       console.error('Error updating chart:', error)
     }
@@ -170,13 +194,16 @@ export default function VNIndexChartWidget() {
 
   // Fetch data on mount
   useEffect(() => {
+    if (!mounted) return
+
     fetchData()
     // Auto refresh every 5 minutes
     const interval = setInterval(fetchData, 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [mounted])
 
-  if (loading) {
+  // Show loading skeleton on initial mount or when loading with no data
+  if (!mounted || (loading && data.length === 0)) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <div className="animate-pulse">
@@ -187,10 +214,17 @@ export default function VNIndexChartWidget() {
     )
   }
 
-  if (error) {
+  // Show error only if we have no data
+  if (error && data.length === 0) {
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-red-800">
         <p className="text-red-500">{error}</p>
+        <button
+          onClick={fetchData}
+          className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+        >
+          Thử lại
+        </button>
       </div>
     )
   }
