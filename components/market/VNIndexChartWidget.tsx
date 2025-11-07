@@ -101,14 +101,19 @@ export default function VNIndexChartWidget() {
       wickDownColor: '#ef5350',
     })
 
-    // Create volume series
+    // Create volume series with proper scale configuration
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: { type: 'volume' },
-      priceScaleId: '',
+      priceScaleId: 'volume',
     })
-    volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.7, bottom: 0 },
+
+    // Configure volume scale to display at bottom
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
     })
 
     chartRef.current = chart
@@ -147,11 +152,11 @@ export default function VNIndexChartWidget() {
         close: d.close,
       }))
 
-      // Prepare volume data
+      // Prepare volume data with color based on price movement
       const volumeData: HistogramData[] = data.map(d => ({
         time: d.date as Time,
         value: d.accumulatedVol,
-        color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+        color: d.close >= d.open ? '#26a69a' : '#ef5350',
       }))
 
       series.candlestick.setData(candleData)
