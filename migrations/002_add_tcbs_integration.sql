@@ -9,13 +9,9 @@
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tcbs_api_key TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tcbs_connected_at TIMESTAMPTZ;
 
-RAISE NOTICE '✓ Added TCBS integration columns';
-
 -- Add comment to explain encrypted storage
 COMMENT ON COLUMN profiles.tcbs_api_key IS 'TCBS API key - stored encrypted in application layer';
 COMMENT ON COLUMN profiles.tcbs_connected_at IS 'Timestamp when TCBS API was last successfully connected';
-
-RAISE NOTICE '✓ Added column comments';
 
 -- Success message
 DO $$

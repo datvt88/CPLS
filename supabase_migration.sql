@@ -59,7 +59,11 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS membership TEXT DEFAULT 'free';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS membership_expires_at TIMESTAMPTZ;
 
-RAISE NOTICE '✓ Added new columns';
+-- Success notification for new columns
+DO $$
+BEGIN
+  RAISE NOTICE '✓ Added new columns';
+END $$;
 
 -- =====================================================
 -- PART 4: ADD CONSTRAINTS
@@ -140,7 +144,11 @@ CREATE INDEX IF NOT EXISTS idx_profiles_phone_number ON profiles(phone_number);
 CREATE INDEX IF NOT EXISTS idx_profiles_membership ON profiles(membership);
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
 
-RAISE NOTICE '✓ Created performance indexes';
+-- Success notification for indexes
+DO $$
+BEGIN
+  RAISE NOTICE '✓ Created performance indexes';
+END $$;
 
 -- =====================================================
 -- PART 7: CREATE FUNCTIONS AND TRIGGERS
@@ -162,7 +170,11 @@ CREATE TRIGGER update_profiles_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
-RAISE NOTICE '✓ Created triggers for updated_at';
+-- Success notification for triggers
+DO $$
+BEGIN
+  RAISE NOTICE '✓ Created triggers for updated_at';
+END $$;
 
 -- =====================================================
 -- PART 8: ROW LEVEL SECURITY (RLS)
@@ -197,7 +209,11 @@ CREATE POLICY "Users can delete own profile"
   ON profiles FOR DELETE
   USING (auth.uid() = id);
 
-RAISE NOTICE '✓ Created Row Level Security policies';
+-- Success notification for RLS
+DO $$
+BEGIN
+  RAISE NOTICE '✓ Created Row Level Security policies';
+END $$;
 
 -- =====================================================
 -- PART 9: GRANT PERMISSIONS
@@ -208,7 +224,11 @@ GRANT SELECT, UPDATE ON profiles TO authenticated;
 GRANT INSERT ON profiles TO authenticated;
 GRANT DELETE ON profiles TO authenticated;
 
-RAISE NOTICE '✓ Granted permissions to authenticated users';
+-- Success notification for permissions
+DO $$
+BEGIN
+  RAISE NOTICE '✓ Granted permissions to authenticated users';
+END $$;
 
 -- =====================================================
 -- PART 10: POST-MIGRATION VERIFICATION
