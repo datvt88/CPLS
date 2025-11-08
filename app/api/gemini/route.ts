@@ -207,9 +207,9 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       ? marketContext + '\n\nTrả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết dựa trên phân tích kỹ thuật trên"}'
       : `Phân tích tín hiệu trading cho ${prompt}. Trả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết"}`
 
-    // Call Gemini API
+    // Call Gemini API (using gemini-1.5-flash for better performance and availability)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -225,15 +225,36 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
               ],
             },
           ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          },
         }),
       }
     )
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Gemini API error:', errorText)
+      console.error('Gemini API error:', response.status, errorText)
+
+      // Provide more specific error messages
+      let errorMessage = 'Failed to generate signal from Gemini API'
+      if (response.status === 400) {
+        errorMessage = 'Invalid request to Gemini API. Please check the prompt format.'
+      } else if (response.status === 403) {
+        errorMessage = 'API key is invalid or has been disabled. Please check your Vercel environment variables.'
+      } else if (response.status === 404) {
+        errorMessage = 'Gemini API model not found. The model may have been deprecated.'
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.'
+      } else if (response.status >= 500) {
+        errorMessage = 'Gemini API server error. Please try again later.'
+      }
+
       return NextResponse.json(
-        { error: 'Failed to generate signal from Gemini API' },
+        { error: errorMessage },
         { status: response.status }
       )
     }
