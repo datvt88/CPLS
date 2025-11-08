@@ -208,12 +208,17 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       : `Phân tích tín hiệu trading cho ${prompt}. Trả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết"}`
 
     // Call Gemini API (using gemini-1.5-flash for better performance and availability)
+    // Note: API key should be passed in header, not query parameter
+    console.log('🔄 Calling Gemini API for prompt:', prompt)
+    console.log('📝 Market context available:', !!marketContext)
+
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
         },
         body: JSON.stringify({
           contents: [
@@ -234,6 +239,8 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
         }),
       }
     )
+
+    console.log('📡 Gemini API response status:', response.status)
 
     if (!response.ok) {
       const errorText = await response.text()
