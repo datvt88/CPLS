@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `https://api-finfo.vndirect.com.vn/v4/stock_prices?sort=date&q=code:${code.toUpperCase()}&size=${size}`
+    // Sort by date descending to get latest data first
+    const url = `https://api-finfo.vndirect.com.vn/v4/stock_prices?sort=date:desc&q=code:${code.toUpperCase()}&size=${size}`
 
     console.log('🔄 Proxy fetching from VNDirect:', url)
 

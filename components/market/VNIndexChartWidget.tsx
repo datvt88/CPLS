@@ -15,6 +15,22 @@ interface VNIndexData {
   accumulatedVal: number
 }
 
+// Helper function to get current date in Vietnam timezone (GMT+7)
+function getVietnamDate(): Date {
+  const now = new Date()
+  const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
+  vietnamTime.setHours(0, 0, 0, 0)
+  return vietnamTime
+}
+
+// Helper function to check if date is valid (not from the future)
+function isValidTradingDate(dateStr: string): boolean {
+  const dataDate = new Date(dateStr)
+  dataDate.setHours(0, 0, 0, 0)
+  const today = getVietnamDate()
+  return dataDate <= today
+}
+
 export default function VNIndexChartWidget() {
   const [data, setData] = useState<VNIndexData[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,7 +47,9 @@ export default function VNIndexChartWidget() {
         const result = await response.json()
 
         if (result.data && result.data.length > 0) {
-          const sorted = result.data.sort((a: any, b: any) =>
+          // Filter out future dates and sort by date ascending
+          const validData = result.data.filter((item: any) => isValidTradingDate(item.date))
+          const sorted = validData.sort((a: any, b: any) =>
             new Date(a.date).getTime() - new Date(b.date).getTime()
           )
           setData(sorted)
@@ -149,19 +167,48 @@ export default function VNIndexChartWidget() {
         <div>
           <h3 className="text-xl font-bold text-white">📈 VN-INDEX</h3>
           {latestData && (
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-2xl font-bold text-white">
-                {latestData.close.toFixed(2)}
-              </span>
-              <span className={`text-sm font-semibold ${
-                latestData.change > 0 ? 'text-green-500' :
-                latestData.change < 0 ? 'text-red-500' : 'text-yellow-500'
-              }`}>
-                {latestData.change > 0 ? '▲' : latestData.change < 0 ? '▼' : '▬'}
-                {latestData.change > 0 ? '+' : ''}{latestData.change.toFixed(2)}
-                ({latestData.pctChange > 0 ? '+' : ''}{latestData.pctChange.toFixed(2)}%)
-              </span>
-            </div>
+            <>
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-2xl font-bold text-white">
+                  {latestData.close.toFixed(2)}
+                </span>
+                <span className={`text-sm font-semibold ${
+                  latestData.change > 0 ? 'text-green-500' :
+                  latestData.change < 0 ? 'text-red-500' : 'text-yellow-500'
+                }`}>
+                  {latestData.change > 0 ? '▲' : latestData.change < 0 ? '▼' : '▬'}
+                  {latestData.change > 0 ? '+' : ''}{latestData.change.toFixed(2)}
+                  ({latestData.pctChange > 0 ? '+' : ''}{latestData.pctChange.toFixed(2)}%)
+                </span>
+              </div>
+              {/* Date indicator */}
+              <div className="mt-2 text-sm">
+                <span className="text-gray-400">📅 </span>
+                <span className="text-blue-400 font-medium">
+                  {new Date(latestData.date).toLocaleDateString('vi-VN', {
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                  })}
+                </span>
+                {(() => {
+                  const dataDate = new Date(latestData.date)
+                  dataDate.setHours(0, 0, 0, 0)
+                  const today = getVietnamDate()
+                  const diffDays = Math.floor((today.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24))
+
+                  if (diffDays === 0) {
+                    return <span className="ml-2 text-green-400 text-xs">✓ Hôm nay</span>
+                  } else if (diffDays === 1) {
+                    return <span className="ml-2 text-yellow-400 text-xs">⚠ Hôm qua</span>
+                  } else if (diffDays > 1) {
+                    return <span className="ml-2 text-orange-400 text-xs">⚠ {diffDays} ngày trước</span>
+                  }
+                  return null
+                })()}
+              </div>
+            </>
           )}
         </div>
         <div className="text-right text-sm text-gray-400">
