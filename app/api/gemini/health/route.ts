@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Quick test with minimal prompt to check API availability
+    // Note: Using gemini-2.0-flash (Gemini 1.5 models retired April 2025)
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
       {
         method: 'POST',
         headers: {
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
         message: 'Gemini API is available',
         configured: true,
         available: true,
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash-exp',
       })
     } else {
       const errorText = await response.text()

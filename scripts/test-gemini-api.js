@@ -18,11 +18,11 @@ async function testGeminiAPI() {
 
   const testPrompt = 'Say "Hello World" in Vietnamese'
 
-  // Test 1: Using header (recommended)
-  console.log('Test 1: Using x-goog-api-key header')
+  // Test 1: Using header with Gemini 2.0 Flash (recommended)
+  console.log('Test 1: Using x-goog-api-key header with gemini-2.0-flash-exp')
   try {
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
       {
         method: 'POST',
         headers: {
@@ -60,10 +60,10 @@ async function testGeminiAPI() {
   console.log('\n---\n')
 
   // Test 2: Using query parameter (alternative)
-  console.log('Test 2: Using query parameter')
+  console.log('Test 2: Using query parameter with gemini-2.0-flash-exp')
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -99,28 +99,16 @@ async function testGeminiAPI() {
 
   console.log('\n---\n')
 
-  // Test 3: Try different model
-  console.log('Test 3: Using gemini-pro model')
+  // Test 3: List available models
+  console.log('Test 3: List available Gemini models')
   try {
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models',
       {
-        method: 'POST',
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'x-goog-api-key': apiKey,
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: testPrompt,
-                },
-              ],
-            },
-          ],
-        }),
       }
     )
 
@@ -128,8 +116,10 @@ async function testGeminiAPI() {
 
     if (response.ok) {
       const data = await response.json()
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-      console.log('✅ Success! Response:', text)
+      console.log('✅ Available models:')
+      data.models?.slice(0, 10).forEach(model => {
+        console.log(`  - ${model.name}`)
+      })
     } else {
       const errorText = await response.text()
       console.error('❌ Error:', errorText)
@@ -137,6 +127,10 @@ async function testGeminiAPI() {
   } catch (error) {
     console.error('❌ Exception:', error.message)
   }
+
+  console.log('\n---\n')
+  console.log('NOTE: Gemini 1.5 models (gemini-1.5-flash, gemini-1.5-pro) were retired in April 2025.')
+  console.log('Use gemini-2.0-flash-exp or gemini-2.5-flash-lite instead.')
 }
 
 testGeminiAPI().catch(console.error)
