@@ -3,12 +3,54 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { SignalOutput, SignalResponse } from '@/types/signal'
 
+interface ApiStatus {
+  status: 'success' | 'error' | 'checking'
+  message: string
+  configured: boolean
+  available: boolean
+}
+
 export default function SignalAI(){
   const [userId, setUserId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('VNINDEX')
   const [out, setOut] = useState<SignalOutput | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [apiStatus, setApiStatus] = useState<ApiStatus>({
+    status: 'checking',
+    message: 'Đang kiểm tra kết nối...',
+    configured: false,
+    available: false,
+  })
+
+  // Check API health on mount
+  useEffect(() => {
+    const checkApiHealth = async () => {
+      try {
+        const res = await fetch('/api/gemini/health')
+        const data = await res.json()
+
+        setApiStatus({
+          status: data.status,
+          message: data.message,
+          configured: data.configured,
+          available: data.available,
+        })
+      } catch (err) {
+        setApiStatus({
+          status: 'error',
+          message: 'Không thể kiểm tra kết nối',
+          configured: false,
+          available: false,
+        })
+      }
+    }
+
+    checkApiHealth()
+    // Refresh status every 60 seconds
+    const interval = setInterval(checkApiHealth, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     const getUser = async () => {
@@ -66,19 +108,50 @@ export default function SignalAI(){
     }
   }
 
+  const getStatusColor = () => {
+    if (apiStatus.status === 'checking') return 'bg-yellow-500'
+    if (apiStatus.available) return 'bg-green-500'
+    return 'bg-red-500'
+  }
+
+  const getStatusIcon = () => {
+    if (apiStatus.status === 'checking') return '🔄'
+    if (apiStatus.available) return '✓'
+    return '✗'
+  }
+
   return (
     <div>
+      {/* API Connection Status */}
+      <div className="mb-3 flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${getStatusColor()} ${apiStatus.status === 'checking' ? 'animate-pulse' : ''}`}></div>
+          <span className="text-gray-400">
+            {getStatusIcon()} {apiStatus.message}
+          </span>
+        </div>
+        {!apiStatus.available && apiStatus.configured && (
+          <a
+            href="/TROUBLESHOOTING_404.md"
+            target="_blank"
+            className="text-purple-400 hover:text-purple-300 underline ml-auto"
+          >
+            Xem hướng dẫn
+          </a>
+        )}
+      </div>
+
       <input
         className="w-full p-2 rounded bg-[#0b1116] mb-2 border border-gray-700 focus:outline-none focus:border-purple-500"
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
         placeholder="Nhập mã cổ phiếu (VD: VNINDEX, VNM, HPG)"
-        disabled={loading}
+        disabled={loading || !apiStatus.available}
       />
       <button
         onClick={run}
         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
-        disabled={loading}
+        disabled={loading || !apiStatus.available}
       >
         {loading ? 'Đang phân tích...' : 'Phân tích AI'}
       </button>
