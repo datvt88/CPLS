@@ -15,6 +15,25 @@ interface StockDetailsWidgetProps {
 const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
+// Helper function to get current date in Vietnam timezone (GMT+7)
+function getVietnamDate(): Date {
+  const now = new Date()
+  // Convert to Vietnam timezone (UTC+7)
+  const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
+  vietnamTime.setHours(0, 0, 0, 0)
+  return vietnamTime
+}
+
+// Helper function to parse date string and ensure it's not from the future
+function isValidTradingDate(dateStr: string): boolean {
+  const dataDate = new Date(dateStr)
+  dataDate.setHours(0, 0, 0, 0)
+  const today = getVietnamDate()
+
+  // Data should not be from the future
+  return dataDate <= today
+}
+
 const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: StockDetailsWidgetProps) => {
   const [symbol, setSymbol] = useState(initialSymbol)
   const [inputSymbol, setInputSymbol] = useState(initialSymbol)
@@ -211,8 +230,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         throw new Error('Không tìm thấy dữ liệu cho mã này')
       }
 
-      // Sort by date ascending
-      const sortedData = [...response.data].sort(
+      // Filter out any future dates and sort by date ascending
+      const validData = response.data.filter(item => isValidTradingDate(item.date))
+
+      if (validData.length === 0) {
+        throw new Error('Không có dữ liệu hợp lệ cho mã này')
+      }
+
+      const sortedData = [...validData].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
 
@@ -416,6 +441,39 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         {/* Chart Controls - Show only when data is loaded */}
         {latestData && (
           <>
+          {/* Data Date Indicator */}
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 mb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-400 font-semibold">📅 Dữ liệu ngày:</span>
+                <span className="text-white font-bold text-lg">
+                  {new Date(latestData.date).toLocaleDateString('vi-VN', {
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    weekday: 'long'
+                  })}
+                </span>
+              </div>
+              {(() => {
+                const dataDate = new Date(latestData.date)
+                dataDate.setHours(0, 0, 0, 0)
+                const today = getVietnamDate()
+                const diffDays = Math.floor((today.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24))
+
+                if (diffDays === 0) {
+                  return <span className="text-green-400 text-sm font-medium">✓ Dữ liệu hôm nay</span>
+                } else if (diffDays === 1) {
+                  return <span className="text-yellow-400 text-sm font-medium">⚠ Dữ liệu hôm qua</span>
+                } else if (diffDays > 1) {
+                  return <span className="text-orange-400 text-sm font-medium">⚠ Dữ liệu {diffDays} ngày trước</span>
+                }
+                return null
+              })()}
+            </div>
+          </div>
+
           {/* Quick Info Panel */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {/* 1. Thị giá */}
