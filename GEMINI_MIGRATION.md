@@ -96,10 +96,10 @@ GET https://your-app.vercel.app/api/gemini/health
 }
 ```
 
-### Option 3: Check AI Signals Widget
+### Option 3: Check AI Analysis Widget
 
 1. Navigate to `/dashboard`
-2. Look at AI Signals widget
+2. Look at AI Analysis widget
 3. Should show: **🟢 ✓ Gemini API is available**
 
 ---
@@ -130,7 +130,7 @@ git push origin main
 
 After deployment completes:
 1. Visit `/dashboard`
-2. AI Signals widget shows: 🟢 **✓ Gemini API is available**
+2. AI Analysis widget shows: 🟢 **✓ Gemini API is available**
 3. Test analysis with "VNINDEX"
 
 ---
@@ -198,7 +198,7 @@ Our code is designed for easy model switching:
 - **Solution:** Migrated to Gemini 2.0 Flash
 - **Status:** ✅ Fixed and deployed
 - **Action:** Deploy to production
-- **Result:** AI Signals working perfectly
+- **Result:** AI Analysis working perfectly
 
 ---
 

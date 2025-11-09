@@ -82,12 +82,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fetch VNINDEX data for analysis
+    // Fetch market data for analysis (supports VNINDEX, VN30, VN30F1M, VN30F2M)
     let marketContext = ''
+    const stockCode = prompt.trim().toUpperCase()
 
     try {
-      const vnindexResponse = await fetch(
-        'https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=50&q=code:VNINDEX',
+      // Fetch 1 year of data (approximately 250 trading days)
+      const marketResponse = await fetch(
+        `https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=250&q=code:${stockCode}`,
         {
           headers: {
             'Accept': 'application/json',
@@ -95,12 +97,12 @@ export async function POST(request: NextRequest) {
         }
       )
 
-      if (vnindexResponse.ok) {
-        const vnindexData = await vnindexResponse.json()
+      if (marketResponse.ok) {
+        const marketData = await marketResponse.json()
 
-        if (vnindexData.data && vnindexData.data.length > 0) {
+        if (marketData.data && marketData.data.length > 0) {
           // Filter valid dates and sort ascending
-          const validData = vnindexData.data.filter((item: any) => isValidTradingDate(item.date))
+          const validData = marketData.data.filter((item: any) => isValidTradingDate(item.date))
           const sortedData = validData.sort((a: any, b: any) =>
             new Date(a.date).getTime() - new Date(b.date).getTime()
           )
@@ -164,7 +166,8 @@ export async function POST(request: NextRequest) {
             }
 
             marketContext = `
-📊 DỮ LIỆU THỊ TRƯỜNG VNINDEX (${latestData.date}):
+📊 DỮ LIỆU THỊ TRƯỜNG ${stockCode} (${latestData.date}):
+📅 Dữ liệu phân tích: ${sortedData.length} phiên giao dịch (khoảng ${Math.round(sortedData.length / 250 * 12)} tháng)
 
 Giá hiện tại: ${currentPrice.toFixed(2)} điểm
 Thay đổi: ${latestData.change >= 0 ? '+' : ''}${latestData.change.toFixed(2)} (${latestData.pctChange >= 0 ? '+' : ''}${latestData.pctChange.toFixed(2)}%)
@@ -192,13 +195,13 @@ Thay đổi: ${latestData.change >= 0 ? '+' : ''}${latestData.change.toFixed(2)}
 - Nếu MA10 > MA30 và chênh lệch >2% → Tín hiệu MUA TỶ TRỌNG CAO
 - Nếu MA10 < MA30 và chênh lệch >2% → Tín hiệu BÁN TỶ TRỌNG CAO
 
-Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến nghị trading cho ${prompt}.
+Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến nghị trading cho ${stockCode}.
 `
           }
         }
       }
     } catch (err) {
-      console.error('Error fetching VNINDEX data:', err)
+      console.error(`Error fetching ${stockCode} data:`, err)
       // Continue without market context
     }
 

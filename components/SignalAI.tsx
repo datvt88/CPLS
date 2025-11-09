@@ -62,7 +62,7 @@ export default function SignalAI(){
 
   const run = async () => {
     if (!prompt.trim()) {
-      setError('Vui lòng nhập mã cổ phiếu')
+      setError('Vui lòng nhập mã chỉ số (VNINDEX, VN30, VN30F1M, VN30F2M)')
       return
     }
 
@@ -145,7 +145,7 @@ export default function SignalAI(){
         className="w-full p-2 rounded bg-[#0b1116] mb-2 border border-gray-700 focus:outline-none focus:border-purple-500"
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
-        placeholder="Nhập mã cổ phiếu (VD: VNINDEX, VNM, HPG)"
+        placeholder="Nhập mã chỉ số (VD: VNINDEX, VN30, VN30F1M, VN30F2M)"
         disabled={loading || !apiStatus.available}
       />
       <button

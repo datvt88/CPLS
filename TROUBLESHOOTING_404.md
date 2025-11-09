@@ -185,10 +185,10 @@ Kết quả sẽ show danh sách models available.
 
 ## ✅ Khi đã fix xong
 
-Sau khi fix, test AI Signals:
+Sau khi fix, test AI Analysis:
 
 1. Vào `/dashboard`
-2. Widget "AI Signals"
+2. Widget "AI Analysis"
 3. Nhập "VNINDEX"
 4. Click "Phân tích AI"
 5. Đợi 3-5 giây
