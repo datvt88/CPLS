@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseGeminiResponse } from '@/lib/geminiClient'
+import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
 function getVietnamDate(): Date {
@@ -63,7 +64,7 @@ function calculateBollingerBands(closePrices: number[], period: number = 20, std
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, user_id } = await request.json()
+    const { prompt, user_id, model } = await request.json()
 
     // Validate input
     if (!prompt || typeof prompt !== 'string') {
@@ -72,6 +73,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Validate and set model
+    const selectedModel = model && isValidModel(model) ? model : DEFAULT_GEMINI_MODEL
+    console.log('🤖 Using Gemini model:', selectedModel)
 
     // Check if API key exists
     const apiKey = process.env.GEMINI_API_KEY
@@ -210,13 +215,13 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       ? marketContext + '\n\nTrả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết dựa trên phân tích kỹ thuật trên"}'
       : `Phân tích tín hiệu trading cho ${prompt}. Trả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết"}`
 
-    // Call Gemini API (using gemini-2.0-flash-exp - Gemini 1.5 retired April 2025)
+    // Call Gemini API with selected model
     // Note: API key should be passed in header, not query parameter
     console.log('🔄 Calling Gemini API for prompt:', prompt)
     console.log('📝 Market context available:', !!marketContext)
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
       {
         method: 'POST',
         headers: {
