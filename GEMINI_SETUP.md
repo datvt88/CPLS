@@ -1,8 +1,8 @@
-# 🤖 Hướng dẫn cấu hình Gemini AI cho AI Signals
+# 🤖 Hướng dẫn cấu hình Gemini AI cho AI Analysis
 
 ## Vấn đề lỗi 404
 
-Nếu bạn gặp lỗi `HTTP error! status: 404` khi sử dụng AI Signals, có nghĩa là:
+Nếu bạn gặp lỗi `HTTP error! status: 404` khi sử dụng AI Analysis, có nghĩa là:
 1. ❌ Chưa cấu hình GEMINI_API_KEY
 2. ❌ Server development chưa chạy
 3. ❌ Đang dùng production build cũ
@@ -44,10 +44,10 @@ npm run dev
 
 Server sẽ chạy tại: http://localhost:3000
 
-### Bước 5: Test AI Signals
+### Bước 5: Test AI Analysis
 
 1. Truy cập: http://localhost:3000/dashboard
-2. Tìm widget "AI Signals"
+2. Tìm widget "AI Analysis"
 3. Nhập "VNINDEX" vào ô input
 4. Click "Phân tích AI"
 5. ✅ Sẽ thấy phân tích kỹ thuật chi tiết!
@@ -85,9 +85,9 @@ Failed to generate signal from Gemini API
 - Kiểm tra quota (Gemini free tier có giới hạn)
 - Thử tạo API key mới
 
-## 📊 AI Signals hoạt động như thế nào?
+## 📊 AI Analysis hoạt động như thế nào?
 
-Widget AI Signals sử dụng:
+Widget AI Analysis sử dụng:
 
 1. **Dữ liệu thực từ VNINDEX**
    - Fetch 50 phiên gần nhất

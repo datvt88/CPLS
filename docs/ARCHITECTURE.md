@@ -293,7 +293,7 @@ app/
 │
 └── signals/page.tsx (Premium only)
     └── ProtectedRoute (requirePremium)
-        └── AI Signals content
+        └── AI Analysis content
 ```
 
 ### Key Components
@@ -538,10 +538,10 @@ export const profileService = {
 │                                                          │
 │  Free User:                    Premium User:             │
 │  ✓ Dashboard                   ✓ All Free features      │
-│  ✓ Market data                 ✓ AI Signals (/signals)  │
+│  ✓ Market data                 ✓ AI Analysis (/signals) │
 │  ✓ Stock charts                ✓ Advanced analytics     │
 │  ✓ Profile management          ✓ Priority support       │
-│  ✗ AI Signals (blocked)                                 │
+│  ✗ AI Analysis (blocked)                                │
 └──────────────────────────────────────────────────────────┘
                         ↓
 ┌──────────────────────────────────────────────────────────┐
