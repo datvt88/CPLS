@@ -61,14 +61,31 @@ function calculateBollingerBands(closePrices: number[], period: number = 20, std
   return { upper, middle: middleBand, lower }
 }
 
+// Available Gemini models
+const AVAILABLE_MODELS = {
+  'gemini-2.5-flash': 'Gemini 2.5 Flash (Recommended)',
+  'gemini-2.0-flash': 'Gemini 2.0 Flash',
+  'gemini-2.5-pro': 'Gemini 2.5 Pro (Advanced)',
+} as const
+
+export type GeminiModel = keyof typeof AVAILABLE_MODELS
+
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, user_id } = await request.json()
+    const { prompt, user_id, model = 'gemini-2.5-flash' } = await request.json()
 
     // Validate input
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
         { error: 'Invalid prompt' },
+        { status: 400 }
+      )
+    }
+
+    // Validate model
+    if (model && !AVAILABLE_MODELS[model as GeminiModel]) {
+      return NextResponse.json(
+        { error: `Invalid model. Available models: ${Object.keys(AVAILABLE_MODELS).join(', ')}` },
         { status: 400 }
       )
     }
@@ -210,13 +227,15 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       ? marketContext + '\n\nTrả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết dựa trên phân tích kỹ thuật trên"}'
       : `Phân tích tín hiệu trading cho ${prompt}. Trả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết"}`
 
-    // Call Gemini API (using gemini-2.5-flash - Gemini 1.5 retired April 2025)
+    // Call Gemini API (Gemini 1.5 retired April 2025)
     // Note: API key should be passed in header, not query parameter
-    console.log('🔄 Calling Gemini API for prompt:', prompt)
+    console.log('🔄 Calling Gemini API')
+    console.log('📝 Model:', model)
+    console.log('📝 Prompt:', prompt)
     console.log('📝 Market context available:', !!marketContext)
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: 'POST',
         headers: {
@@ -247,7 +266,7 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Gemini API error:', response.status, errorText)
+      console.error('❌ Gemini API error:', response.status, errorText)
 
       // Provide more specific error messages
       let errorMessage = 'Failed to generate signal from Gemini API'
@@ -256,7 +275,7 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       } else if (response.status === 403) {
         errorMessage = 'API key is invalid or has been disabled. Please check your Vercel environment variables.'
       } else if (response.status === 404) {
-        errorMessage = 'Gemini API model not found. The model may have been deprecated.'
+        errorMessage = `Gemini API model not found. Model "${model}" may not be available.`
       } else if (response.status === 429) {
         errorMessage = 'Rate limit exceeded. Please try again later.'
       } else if (response.status >= 500) {
@@ -264,25 +283,31 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       }
 
       return NextResponse.json(
-        { error: errorMessage },
+        { error: errorMessage, model, details: errorText },
         { status: response.status }
       )
     }
 
     const data = await response.json()
+    console.log('✅ Gemini API response received')
+
     const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
     if (!generatedText) {
+      console.error('❌ No content generated from Gemini')
       return NextResponse.json(
-        { error: 'No content generated from Gemini' },
+        { error: 'No content generated from Gemini', model },
         { status: 500 }
       )
     }
 
+    console.log('📄 Generated text length:', generatedText.length)
+
     // Parse the response
     const result = parseGeminiResponse(generatedText)
+    console.log('✅ Signal generated:', result.signal, 'Confidence:', result.confidence)
 
-    return NextResponse.json(result)
+    return NextResponse.json({ ...result, model })
   } catch (error) {
     console.error('API route error:', error)
     return NextResponse.json(

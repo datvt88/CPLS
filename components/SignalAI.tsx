@@ -8,11 +8,25 @@ interface ApiStatus {
   message: string
   configured: boolean
   available: boolean
+  model?: string
+}
+
+interface ModelInfo {
+  name: string
+  description: string
+  recommended: boolean
+}
+
+interface ModelsResponse {
+  models: Record<string, ModelInfo>
+  default: string
 }
 
 export default function SignalAI(){
   const [userId, setUserId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('VNINDEX')
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash')
+  const [availableModels, setAvailableModels] = useState<Record<string, ModelInfo>>({})
   const [out, setOut] = useState<SignalOutput | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -22,6 +36,21 @@ export default function SignalAI(){
     configured: false,
     available: false,
   })
+
+  // Load available models on mount
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const res = await fetch('/api/gemini/models')
+        const data: ModelsResponse = await res.json()
+        setAvailableModels(data.models)
+        setSelectedModel(data.default)
+      } catch (err) {
+        console.error('Failed to load models:', err)
+      }
+    }
+    loadModels()
+  }, [])
 
   // Check API health on mount
   useEffect(() => {
@@ -35,6 +64,7 @@ export default function SignalAI(){
           message: data.message,
           configured: data.configured,
           available: data.available,
+          model: data.model,
         })
       } catch (err) {
         setApiStatus({
@@ -74,11 +104,12 @@ export default function SignalAI(){
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, user_id: userId })
+        body: JSON.stringify({ prompt, user_id: userId, model: selectedModel })
       })
 
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`)
+        const errorData = await res.json()
+        throw new Error(errorData.error || `HTTP error! status: ${res.status}`)
       }
 
       const data: SignalResponse = await res.json()
@@ -130,6 +161,11 @@ export default function SignalAI(){
             {getStatusIcon()} {apiStatus.message}
           </span>
         </div>
+        {apiStatus.model && (
+          <span className="text-xs text-purple-400 ml-2">
+            ({apiStatus.model})
+          </span>
+        )}
         {!apiStatus.available && apiStatus.configured && (
           <a
             href="/TROUBLESHOOTING_404.md"
@@ -140,6 +176,27 @@ export default function SignalAI(){
           </a>
         )}
       </div>
+
+      {/* Model Selection */}
+      {Object.keys(availableModels).length > 0 && (
+        <div className="mb-3">
+          <label className="block text-xs text-gray-400 mb-1">
+            Chọn Model AI:
+          </label>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="w-full p-2 rounded bg-[#0b1116] border border-gray-700 focus:outline-none focus:border-purple-500 text-sm text-white"
+            disabled={loading || !apiStatus.available}
+          >
+            {Object.entries(availableModels).map(([key, info]) => (
+              <option key={key} value={key}>
+                {info.name} {info.recommended ? '⭐' : ''} - {info.description}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <input
         className="w-full p-2 rounded bg-[#0b1116] mb-2 border border-gray-700 focus:outline-none focus:border-purple-500"
@@ -164,8 +221,15 @@ export default function SignalAI(){
 
       {out && (
         <div className="mt-3 p-3 bg-[#081018] rounded text-sm border border-gray-700">
-          <div className={`inline-block px-3 py-1 rounded-md font-bold ${getSignalColor(out.signal)}`}>
-            {out.signal}
+          <div className="flex items-center justify-between mb-2">
+            <div className={`inline-block px-3 py-1 rounded-md font-bold ${getSignalColor(out.signal)}`}>
+              {out.signal}
+            </div>
+            {'model' in out && out.model && (
+              <span className="text-xs text-purple-400">
+                {availableModels[out.model]?.name || out.model}
+              </span>
+            )}
           </div>
           <div className="mt-2">
             <span className="text-gray-400">Độ tin cậy:</span>{' '}
