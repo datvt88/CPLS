@@ -15,11 +15,12 @@ If you're seeing this error:
 
 ## ✅ Solution Applied
 
-We've migrated to **Gemini 2.0 Flash**:
+We've migrated to **Gemini 2.5 Flash Live**:
 
 ```diff
 - gemini-1.5-flash ❌ (retired)
-+ gemini-2.0-flash-exp ✅ (active)
+- gemini-2.0-flash-exp ✅ (upgraded)
++ gemini-2.5-flash-live ✅ (active)
 ```
 
 ---
@@ -44,22 +45,24 @@ We've migrated to **Gemini 2.0 Flash**:
 |-------|--------|----------|
 | `gemini-1.5-flash` | ❌ **RETIRED** | Deprecated |
 | `gemini-1.5-pro` | ❌ **RETIRED** | Deprecated |
-| `gemini-2.0-flash-exp` | ✅ **ACTIVE** | General use (we use this) |
+| `gemini-2.0-flash-exp` | ✅ **ACTIVE** | General use |
+| `gemini-2.5-flash-live` | ✅ **ACTIVE** | Real-time analysis (we use this) |
 | `gemini-2.5-flash-lite` | ✅ **ACTIVE** | Fast, low-cost |
 | `gemini-2.5-pro` | ✅ **ACTIVE** | Highest intelligence |
 
 ---
 
-## 🎯 Benefits of Gemini 2.0 Flash
+## 🎯 Benefits of Gemini 2.5 Flash Live
 
-Our new model (`gemini-2.0-flash-exp`) provides:
+Our new model (`gemini-2.5-flash-live`) provides:
 
-- ⚡ **Superior speed** - Faster responses
-- 🧠 **Better reasoning** - More accurate analysis
-- 📝 **Improved code generation** - Better technical insights
+- ⚡ **Real-time performance** - Optimized for live analysis
+- 🧠 **Enhanced reasoning** - Most accurate analysis to date
+- 📝 **Improved accuracy** - Better trading signal generation
 - 🔧 **Native tool use** - Advanced capabilities
-- 📚 **1M token context** - Can analyze more data
-- 💰 **Cost-effective** - Competitive pricing
+- 📚 **1M token context** - Can analyze more market data
+- 💰 **Cost-effective** - Excellent value for real-time use
+- 🎯 **Live optimization** - Specifically tuned for interactive applications
 
 ---
 
@@ -73,7 +76,7 @@ GEMINI_API_KEY=your_key node scripts/test-gemini-api.js
 
 **Expected output:**
 ```
-Test 1: Using x-goog-api-key header with gemini-2.0-flash-exp
+Test 1: Using x-goog-api-key header with gemini-2.5-flash-live
 Status: 200 OK
 ✅ Success! Response: Xin chào thế giới
 ```
@@ -92,7 +95,7 @@ GET https://your-app.vercel.app/api/gemini/health
   "message": "Gemini API is available",
   "configured": true,
   "available": true,
-  "model": "gemini-2.0-flash-exp"
+  "model": "gemini-2.5-flash-live"
 }
 ```
 
@@ -195,13 +198,13 @@ Our code is designed for easy model switching:
 ## ✅ Summary
 
 - **Problem:** Gemini 1.5 retired → 404 errors
-- **Solution:** Migrated to Gemini 2.0 Flash
-- **Status:** ✅ Fixed and deployed
+- **Solution:** Migrated to Gemini 2.5 Flash Live
+- **Status:** ✅ Fixed and upgraded
 - **Action:** Deploy to production
-- **Result:** AI Analysis working perfectly
+- **Result:** AI Analysis with real-time performance
 
 ---
 
-**Last Updated:** November 8, 2025
-**Current Model:** `gemini-2.0-flash-exp`
+**Last Updated:** November 10, 2025
+**Current Model:** `gemini-2.5-flash-live`
 **Status:** ✅ Production Ready

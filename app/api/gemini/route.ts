@@ -210,13 +210,13 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
       ? marketContext + '\n\nTrả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết dựa trên phân tích kỹ thuật trên"}'
       : `Phân tích tín hiệu trading cho ${prompt}. Trả về JSON với format: {"signal": "BUY|SELL|HOLD", "confidence": 0-100, "summary": "mô tả chi tiết"}`
 
-    // Call Gemini API (using gemini-2.0-flash-exp - Gemini 1.5 retired April 2025)
+    // Call Gemini API (using gemini-2.5-flash-live - Gemini 1.5 retired April 2025)
     // Note: API key should be passed in header, not query parameter
     console.log('🔄 Calling Gemini API for prompt:', prompt)
     console.log('📝 Market context available:', !!marketContext)
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-live:generateContent',
       {
         method: 'POST',
         headers: {
