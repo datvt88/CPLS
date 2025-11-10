@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 /**
  * Health check endpoint for Gemini API
@@ -20,9 +21,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Quick test with minimal prompt to check API availability
-    // Note: Using gemini-2.0-flash (Gemini 1.5 models retired April 2025)
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
         headers: {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         message: 'Gemini API is available',
         configured: true,
         available: true,
-        model: 'gemini-2.0-flash-exp',
+        model: DEFAULT_GEMINI_MODEL,
       })
     } else {
       const errorText = await response.text()

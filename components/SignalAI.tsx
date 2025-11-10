@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { SignalOutput, SignalResponse } from '@/types/signal'
+import { getActiveModels, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 interface ApiStatus {
   status: 'success' | 'error' | 'checking'
@@ -13,6 +14,7 @@ interface ApiStatus {
 export default function SignalAI(){
   const [userId, setUserId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('VNINDEX')
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_GEMINI_MODEL)
   const [out, setOut] = useState<SignalOutput | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -22,6 +24,8 @@ export default function SignalAI(){
     configured: false,
     available: false,
   })
+
+  const activeModels = getActiveModels()
 
   // Check API health on mount
   useEffect(() => {
@@ -74,7 +78,7 @@ export default function SignalAI(){
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, user_id: userId })
+        body: JSON.stringify({ prompt, user_id: userId, model: selectedModel })
       })
 
       if (!res.ok) {
@@ -139,6 +143,23 @@ export default function SignalAI(){
             Xem hướng dẫn
           </a>
         )}
+      </div>
+
+      {/* Model Selection */}
+      <div className="mb-2">
+        <label className="block text-xs text-gray-400 mb-1">Model Gemini</label>
+        <select
+          className="w-full p-2 rounded bg-[#0b1116] border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
+          value={selectedModel}
+          onChange={e => setSelectedModel(e.target.value)}
+          disabled={loading || !apiStatus.available}
+        >
+          {activeModels.map(model => (
+            <option key={model.id} value={model.id}>
+              {model.name} - {model.description}
+            </option>
+          ))}
+        </select>
       </div>
 
       <input
