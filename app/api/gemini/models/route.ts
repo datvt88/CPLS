@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 // Available Gemini models
-export const AVAILABLE_MODELS = {
+const AVAILABLE_MODELS = {
   'gemini-2.5-flash': {
     name: 'Gemini 2.5 Flash',
     description: 'Recommended - Best balance of speed and quality',
