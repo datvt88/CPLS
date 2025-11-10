@@ -18,11 +18,11 @@ async function testGeminiAPI() {
 
   const testPrompt = 'Say "Hello World" in Vietnamese'
 
-  // Test 1: Using header with Gemini 2.5 Flash Live (recommended)
-  console.log('Test 1: Using x-goog-api-key header with gemini-2.5-flash-live')
+  // Test 1: Using header with Gemini 2.5 Flash (recommended)
+  console.log('Test 1: Using x-goog-api-key header with gemini-2.5-flash')
   try {
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-live:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
         headers: {
@@ -60,10 +60,10 @@ async function testGeminiAPI() {
   console.log('\n---\n')
 
   // Test 2: Using query parameter (alternative)
-  console.log('Test 2: Using query parameter with gemini-2.5-flash-live')
+  console.log('Test 2: Using query parameter with gemini-2.5-flash')
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-live:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -130,7 +130,7 @@ async function testGeminiAPI() {
 
   console.log('\n---\n')
   console.log('NOTE: Gemini 1.5 models (gemini-1.5-flash, gemini-1.5-pro) were retired in April 2025.')
-  console.log('Currently using gemini-2.5-flash-live for real-time performance and accuracy.')
+  console.log('Currently using gemini-2.5-flash for enhanced performance and accuracy.')
 }
 
 testGeminiAPI().catch(console.error)
