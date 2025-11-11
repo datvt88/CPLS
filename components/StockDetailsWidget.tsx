@@ -681,8 +681,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                         movingAverages.ma10 > (bollingerBands.middle[bollingerBands.middle.length - 1]?.value || 0) ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {movingAverages.ma10 > (bollingerBands.middle[bollingerBands.middle.length - 1]?.value || 0)
-                          ? '📈 Xu hướng: Tăng giá'
-                          : '📉 Xu hướng: Giảm giá'}
+                          ? '📈 Xu hướng ngắn hạn: Tăng giá'
+                          : '📉 Xu hướng ngắn hạn: Giảm giá'}
                       </span>
                     </div>
                   </div>
