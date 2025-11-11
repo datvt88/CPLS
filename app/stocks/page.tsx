@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import StockFinancialsWidget from '@/components/StockFinancialsWidget'
+import StockAIEvaluationWidget from '@/components/StockAIEvaluationWidget'
 
 // Dynamic import to avoid SSR issues with lightweight-charts
 const StockDetailsWidget = dynamic(
@@ -44,6 +45,9 @@ export default function StocksPage() {
 
       {/* Stock Financials Widget */}
       <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
+
+      {/* AI Evaluation Widget */}
+      <StockAIEvaluationWidget key={`ai-${currentSymbol}`} symbol={currentSymbol} />
 
       {/* Disclaimer */}
       <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 border border-yellow-700/30">
