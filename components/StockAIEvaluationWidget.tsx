@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands } from '@/services/vndirect'
+import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
 
 interface StockAIEvaluationWidgetProps {
@@ -14,6 +14,9 @@ interface Evaluation {
   signal: Signal
   confidence: number
   reasons: string[]
+  currentPrice?: number
+  buyPrice?: number
+  cutLossPrice?: number
 }
 
 interface AIAnalysis {
@@ -229,7 +232,27 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       signal = 'NẮM GIỮ'
     }
 
-    return { signal, confidence, reasons }
+    // Calculate pivot points for Buy T+ recommendation
+    let buyPrice: number | undefined
+    let cutLossPrice: number | undefined
+
+    if (priceData.length >= 2) {
+      const prevDay = priceData[priceData.length - 2]
+      const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
+      buyPrice = pivots.S2 // Buy T+ is S2 support level
+    }
+
+    // Calculate cut loss price (3.5% below current price)
+    cutLossPrice = Number((currentPrice * 0.965).toFixed(2))
+
+    return {
+      signal,
+      confidence,
+      reasons,
+      currentPrice: Number(currentPrice.toFixed(2)),
+      buyPrice,
+      cutLossPrice
+    }
   }
 
   const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>): Evaluation => {
@@ -474,6 +497,48 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                 </div>
               ))}
             </div>
+
+            {/* Buy Recommendations - Only show for BUY signal */}
+            {analysis.shortTerm.signal === 'MUA' && analysis.shortTerm.buyPrice && (
+              <div className="mt-4 pt-4 border-t border-cyan-700/30">
+                <div className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
+                  💰 Khuyến nghị giá mua
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {/* Current Price */}
+                  <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-700/30">
+                    <div className="text-xs text-gray-400 mb-1">Giá hiện tại</div>
+                    <div className="text-lg font-bold text-white">
+                      {analysis.shortTerm.currentPrice?.toLocaleString('vi-VN')} VNĐ
+                    </div>
+                  </div>
+
+                  {/* Buy Price (Buy T+) */}
+                  <div className="bg-green-900/30 rounded-lg p-3 border border-green-700/30">
+                    <div className="text-xs text-gray-400 mb-1">Vùng mua đề xuất (Buy T+)</div>
+                    <div className="text-lg font-bold text-green-400">
+                      {analysis.shortTerm.buyPrice.toLocaleString('vi-VN')} VNĐ
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {analysis.shortTerm.currentPrice && analysis.shortTerm.buyPrice < analysis.shortTerm.currentPrice
+                        ? `Giá tốt hơn ${(((analysis.shortTerm.currentPrice - analysis.shortTerm.buyPrice) / analysis.shortTerm.currentPrice) * 100).toFixed(2)}%`
+                        : 'Mức hỗ trợ kỹ thuật'}
+                    </div>
+                  </div>
+
+                  {/* Cut Loss Price */}
+                  <div className="bg-red-900/30 rounded-lg p-3 border border-red-700/30">
+                    <div className="text-xs text-gray-400 mb-1">Giá cắt lỗ đề xuất (-3.5%)</div>
+                    <div className="text-lg font-bold text-red-400">
+                      {analysis.shortTerm.cutLossPrice?.toLocaleString('vi-VN')} VNĐ
+                    </div>
+                    <div className="text-xs text-yellow-400 mt-1">
+                      ⚠️ Thoát vị thế nếu giá phá vỡ mức này
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
