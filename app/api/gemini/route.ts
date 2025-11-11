@@ -62,6 +62,42 @@ function calculateBollingerBands(closePrices: number[], period: number = 20, std
   return { upper, middle: middleBand, lower }
 }
 
+// Calculate MA Amplitude (maximum difference between MA10 and MA30)
+function calculateMAAmplitude(ma10: number[], ma30: number[]) {
+  let maxBullishDiff = -Infinity  // MA10 > MA30
+  let maxBearishDiff = Infinity   // MA10 < MA30
+  let maxBullishPct = -Infinity
+  let maxBearishPct = Infinity
+
+  for (let i = 0; i < ma10.length; i++) {
+    if (!isNaN(ma10[i]) && !isNaN(ma30[i]) && ma30[i] !== 0) {
+      const diff = ma10[i] - ma30[i]
+      const pctDiff = (diff / ma30[i]) * 100
+
+      if (diff > 0) {
+        // Bullish scenario (MA10 > MA30)
+        if (pctDiff > maxBullishPct) {
+          maxBullishPct = pctDiff
+          maxBullishDiff = diff
+        }
+      } else if (diff < 0) {
+        // Bearish scenario (MA10 < MA30)
+        if (pctDiff < maxBearishPct) {
+          maxBearishPct = pctDiff
+          maxBearishDiff = diff
+        }
+      }
+    }
+  }
+
+  return {
+    maxBullishDiff,
+    maxBullishPct,
+    maxBearishDiff,
+    maxBearishPct
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { prompt, user_id, model } = await request.json()
@@ -92,9 +128,9 @@ export async function POST(request: NextRequest) {
     const stockCode = prompt.trim().toUpperCase()
 
     try {
-      // Fetch 1 year of data (approximately 250 trading days)
+      // Fetch 300 trading days for MA amplitude analysis
       const marketResponse = await fetch(
-        `https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=250&q=code:${stockCode}`,
+        `https://api-finfo.vndirect.com.vn/v4/vnmarket_prices?sort=date:desc&size=300&q=code:${stockCode}`,
         {
           headers: {
             'Accept': 'application/json',
@@ -121,6 +157,9 @@ export async function POST(request: NextRequest) {
             const bb = calculateBollingerBands(closePrices, 20, 2)
             const ma10 = calculateSMA(closePrices, 10)
             const ma30 = calculateSMA(closePrices, 30)
+
+            // Calculate MA Amplitude for historical context
+            const maAmplitude = calculateMAAmplitude(ma10, ma30)
 
             // Get latest values
             const latestIdx = closePrices.length - 1
@@ -151,20 +190,38 @@ export async function POST(request: NextRequest) {
               bbSignal = 'Giá ở giữa band - Trung tính'
             }
 
-            // MA10 vs MA30 logic
+            // MA10 vs MA30 logic with amplitude analysis
             const maDiff = ((currentMA10 - currentMA30) / currentMA30) * 100
 
+            // Calculate amplitude thresholds (percentage of max historical amplitude)
+            const bullishAmplitudeRatio = maAmplitude.maxBullishPct > 0
+              ? (maDiff / maAmplitude.maxBullishPct) * 100
+              : 0
+            const bearishAmplitudeRatio = maAmplitude.maxBearishPct < 0
+              ? (maDiff / maAmplitude.maxBearishPct) * 100
+              : 0
+
             if (currentMA10 > currentMA30) {
-              if (maDiff > 2) {
-                maSignal = 'MA10 > MA30 (chênh lệch >2%) - Xu hướng TĂNG MẠNH - Khuyến nghị MUA TỶ TRỌNG CAO'
+              // Bullish scenario
+              if (bullishAmplitudeRatio >= 80) {
+                maSignal = `MA10 > MA30 (${maDiff.toFixed(2)}%) - GẦN MỨC CHÊNH LỆCH CỰC ĐẠI LỊCH SỬ (${bullishAmplitudeRatio.toFixed(0)}% của max ${maAmplitude.maxBullishPct.toFixed(2)}%) - Khuyến nghị CHỐT LÃI TỪNG PHẦN hoặc CHỐT TOÀN BỘ, thị trường có thể điều chỉnh`
+              } else if (bullishAmplitudeRatio >= 60) {
+                maSignal = `MA10 > MA30 (${maDiff.toFixed(2)}%) - Đạt ${bullishAmplitudeRatio.toFixed(0)}% mức chênh lệch cực đại (${maAmplitude.maxBullishPct.toFixed(2)}%) - Xu hướng TĂNG MẠNH - Khuyến nghị GIỮ hoặc CHỐT LÃI NHẸ, theo dõi sát`
+              } else if (maDiff > 2) {
+                maSignal = `MA10 > MA30 (${maDiff.toFixed(2)}%) - Xu hướng TĂNG MẠNH - Khuyến nghị MUA TỶ TRỌNG CAO hoặc GIỮ (còn xa mức chênh lệch cực đại ${maAmplitude.maxBullishPct.toFixed(2)}%)`
               } else {
-                maSignal = 'MA10 > MA30 - Xu hướng tăng - Khuyến nghị mua'
+                maSignal = `MA10 > MA30 (${maDiff.toFixed(2)}%) - Xu hướng tăng - Khuyến nghị MUA hoặc GIỮ`
               }
             } else if (currentMA10 < currentMA30) {
-              if (maDiff < -2) {
-                maSignal = 'MA10 < MA30 (chênh lệch >2%) - Xu hướng GIẢM MẠNH - Khuyến nghị BÁN TỶ TRỌNG CAO'
+              // Bearish scenario
+              if (bearishAmplitudeRatio >= 80) {
+                maSignal = `MA10 < MA30 (${maDiff.toFixed(2)}%) - GẦN MỨC CHÊNH LỆCH CỰC ĐẠI LỊCH SỬ (${bearishAmplitudeRatio.toFixed(0)}% của max ${maAmplitude.maxBearishPct.toFixed(2)}%) - Khuyến nghị MUA THĂM DÒ TỶ TRỌNG NHỎ, thị trường có thể phục hồi`
+              } else if (bearishAmplitudeRatio >= 60) {
+                maSignal = `MA10 < MA30 (${maDiff.toFixed(2)}%) - Đạt ${bearishAmplitudeRatio.toFixed(0)}% mức chênh lệch cực đại (${maAmplitude.maxBearishPct.toFixed(2)}%) - Xu hướng GIẢM MẠNH - Khuyến nghị ĐỨNG NGOÀI hoặc BÁN CHƯA MUỘN, theo dõi sát`
+              } else if (maDiff < -2) {
+                maSignal = `MA10 < MA30 (${maDiff.toFixed(2)}%) - Xu hướng GIẢM MẠNH - Khuyến nghị BÁN TỶ TRỌNG CAO hoặc ĐỨNG NGOÀI (còn xa mức chênh lệch cực đại ${maAmplitude.maxBearishPct.toFixed(2)}%)`
               } else {
-                maSignal = 'MA10 < MA30 - Xu hướng giảm - Khuyến nghị bán hoặc giảm tỷ trọng'
+                maSignal = `MA10 < MA30 (${maDiff.toFixed(2)}%) - Xu hướng giảm - Khuyến nghị BÁN hoặc GIẢM TỶ TRỌNG`
               }
             } else {
               maSignal = 'MA10 ≈ MA30 - Xu hướng đi ngang'
@@ -188,6 +245,11 @@ Thay đổi: ${latestData.change >= 0 ? '+' : ''}${latestData.change.toFixed(2)}
 - MA30: ${currentMA30.toFixed(2)}
 - Chênh lệch MA10-MA30: ${maDiff >= 0 ? '+' : ''}${maDiff.toFixed(2)}%
 
+📊 BIÊN ĐỘ MA10-MA30 (Phân tích ${sortedData.length} phiên):
+- Chênh lệch CỰC ĐẠI khi MA10 > MA30: ${maAmplitude.maxBullishPct.toFixed(2)}% (${maAmplitude.maxBullishDiff.toFixed(2)} điểm)
+- Chênh lệch CỰC ĐẠI khi MA10 < MA30: ${maAmplitude.maxBearishPct.toFixed(2)}% (${maAmplitude.maxBearishDiff.toFixed(2)} điểm)
+- Tỷ lệ hiện tại so với cực đại: ${currentMA10 > currentMA30 ? `${bullishAmplitudeRatio.toFixed(0)}% (xu hướng tăng)` : `${bearishAmplitudeRatio.toFixed(0)}% (xu hướng giảm)`}
+
 🎯 TÍN HIỆU KỸ THUẬT:
 
 1️⃣ Bollinger Bands: ${bbSignal}
@@ -199,6 +261,12 @@ Thay đổi: ${latestData.change >= 0 ? '+' : ''}${latestData.change.toFixed(2)}
 - Nếu giá ≥ 80% band (gần upper band) → Tín hiệu CHỐT LÃI TỪNG PHẦN
 - Nếu MA10 > MA30 và chênh lệch >2% → Tín hiệu MUA TỶ TRỌNG CAO
 - Nếu MA10 < MA30 và chênh lệch >2% → Tín hiệu BÁN TỶ TRỌNG CAO
+
+📈 QUY TẮC BIÊN ĐỘ MA10-MA30:
+- Khi MA10 > MA30 và đạt ≥80% mức chênh lệch cực đại lịch sử → CHỐT LÃI (có thể đảo chiều)
+- Khi MA10 > MA30 và đạt 60-80% mức chênh lệch cực đại → GIỮ/CHỐT LÃI NHẸ (theo dõi sát)
+- Khi MA10 < MA30 và đạt ≥80% mức chênh lệch cực đại lịch sử → MUA THĂM DÒ (có thể phục hồi)
+- Khi MA10 < MA30 và đạt 60-80% mức chênh lệch cực đại → ĐỨNG NGOÀI/BÁN (theo dõi sát)
 
 Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến nghị trading cho ${stockCode}.
 `
