@@ -451,16 +451,26 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
   return (
     <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-      <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-        🤖 AI Đánh giá - {symbol}
-      </h3>
+      <div className="mb-4">
+        <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+          🤖 AI Đánh giá - {symbol}
+        </h3>
+        <p className="text-xs text-gray-500 mt-1">
+          Sử dụng AI Phân tích Định lượng (Quantitative Analysis AI) - Thuật toán phân tích kỹ thuật và cơ bản
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Short-term Analysis */}
         <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 rounded-lg p-5 border border-cyan-700/30">
-          <h4 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            ⚡ Ngắn hạn (1-4 tuần)
-          </h4>
+          <div className="mb-4">
+            <h4 className="text-xl font-semibold text-white flex items-center gap-2">
+              ⚡ Ngắn hạn (1-4 tuần)
+            </h4>
+            <p className="text-xs text-gray-500 mt-1">
+              Phân tích kỹ thuật: MA, Bollinger Bands, Momentum, Volume
+            </p>
+          </div>
 
           <div className="space-y-4">
             {/* Signal Badge */}
@@ -544,9 +554,14 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
         {/* Long-term Analysis */}
         <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg p-5 border border-purple-700/30">
-          <h4 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-            🎯 Dài hạn (3-12 tháng)
-          </h4>
+          <div className="mb-4">
+            <h4 className="text-xl font-semibold text-white flex items-center gap-2">
+              🎯 Dài hạn (3-12 tháng)
+            </h4>
+            <p className="text-xs text-gray-500 mt-1">
+              Phân tích cơ bản: P/E, P/B, ROE, Cổ tức, Vốn hóa
+            </p>
+          </div>
 
           <div className="space-y-4">
             {/* Signal Badge */}
