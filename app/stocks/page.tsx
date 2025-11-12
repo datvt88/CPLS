@@ -48,17 +48,6 @@ export default function StocksPage() {
 
       {/* AI Evaluation Widget */}
       <StockAIEvaluationWidget key={`ai-${currentSymbol}`} symbol={currentSymbol} />
-
-      {/* Disclaimer */}
-      <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 border border-yellow-700/30">
-        <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-          ⚠️ Lưu ý quan trọng
-        </h3>
-        <p className="text-sm text-gray-300">
-          Dữ liệu cổ phiếu được lấy từ các nguồn công khai trực tuyến. Webapp không chịu trách nhiệm về độ tin cậy của dữ liệu.
-          Công cụ phục vụ mục đích thử nghiệm và tham khảo. Không khuyến khích sử dụng để ra quyết định đầu tư.
-        </p>
-      </div>
     </div>
   )
 }

@@ -80,15 +80,6 @@ export default function MarketPage() {
           <ExchangeRateWidget isActive={activeTab === 'exchange'} />
         </div>
       </div>
-
-      {/* Footer Notice */}
-      <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 border border-yellow-700/30">
-        <p className="text-sm text-gray-300">
-          <span className="font-semibold text-yellow-500">⚠️ Lưu ý:</span>{' '}
-          Dữ liệu được lấy từ các nguồn công khai trực tuyến. Không chịu trách nhiệm về độ tin cậy của dữ liệu.
-          Công cụ phục vụ mục đích thử nghiệm và tham khảo. Không khuyến khích sử dụng để ra quyết định đầu tư.
-        </p>
-      </div>
     </div>
   )
 }
