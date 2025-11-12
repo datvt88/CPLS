@@ -5,22 +5,26 @@ import { StockPriceResponse, FinancialRatiosResponse } from '@/types/vndirect'
  * This avoids CORS issues and API access restrictions
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  * @param size - Number of data points to fetch (default: 270 for ~1 year of data)
+ * @param forceRefresh - Force bypass cache and fetch fresh data (default: false)
  */
 export async function fetchStockPrices(
   stockCode: string,
-  size: number = 270
+  size: number = 270,
+  forceRefresh: boolean = false
 ): Promise<StockPriceResponse> {
   try {
-    const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}`
+    // Add cache busting parameter when force refresh
+    const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : ''
+    const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}${cacheBuster}`
 
-    console.log('📡 Calling API proxy:', url)
+    console.log('📡 Calling API proxy:', url, forceRefresh ? '(force refresh)' : '')
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
       },
-      cache: 'no-store',
+      cache: forceRefresh ? 'no-store' : 'default',
     })
 
     if (!response.ok) {

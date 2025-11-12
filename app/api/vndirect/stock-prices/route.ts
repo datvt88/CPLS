@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         'Referer': 'https://dstock.vndirect.com.vn/',
         'Origin': 'https://dstock.vndirect.com.vn',
       },
-      next: { revalidate: 300 }, // Cache for 5 minutes
+      next: { revalidate: 120 }, // Cache for 2 minutes (reduced for fresher trading data)
     })
 
     console.log('✅ VNDirect API response status:', response.status)
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data, {
       headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=240',
       },
     })
   } catch (error) {
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(mockData, {
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+        'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=240',
         'X-Mock-Data': 'true', // Indicator that this is mock data
       },
     })

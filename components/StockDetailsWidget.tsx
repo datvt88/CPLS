@@ -13,7 +13,7 @@ interface StockDetailsWidgetProps {
 
 // Data cache to avoid redundant API calls
 const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes (reduced for fresher trading data)
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
 function getVietnamDate(): Date {
@@ -43,6 +43,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const [error, setError] = useState<string | null>(null)
   const [stockData, setStockData] = useState<StockPriceData[]>([])
   const [pivotPoints, setPivotPoints] = useState<WoodiePivotPoints | null>(null)
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Sync with external symbol changes only when initialSymbol changes
   useEffect(() => {
@@ -200,31 +202,38 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   }, [])
 
   // Fetch stock data with caching
-  const loadStockData = useCallback(async (stockSymbol: string) => {
+  const loadStockData = useCallback(async (stockSymbol: string, forceRefresh: boolean = false) => {
     setLoading(true)
     setError(null)
 
     try {
-      // Check cache first
-      const cached = dataCache.get(stockSymbol)
-      const now = Date.now()
+      // Check cache first (skip if force refresh)
+      if (!forceRefresh) {
+        const cached = dataCache.get(stockSymbol)
+        const now = Date.now()
 
-      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        // Use cached data
-        setStockData(cached.data)
+        if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+          // Use cached data
+          setStockData(cached.data)
 
-        // Calculate pivot points from cached data
-        if (cached.data.length >= 2) {
-          const prevDay = cached.data[cached.data.length - 2]
-          const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
-          setPivotPoints(pivots)
+          // Calculate pivot points from cached data
+          if (cached.data.length >= 2) {
+            const prevDay = cached.data[cached.data.length - 2]
+            const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
+            setPivotPoints(pivots)
+          }
+          setLoading(false)
+          return
         }
-        setLoading(false)
-        return
+      }
+
+      // Clear cache if force refresh
+      if (forceRefresh) {
+        dataCache.delete(stockSymbol)
       }
 
       // Fetch fresh data - reduced from 270 to 150 days for better performance
-      const response = await fetchStockPrices(stockSymbol, 150)
+      const response = await fetchStockPrices(stockSymbol, 150, forceRefresh)
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Không tìm thấy dữ liệu cho mã này')
@@ -241,10 +250,12 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
 
-      // Cache the data
+      // Cache the data with current timestamp
+      const now = Date.now()
       dataCache.set(stockSymbol, { data: sortedData, timestamp: now })
 
       setStockData(sortedData)
+      setLastRefreshTime(new Date())
 
       // Calculate pivot points from previous day (using adjusted prices)
       if (sortedData.length >= 2) {
@@ -256,8 +267,17 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       setError(err instanceof Error ? err.message : 'Lỗi tải dữ liệu')
     } finally {
       setLoading(false)
+      setIsRefreshing(false)
     }
   }, [])
+
+  // Handle manual refresh
+  const handleRefresh = useCallback(() => {
+    if (symbol && !loading && !isRefreshing) {
+      setIsRefreshing(true)
+      loadStockData(symbol, true)
+    }
+  }, [symbol, loading, isRefreshing, loadStockData])
 
   // Load data when symbol changes
   useEffect(() => {
@@ -265,6 +285,41 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       loadStockData(symbol)
     }
   }, [symbol, loadStockData])
+
+  // Auto-refresh every 5 minutes when tab is active
+  useEffect(() => {
+    if (!symbol) return
+
+    const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000 // 5 minutes
+
+    // Set up interval for auto-refresh
+    const intervalId = setInterval(() => {
+      // Only refresh if document is visible (tab is active)
+      if (!document.hidden && !loading && !isRefreshing) {
+        console.log('🔄 Auto-refreshing stock data...')
+        loadStockData(symbol, true)
+      }
+    }, AUTO_REFRESH_INTERVAL)
+
+    // Also refresh when tab becomes visible again (if data is old)
+    const handleVisibilityChange = () => {
+      if (!document.hidden && lastRefreshTime) {
+        const timeSinceRefresh = Date.now() - lastRefreshTime.getTime()
+        // Refresh if last refresh was more than 5 minutes ago
+        if (timeSinceRefresh > AUTO_REFRESH_INTERVAL && !loading && !isRefreshing) {
+          console.log('🔄 Tab became visible, refreshing old data...')
+          loadStockData(symbol, true)
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [symbol, loading, isRefreshing, lastRefreshTime, loadStockData])
 
   // Memoize aggregated data based on timeframe
   const displayData = useMemo(() => {
@@ -423,11 +478,22 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         />
         <button
           onClick={handleSearch}
-          disabled={loading}
+          disabled={loading || isRefreshing}
           className="px-8 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium"
         >
           {loading ? 'Đang tải...' : 'Xem'}
         </button>
+        {stockData.length > 0 && (
+          <button
+            onClick={handleRefresh}
+            disabled={loading || isRefreshing}
+            className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+            title="Làm mới dữ liệu (Auto-refresh mỗi 5 phút)"
+          >
+            <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
+            <span className="hidden sm:inline">{isRefreshing ? 'Đang làm mới...' : 'Làm mới'}</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -443,7 +509,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           <>
           {/* Data Date Indicator */}
           <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 mb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-blue-400 font-semibold">📅 Dữ liệu ngày:</span>
                 <span className="text-white font-bold text-lg">
@@ -472,6 +538,20 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 return null
               })()}
             </div>
+            {lastRefreshTime && (
+              <div className="flex items-center gap-2 text-sm border-t border-blue-700/30 pt-2">
+                <span className="text-blue-300">🔄 Cập nhật lần cuối:</span>
+                <span className="text-gray-300">
+                  {lastRefreshTime.toLocaleTimeString('vi-VN', {
+                    timeZone: 'Asia/Ho_Chi_Minh',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })}
+                </span>
+                <span className="text-green-400 text-xs">(Auto-refresh mỗi 5 phút)</span>
+              </div>
+            )}
           </div>
 
           {/* Quick Info Panel */}
