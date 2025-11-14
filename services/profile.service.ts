@@ -5,10 +5,10 @@ export type MembershipTier = 'free' | 'premium'
 export interface Profile {
   id: string
   email: string
+  phone_number: string  // BẮT BUỘC: Số điện thoại
   full_name?: string
-  nickname?: string  // Display name for chat rooms and real-time messaging
-  phone_number?: string
-  stock_account_number?: string
+  nickname?: string  // Tên hiển thị tài khoản (user tự đặt)
+  stock_account_number?: string  // Số tài khoản chứng khoán (optional)
   avatar_url?: string
   zalo_id?: string
   membership: MembershipTier
@@ -22,9 +22,9 @@ export interface Profile {
 export interface CreateProfileData {
   id: string
   email: string
+  phone_number: string  // BẮT BUỘC: Số điện thoại
   full_name?: string
   nickname?: string
-  phone_number?: string
   stock_account_number?: string
   avatar_url?: string
   zalo_id?: string

@@ -4,11 +4,11 @@
 -- Script thiết lập xác thực Zalo và quản lý profile người dùng
 -- KHÔNG bao gồm tính năng chat
 --
--- Bao gồm:
--- 1. Base schema (profiles table với nickname)
--- 2. Auth triggers (tự động tạo profile)
--- 3. RLS policies (bảo mật)
--- 4. Helper functions (auth & profile)
+-- Profile fields:
+-- - Email (bắt buộc)
+-- - Số điện thoại (bắt buộc)
+-- - Nickname (user tự đặt - hiển thị tài khoản)
+-- - Số tài khoản chứng khoán (optional)
 -- =====================================================
 
 -- =====================================================
@@ -21,11 +21,11 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email text UNIQUE,
+  email text NOT NULL UNIQUE,
+  phone_number text NOT NULL,  -- BẮT BUỘC: Số điện thoại
   full_name text,
   nickname text,  -- Tên hiển thị tài khoản (user tự đặt)
-  phone_number text,
-  stock_account_number text,
+  stock_account_number text,  -- Số tài khoản chứng khoán (optional)
   avatar_url text,
   zalo_id text UNIQUE,
   membership text DEFAULT 'free' CHECK (membership IN ('free','premium')),
@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   tcbs_connected_at timestamptz,
   created_at timestamptz DEFAULT NOW(),
   updated_at timestamptz DEFAULT NOW(),
-  CONSTRAINT nickname_length_check CHECK (nickname IS NULL OR (char_length(nickname) >= 2 AND char_length(nickname) <= 50))
+  CONSTRAINT nickname_length_check CHECK (nickname IS NULL OR (char_length(nickname) >= 2 AND char_length(nickname) <= 50)),
+  CONSTRAINT phone_format_check CHECK (phone_number ~ '^[0-9+\-\s()]{9,20}$')
 );
 
 -- Create signals table
@@ -80,6 +81,7 @@ BEGIN
   INSERT INTO public.profiles (
     id,
     email,
+    phone_number,
     full_name,
     avatar_url,
     membership,
@@ -87,7 +89,8 @@ BEGIN
   )
   VALUES (
     NEW.id,
-    NEW.email,
+    COALESCE(NEW.email, 'temp_' || NEW.id || '@cpls.app'),
+    COALESCE(NEW.raw_user_meta_data->>'phone_number', NEW.raw_user_meta_data->>'phone', '0000000000'),  -- Default nếu không có
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture'),
     'free',
@@ -142,9 +145,9 @@ CREATE OR REPLACE FUNCTION public.get_my_profile()
 RETURNS TABLE (
   id uuid,
   email text,
+  phone_number text,
   full_name text,
   nickname text,
-  phone_number text,
   stock_account_number text,
   avatar_url text,
   zalo_id text,
@@ -160,9 +163,9 @@ BEGIN
   SELECT
     p.id,
     p.email,
+    p.phone_number,
     p.full_name,
     p.nickname,
-    p.phone_number,
     p.stock_account_number,
     p.avatar_url,
     p.zalo_id,
@@ -243,6 +246,47 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function: Update user profile (validates required fields)
+CREATE OR REPLACE FUNCTION public.update_my_profile(
+  p_phone_number text DEFAULT NULL,
+  p_nickname text DEFAULT NULL,
+  p_full_name text DEFAULT NULL,
+  p_stock_account_number text DEFAULT NULL,
+  p_avatar_url text DEFAULT NULL
+)
+RETURNS public.profiles AS $$
+DECLARE
+  v_profile public.profiles;
+BEGIN
+  -- Validate nickname length if provided
+  IF p_nickname IS NOT NULL AND (char_length(p_nickname) < 2 OR char_length(p_nickname) > 50) THEN
+    RAISE EXCEPTION 'Nickname must be between 2 and 50 characters';
+  END IF;
+
+  -- Validate phone number format if provided
+  IF p_phone_number IS NOT NULL AND NOT (p_phone_number ~ '^[0-9+\-\s()]{9,20}$') THEN
+    RAISE EXCEPTION 'Invalid phone number format';
+  END IF;
+
+  UPDATE public.profiles
+  SET
+    phone_number = COALESCE(p_phone_number, phone_number),
+    nickname = COALESCE(p_nickname, nickname),
+    full_name = COALESCE(p_full_name, full_name),
+    stock_account_number = COALESCE(p_stock_account_number, stock_account_number),
+    avatar_url = COALESCE(p_avatar_url, avatar_url),
+    updated_at = NOW()
+  WHERE id = auth.uid()
+  RETURNING * INTO v_profile;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile not found';
+  END IF;
+
+  RETURN v_profile;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Function: Update user nickname
 CREATE OR REPLACE FUNCTION public.update_my_nickname(p_nickname text)
 RETURNS public.profiles AS $$
@@ -289,13 +333,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function: Validate profile completeness
+CREATE OR REPLACE FUNCTION public.is_profile_complete()
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_profile RECORD;
+BEGIN
+  SELECT email, phone_number, full_name
+  INTO v_profile
+  FROM public.profiles
+  WHERE id = auth.uid();
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Check required fields
+  RETURN (
+    v_profile.email IS NOT NULL AND
+    v_profile.phone_number IS NOT NULL AND
+    v_profile.full_name IS NOT NULL
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- =====================================================
 -- SECTION 5: COMMENTS & DOCUMENTATION
 -- =====================================================
 
 COMMENT ON TABLE public.profiles IS 'User profiles with authentication and membership data';
+COMMENT ON COLUMN public.profiles.email IS 'Email address (REQUIRED)';
+COMMENT ON COLUMN public.profiles.phone_number IS 'Số điện thoại (BẮT BUỘC) - format: 9-20 ký tự, cho phép số, +, -, space, ()';
 COMMENT ON COLUMN public.profiles.nickname IS 'Tên hiển thị tài khoản (user tự đặt), ưu tiên hiển thị thay vì full_name';
 COMMENT ON COLUMN public.profiles.full_name IS 'Họ tên đầy đủ từ Zalo hoặc user nhập';
+COMMENT ON COLUMN public.profiles.stock_account_number IS 'Số tài khoản chứng khoán (OPTIONAL)';
 COMMENT ON COLUMN public.profiles.zalo_id IS 'Zalo user ID from OAuth, unique identifier';
 COMMENT ON COLUMN public.profiles.membership IS 'Membership tier: free or premium';
 
@@ -303,23 +374,29 @@ COMMENT ON FUNCTION public.handle_new_user() IS 'Tự động tạo profile khi 
 COMMENT ON FUNCTION public.get_my_profile() IS 'Lấy profile của user hiện đang đăng nhập';
 COMMENT ON FUNCTION public.is_premium_user() IS 'Kiểm tra xem user có premium membership còn hạn không';
 COMMENT ON FUNCTION public.link_zalo_account(text, text, text, text, text) IS 'Link Zalo account với user hiện tại';
+COMMENT ON FUNCTION public.update_my_profile(text, text, text, text, text) IS 'Cập nhật profile (validates phone_number và nickname)';
 COMMENT ON FUNCTION public.update_my_nickname(text) IS 'Cập nhật nickname của user hiện tại';
 COMMENT ON FUNCTION public.get_display_name(uuid) IS 'Lấy tên hiển thị (ưu tiên nickname, fallback full_name)';
+COMMENT ON FUNCTION public.is_profile_complete() IS 'Kiểm tra xem profile đã điền đủ thông tin bắt buộc chưa (email, phone, full_name)';
 
 -- =====================================================
 -- ✅ SETUP COMPLETE!
 -- =====================================================
 --
--- Next steps:
--- 1. Test authentication flow với Zalo
--- 2. Test update nickname trong profile page
--- 3. Sử dụng get_display_name() để hiển thị tên user
+-- Required fields:
+-- - email (text, NOT NULL, unique)
+-- - phone_number (text, NOT NULL, format: 9-20 chars)
+--
+-- Optional fields:
+-- - full_name, nickname, stock_account_number, avatar_url
 --
 -- Functions available:
 -- - get_my_profile()                           → Lấy profile hiện tại
 -- - is_premium_user()                          → Kiểm tra premium
 -- - link_zalo_account(...)                     → Link Zalo với user
+-- - update_my_profile(...)                     → Cập nhật profile (có validation)
 -- - update_my_nickname(nickname)               → Cập nhật nickname
 -- - get_display_name(user_id)                  → Lấy tên hiển thị
+-- - is_profile_complete()                      → Kiểm tra profile đã đủ thông tin
 --
 -- =====================================================
