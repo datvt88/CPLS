@@ -16,12 +16,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch user info from Zalo Graph API
+    // Send access_token in header (confirmed working from PHP reference)
     const userResponse = await fetch(
-      `https://graph.zalo.me/v2.0/me?access_token=${access_token}&fields=id,name,picture`,
+      `https://graph.zalo.me/v2.0/me?fields=id,name,picture`,
       {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'access_token': access_token,  // Fixed: access_token in header
         },
       }
     )

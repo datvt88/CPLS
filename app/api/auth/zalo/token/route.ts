@@ -27,17 +27,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Exchange code for access token
-    // Zalo API v4 - Try app_secret in body instead of secret_key in header
-    // Based on various SDK implementations
+    // Zalo API v4 - Use secret_key in header (confirmed working from PHP reference)
     const tokenResponse = await fetch('https://oauth.zaloapp.com/v4/access_token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'secret_key': appSecret,  // Fixed: secret_key in header, not app_secret in body
       },
       body: new URLSearchParams({
         code: code,
         app_id: appId,
-        app_secret: appSecret,  // Changed: secret in body, not header
         grant_type: 'authorization_code',
       }),
     })
