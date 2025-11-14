@@ -13,6 +13,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState({ buy: 0, hold: 0, sell: 0 })
+  const [showAll, setShowAll] = useState(false)
 
   useEffect(() => {
     if (!symbol) return
@@ -106,11 +107,11 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
 
   if (loading) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <div className="flex items-center justify-center h-40">
+      <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
+        <div className="flex items-center justify-center h-32">
           <div className="text-center">
-            <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-gray-400">Đang tải đánh giá từ các CTCK...</p>
+            <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-gray-400 text-sm">Đang tải đánh giá từ các CTCK...</p>
           </div>
         </div>
       </div>
@@ -119,8 +120,8 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
 
   if (error) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
+      <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
+        <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3 text-red-400 text-sm">
           {error}
         </div>
       </div>
@@ -129,119 +130,120 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
 
   const avgTargetPrice = recommendations.length > 0 ? recommendations[0].avgTargetPrice : 0
   const total = stats.buy + stats.hold + stats.sell
+  const displayedRecommendations = showAll ? recommendations : recommendations.slice(0, 5)
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-      <div className="mb-6">
-        <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-          💼 Đánh giá từ Công ty Chứng khoán - {symbol}
-        </h3>
-        <p className="text-gray-400 text-sm">
-          Tổng hợp đánh giá và khuyến nghị đầu tư từ các công ty chứng khoán trong 12 tháng gần nhất
-        </p>
+    <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
+      {/* Header with inline stats */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <div>
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            💼 Đánh giá từ các Công ty Chứng khoán - {symbol}
+          </h3>
+          <p className="text-gray-400 text-xs mt-1">
+            12 tháng gần nhất
+          </p>
+        </div>
+        {total > 0 && (
+          <div className="flex items-center gap-3 text-sm">
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400">Tổng:</span>
+              <span className="font-bold text-white">{total}</span>
+            </div>
+            <div className="h-4 w-px bg-gray-700"></div>
+            <div className="flex items-center gap-1">
+              <span className="text-green-400">📈 {stats.buy}</span>
+              <span className="text-gray-500">({((stats.buy / total) * 100).toFixed(0)}%)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-yellow-400">🤝 {stats.hold}</span>
+              <span className="text-gray-500">({((stats.hold / total) * 100).toFixed(0)}%)</span>
+            </div>
+            <div className="h-4 w-px bg-gray-700"></div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400">Giá TB:</span>
+              <span className="font-bold text-purple-400">{formatPrice(avgTargetPrice)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Statistics Summary */}
-      {total > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-            <div className="text-gray-400 text-sm mb-1">Tổng đánh giá</div>
-            <div className="text-2xl font-bold text-white">{total}</div>
-          </div>
-          <div className="bg-green-900/20 rounded-lg p-4 border border-green-700/30">
-            <div className="text-green-400 text-sm mb-1 flex items-center gap-1">
-              <span>📈</span> MUA
-            </div>
-            <div className="text-2xl font-bold text-green-400">
-              {stats.buy} <span className="text-sm text-green-400/70">({((stats.buy / total) * 100).toFixed(0)}%)</span>
-            </div>
-          </div>
-          <div className="bg-yellow-900/20 rounded-lg p-4 border border-yellow-700/30">
-            <div className="text-yellow-400 text-sm mb-1 flex items-center gap-1">
-              <span>🤝</span> NẮM GIỮ
-            </div>
-            <div className="text-2xl font-bold text-yellow-400">
-              {stats.hold} <span className="text-sm text-yellow-400/70">({((stats.hold / total) * 100).toFixed(0)}%)</span>
-            </div>
-          </div>
-          <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-700/30">
-            <div className="text-purple-400 text-sm mb-1">Giá mục tiêu TB</div>
-            <div className="text-2xl font-bold text-purple-400">{formatPrice(avgTargetPrice)}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Recommendations List */}
+      {/* Recommendations Table */}
       {recommendations.length === 0 ? (
-        <div className="bg-gray-800/30 rounded-lg p-8 text-center border border-gray-700/50">
-          <div className="text-4xl mb-3">📋</div>
-          <p className="text-gray-400">Chưa có đánh giá nào trong 12 tháng gần nhất</p>
+        <div className="bg-gray-800/30 rounded-lg p-6 text-center border border-gray-700/50">
+          <div className="text-3xl mb-2">📋</div>
+          <p className="text-gray-400 text-sm">Chưa có đánh giá nào trong 12 tháng gần nhất</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {recommendations.map((rec, index) => {
-            const badge = getRecommendationBadge(rec.type)
-            const potential = calculatePotential(rec.reportPrice, rec.targetPrice)
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700/50">
+                <th className="text-left py-2 px-3 text-gray-400 font-medium">Khuyến nghị</th>
+                <th className="text-left py-2 px-3 text-gray-400 font-medium">CTCK</th>
+                <th className="text-left py-2 px-3 text-gray-400 font-medium hidden md:table-cell">Phân tích viên</th>
+                <th className="text-right py-2 px-3 text-gray-400 font-medium">Giá BC</th>
+                <th className="text-right py-2 px-3 text-gray-400 font-medium">Giá MT</th>
+                <th className="text-right py-2 px-3 text-gray-400 font-medium">Tiềm năng</th>
+                <th className="text-right py-2 px-3 text-gray-400 font-medium">Ngày</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedRecommendations.map((rec, index) => {
+                const badge = getRecommendationBadge(rec.type)
+                const potential = calculatePotential(rec.reportPrice, rec.targetPrice)
 
-            return (
-              <div
-                key={index}
-                className={`rounded-lg p-4 border transition-all hover:shadow-lg ${getRecommendationColor(rec.type)}`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  {/* Left side: Firm and Analyst info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className={`text-2xl font-bold ${badge.color} flex items-center gap-1`}>
-                        {badge.icon} {badge.label}
+                return (
+                  <tr
+                    key={index}
+                    className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+                  >
+                    <td className="py-2 px-3">
+                      <span className={`inline-flex items-center gap-1 font-bold ${badge.color}`}>
+                        <span className="text-base">{badge.icon}</span>
+                        <span className="text-xs">{badge.label}</span>
                       </span>
-                      <div className="h-6 w-px bg-gray-600"></div>
-                      <div>
-                        <div className="font-bold text-white">{rec.firm}</div>
-                        <div className="text-xs text-gray-400">{rec.source}</div>
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-300">
-                      <span className="text-gray-400">Phân tích viên:</span> {rec.analyst}
-                    </div>
-                  </div>
-
-                  {/* Right side: Prices and Date */}
-                  <div className="flex flex-col md:flex-row md:items-center gap-4">
-                    {/* Prices */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {rec.reportPrice && (
-                        <div className="text-center bg-gray-900/50 rounded px-3 py-2">
-                          <div className="text-xs text-gray-400 mb-1">Giá báo cáo</div>
-                          <div className="font-bold text-white">{formatPrice(rec.reportPrice)}</div>
-                        </div>
-                      )}
-                      <div className="text-center bg-gray-900/50 rounded px-3 py-2">
-                        <div className="text-xs text-gray-400 mb-1">Giá mục tiêu</div>
-                        <div className="font-bold text-white">{formatPrice(rec.targetPrice)}</div>
-                      </div>
-                    </div>
-
-                    {/* Potential */}
-                    {potential !== null && (
-                      <div className="text-center bg-gray-900/50 rounded px-3 py-2 min-w-[80px]">
-                        <div className="text-xs text-gray-400 mb-1">Tiềm năng</div>
-                        <div className={`font-bold ${potential >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    </td>
+                    <td className="py-2 px-3">
+                      <div className="font-medium text-white">{rec.firm}</div>
+                      <div className="text-xs text-gray-500">{rec.source}</div>
+                    </td>
+                    <td className="py-2 px-3 text-gray-300 hidden md:table-cell">{rec.analyst}</td>
+                    <td className="py-2 px-3 text-right font-medium text-white">
+                      {rec.reportPrice ? formatPrice(rec.reportPrice) : '-'}
+                    </td>
+                    <td className="py-2 px-3 text-right font-medium text-white">
+                      {formatPrice(rec.targetPrice)}
+                    </td>
+                    <td className="py-2 px-3 text-right">
+                      {potential !== null ? (
+                        <span className={`font-bold ${potential >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {potential >= 0 ? '+' : ''}{potential.toFixed(1)}%
-                        </div>
-                      </div>
-                    )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-right text-gray-400">
+                      {formatDate(rec.reportDate)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
 
-                    {/* Date */}
-                    <div className="text-center bg-gray-900/50 rounded px-3 py-2 min-w-[100px]">
-                      <div className="text-xs text-gray-400 mb-1">Ngày báo cáo</div>
-                      <div className="text-sm font-medium text-white">{formatDate(rec.reportDate)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+          {/* Show more/less button */}
+          {recommendations.length > 5 && (
+            <div className="mt-3 text-center">
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                {showAll ? '▲ Thu gọn' : `▼ Xem thêm ${recommendations.length - 5} đánh giá`}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
