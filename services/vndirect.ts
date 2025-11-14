@@ -1,4 +1,4 @@
-import { StockPriceResponse, FinancialRatiosResponse } from '@/types/vndirect'
+import { StockPriceResponse, FinancialRatiosResponse, StockRecommendationsResponse } from '@/types/vndirect'
 
 /**
  * Fetch historical stock prices via Next.js API proxy
@@ -162,5 +162,45 @@ export function calculateWoodiePivotPoints(high: number, low: number, close: num
     S1: Number(S1.toFixed(2)),
     S2: Number(S2.toFixed(2)),
     S3: Number(S3.toFixed(2)),
+  }
+}
+
+/**
+ * Fetch stock recommendations from securities companies via Next.js API proxy
+ * This avoids CORS issues and API access restrictions
+ * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
+ * @param startDate - Start date for filtering (format: YYYY-MM-DD)
+ * @param size - Number of records to fetch (default: 100)
+ */
+export async function fetchStockRecommendations(
+  stockCode: string,
+  startDate?: string,
+  size: number = 100
+): Promise<StockRecommendationsResponse> {
+  try {
+    const dateParam = startDate ? `&startDate=${startDate}` : ''
+    const url = `/api/vndirect/recommendations?code=${stockCode.toUpperCase()}&size=${size}${dateParam}`
+
+    console.log('📡 Calling API proxy for recommendations:', url)
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API Error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Recommendations API response received:', data.data?.length, 'recommendations')
+    return data
+  } catch (error) {
+    console.error('❌ Error fetching stock recommendations:', error)
+    throw error
   }
 }

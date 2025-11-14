@@ -68,3 +68,23 @@ export interface WoodiePivotPoints {
   S2: number
   S3: number
 }
+
+export interface StockRecommendationsResponse {
+  data: StockRecommendation[]
+  currentPage: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface StockRecommendation {
+  code: string
+  firm: string
+  type: 'BUY' | 'HOLD' | 'SELL'
+  reportDate: string
+  source: string
+  analyst: string
+  reportPrice?: number
+  targetPrice: number
+  avgTargetPrice: number
+}
