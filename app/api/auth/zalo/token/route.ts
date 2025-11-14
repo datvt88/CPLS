@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Exchange code for access token
+    // Zalo API v4 requires specific parameters format
     const tokenResponse = await fetch('https://oauth.zaloapp.com/v4/access_token', {
       method: 'POST',
       headers: {
@@ -34,28 +35,55 @@ export async function POST(request: NextRequest) {
         'secret_key': appSecret,
       },
       body: new URLSearchParams({
-        app_id: appId,
         code: code,
+        app_id: appId,
         grant_type: 'authorization_code',
       }),
     })
 
+    // Get response text first for better error handling
+    const responseText = await tokenResponse.text()
+    console.log('Zalo token response:', responseText)
+
     if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      console.error('Zalo token exchange failed:', errorText)
+      console.error('Zalo token exchange failed. Status:', tokenResponse.status)
+      console.error('Response:', responseText)
       return NextResponse.json(
-        { error: 'Failed to exchange authorization code' },
+        {
+          error: 'Failed to exchange authorization code',
+          details: responseText,
+          status: tokenResponse.status
+        },
         { status: 400 }
       )
     }
 
-    const tokenData = await tokenResponse.json()
-
-    // Check for errors in response
-    if (tokenData.error) {
-      console.error('Zalo API error:', tokenData)
+    // Parse response
+    let tokenData
+    try {
+      tokenData = JSON.parse(responseText)
+    } catch (e) {
+      console.error('Failed to parse Zalo response:', responseText)
       return NextResponse.json(
-        { error: tokenData.error_description || 'Token exchange failed' },
+        { error: 'Invalid response from Zalo API' },
+        { status: 500 }
+      )
+    }
+
+    // Check for errors in response (Zalo returns 200 with error field)
+    if (tokenData.error || tokenData.error_code) {
+      console.error('Zalo API error:', {
+        error: tokenData.error,
+        error_code: tokenData.error_code,
+        error_message: tokenData.error_message,
+        error_description: tokenData.error_description,
+      })
+      return NextResponse.json(
+        {
+          error: tokenData.error_message || tokenData.error_description || 'Token exchange failed',
+          error_code: tokenData.error_code || tokenData.error,
+          details: tokenData
+        },
         { status: 400 }
       )
     }
