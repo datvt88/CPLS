@@ -5,7 +5,14 @@ import Header from '../components/Header'
 import Footer from '../components/Footer'
 import AuthListener from '../components/AuthListener'
 
-export const metadata = { title: 'Master Trader' }
+export const metadata = {
+  title: 'Master Trader',
+  verification: {
+    other: {
+      'zalo-platform-site-verification': 'FyJcAj-pL2y9k-C7oerBNZgdwddMqJmlDZWp',
+    },
+  },
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
