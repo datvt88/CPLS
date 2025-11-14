@@ -380,6 +380,96 @@ COMMENT ON FUNCTION public.get_display_name(uuid) IS 'Lấy tên hiển thị (�
 COMMENT ON FUNCTION public.is_profile_complete() IS 'Kiểm tra xem profile đã điền đủ thông tin bắt buộc chưa (email, phone, full_name)';
 
 -- =====================================================
+-- SECTION 6: PERMISSIONS & ACCESS CONTROL
+-- =====================================================
+
+-- Function: Check if user can access a feature
+CREATE OR REPLACE FUNCTION public.can_access_feature(p_feature text)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_membership text;
+  v_expires_at timestamptz;
+BEGIN
+  -- Get user membership
+  SELECT membership, membership_expires_at
+  INTO v_membership, v_expires_at
+  FROM public.profiles
+  WHERE id = auth.uid();
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Premium users can access everything
+  IF v_membership = 'premium' THEN
+    -- Check if premium is not expired
+    IF v_expires_at IS NULL OR v_expires_at > NOW() THEN
+      RETURN TRUE;
+    END IF;
+  END IF;
+
+  -- Free users can only access certain features
+  -- Allowed features for Free: 'dashboard', 'stocks', 'market', 'profile'
+  IF p_feature IN ('dashboard', 'stocks', 'market', 'profile') THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Default: no access
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function: Get list of accessible features for current user
+CREATE OR REPLACE FUNCTION public.get_my_accessible_features()
+RETURNS TABLE (
+  feature text,
+  is_premium_only boolean
+) AS $$
+DECLARE
+  v_is_premium boolean;
+BEGIN
+  -- Check if user has premium
+  v_is_premium := public.is_premium_user();
+
+  -- Return all features with access status
+  RETURN QUERY
+  SELECT 'dashboard'::text AS feature, FALSE AS is_premium_only
+  UNION ALL
+  SELECT 'stocks'::text, FALSE
+  UNION ALL
+  SELECT 'market'::text, FALSE
+  UNION ALL
+  SELECT 'profile'::text, FALSE
+  UNION ALL
+  SELECT 'signals'::text, TRUE
+  UNION ALL
+  SELECT 'ai-analysis'::text, TRUE
+  UNION ALL
+  SELECT 'portfolio'::text, TRUE
+  UNION ALL
+  SELECT 'alerts'::text, TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function: Require premium membership (raises exception if not premium)
+CREATE OR REPLACE FUNCTION public.require_premium()
+RETURNS void AS $$
+BEGIN
+  IF NOT public.is_premium_user() THEN
+    RAISE EXCEPTION 'This feature requires Premium membership. Please upgrade your account.';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =====================================================
+-- SECTION 7: COMMENTS FOR PERMISSIONS
+-- =====================================================
+
+COMMENT ON FUNCTION public.can_access_feature(text) IS 'Kiểm tra xem user có quyền truy cập feature không. Free: dashboard, stocks, market, profile. Premium: all';
+COMMENT ON FUNCTION public.get_my_accessible_features() IS 'Lấy danh sách features mà user hiện tại có quyền truy cập';
+COMMENT ON FUNCTION public.require_premium() IS 'Throws exception nếu user không phải premium - dùng trong stored procedures';
+
+-- =====================================================
 -- ✅ SETUP COMPLETE!
 -- =====================================================
 --
@@ -391,12 +481,24 @@ COMMENT ON FUNCTION public.is_profile_complete() IS 'Kiểm tra xem profile đã
 -- - full_name, nickname, stock_account_number, avatar_url
 --
 -- Functions available:
+--
+-- Profile Management:
 -- - get_my_profile()                           → Lấy profile hiện tại
--- - is_premium_user()                          → Kiểm tra premium
--- - link_zalo_account(...)                     → Link Zalo với user
 -- - update_my_profile(...)                     → Cập nhật profile (có validation)
 -- - update_my_nickname(nickname)               → Cập nhật nickname
--- - get_display_name(user_id)                  → Lấy tên hiển thị
 -- - is_profile_complete()                      → Kiểm tra profile đã đủ thông tin
+-- - get_display_name(user_id)                  → Lấy tên hiển thị
+--
+-- Authentication & Membership:
+-- - is_premium_user()                          → Kiểm tra premium
+-- - link_zalo_account(...)                     → Link Zalo với user
+--
+-- Permissions & Access Control:
+-- - can_access_feature(feature)                → Kiểm tra quyền truy cập feature
+-- - get_my_accessible_features()               → Lấy danh sách features có quyền
+-- - require_premium()                          → Throw exception nếu không premium
+--
+-- Free tier access: 'dashboard', 'stocks', 'market', 'profile'
+-- Premium tier access: ALL features (including 'signals', 'ai-analysis', 'portfolio', 'alerts')
 --
 -- =====================================================
