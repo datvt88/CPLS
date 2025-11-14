@@ -6,6 +6,7 @@ export interface Profile {
   id: string
   email: string
   full_name?: string
+  nickname?: string  // Display name for chat rooms and real-time messaging
   phone_number?: string
   stock_account_number?: string
   avatar_url?: string
@@ -22,6 +23,7 @@ export interface CreateProfileData {
   id: string
   email: string
   full_name?: string
+  nickname?: string
   phone_number?: string
   stock_account_number?: string
   avatar_url?: string
@@ -32,6 +34,7 @@ export interface CreateProfileData {
 
 export interface UpdateProfileData {
   full_name?: string
+  nickname?: string
   phone_number?: string
   stock_account_number?: string
   avatar_url?: string
@@ -62,6 +65,7 @@ export const profileService = {
           id: profileData.id,
           email: profileData.email,
           full_name: profileData.full_name,
+          nickname: profileData.nickname,
           phone_number: profileData.phone_number,
           stock_account_number: profileData.stock_account_number,
           avatar_url: profileData.avatar_url,
@@ -153,6 +157,7 @@ export const profileService = {
 
     // Optionally update profile with Zalo data
     if (zaloData?.full_name) updates.full_name = zaloData.full_name
+    if (zaloData?.nickname) updates.nickname = zaloData.nickname
     if (zaloData?.phone_number) updates.phone_number = zaloData.phone_number
     if (zaloData?.avatar_url) updates.avatar_url = zaloData.avatar_url
 
