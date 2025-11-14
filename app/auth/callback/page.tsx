@@ -110,13 +110,18 @@ export default function AuthCallbackPage() {
           {
             full_name: zaloUser.name,
             avatar_url: zaloUser.picture,
+            phone_number: zaloUser.phone,
           }
         )
       } else {
         // Create new profile
+        // Phone number từ Zalo, hoặc dùng placeholder nếu không có
+        const phoneNumber = zaloUser.phone || '0000000000'
+
         await profileService.upsertProfile({
           id: session.user.id,
           email: pseudoEmail,
+          phone_number: phoneNumber,
           full_name: zaloUser.name,
           avatar_url: zaloUser.picture,
           zalo_id: zaloUser.id,
