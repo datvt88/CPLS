@@ -18,14 +18,15 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   useEffect(() => {
     if (!symbol) return
 
-    // Reset state when symbol changes
-    setRecommendations([])
-    setStats({ buy: 0, hold: 0, sell: 0 })
-    setShowAll(false)
-
     const loadRecommendations = async () => {
+      // Set loading immediately and reset state
       setLoading(true)
       setError(null)
+      setRecommendations([])
+      setStats({ buy: 0, hold: 0, sell: 0 })
+      setShowAll(false)
+
+      console.log(`🔄 Loading recommendations for ${symbol}...`)
 
       try {
         // Get recommendations from the last 12 months
