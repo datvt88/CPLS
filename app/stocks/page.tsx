@@ -4,6 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import StockFinancialsWidget from '@/components/StockFinancialsWidget'
 import StockAIEvaluationWidget from '@/components/StockAIEvaluationWidget'
+import StockRecommendationsWidget from '@/components/StockRecommendationsWidget'
 
 // Dynamic import to avoid SSR issues with lightweight-charts
 const StockDetailsWidget = dynamic(
@@ -45,6 +46,9 @@ export default function StocksPage() {
 
       {/* Stock Financials Widget */}
       <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
+
+      {/* Stock Recommendations Widget */}
+      <StockRecommendationsWidget key={`rec-${currentSymbol}`} symbol={currentSymbol} />
 
       {/* AI Evaluation Widget */}
       <StockAIEvaluationWidget key={`ai-${currentSymbol}`} symbol={currentSymbol} />
