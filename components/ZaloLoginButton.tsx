@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { generateCodeVerifier, generateCodeChallenge } from '@/lib/pkce'
 
 interface ZaloLoginButtonProps {
   onSuccess?: () => void
@@ -32,13 +33,21 @@ export default function ZaloLoginButton({
       const redirectUri = `${window.location.origin}/auth/callback`
       const state = generateState() // CSRF protection
 
-      // Store state in sessionStorage for verification in callback
+      // Generate PKCE values (REQUIRED by Zalo OAuth v4)
+      const codeVerifier = generateCodeVerifier()
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      // Store state and verifier in sessionStorage for verification in callback
       sessionStorage.setItem('zalo_oauth_state', state)
+      sessionStorage.setItem('zalo_code_verifier', codeVerifier)
 
       const authUrl = new URL('https://oauth.zaloapp.com/v4/permission')
       authUrl.searchParams.set('app_id', appId)
       authUrl.searchParams.set('redirect_uri', redirectUri)
       authUrl.searchParams.set('state', state)
+      // PKCE parameters - REQUIRED by Zalo OAuth v4
+      authUrl.searchParams.set('code_challenge', codeChallenge)
+      authUrl.searchParams.set('code_challenge_method', 'S256')
 
       // Redirect to Zalo OAuth
       window.location.href = authUrl.toString()

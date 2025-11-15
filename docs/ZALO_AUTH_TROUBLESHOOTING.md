@@ -2,6 +2,17 @@
 
 Hướng dẫn khắc phục lỗi -14003 khi đăng nhập Zalo OAuth v4.
 
+## ✅ UPDATE: PKCE ĐÃ ĐƯỢC IMPLEMENT (2025-11-15)
+
+**PKCE đã được implement đầy đủ!** Xem chi tiết tại: [ZALO_PKCE_IMPLEMENTATION.md](./ZALO_PKCE_IMPLEMENTATION.md)
+
+Các file đã được cập nhật:
+- ✅ `components/ZaloLoginButton.tsx` - Generate và gửi code_challenge
+- ✅ `app/auth/callback/page.tsx` - Gửi code_verifier trong token request
+- ✅ `app/api/auth/zalo/token/route.ts` - Nhận và sử dụng code_verifier
+
+**Nếu vẫn gặp lỗi sau khi update, vui lòng kiểm tra các mục bên dưới.**
+
 ---
 
 ## ❌ Lỗi Hiện Tại

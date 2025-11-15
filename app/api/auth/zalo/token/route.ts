@@ -6,11 +6,18 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function POST(request: NextRequest) {
   try {
-    const { code } = await request.json()
+    const { code, code_verifier } = await request.json()
 
     if (!code) {
       return NextResponse.json(
         { error: 'Authorization code is required' },
+        { status: 400 }
+      )
+    }
+
+    if (!code_verifier) {
+      return NextResponse.json(
+        { error: 'Code verifier is required (PKCE)' },
         { status: 400 }
       )
     }
@@ -28,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Exchange code for access token
     // Zalo API v4 - Use secret_key in header (confirmed working from PHP reference)
+    // PKCE is REQUIRED by Zalo OAuth v4
     const tokenResponse = await fetch('https://oauth.zaloapp.com/v4/access_token', {
       method: 'POST',
       headers: {
@@ -38,6 +46,7 @@ export async function POST(request: NextRequest) {
         code: code,
         app_id: appId,
         grant_type: 'authorization_code',
+        code_verifier: code_verifier,  // PKCE verifier - REQUIRED by Zalo OAuth v4
       }),
     })
 

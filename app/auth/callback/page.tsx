@@ -37,14 +37,24 @@ export default function AuthCallbackPage() {
         throw new Error('Invalid state parameter - possible CSRF attack')
       }
 
-      // Clean up stored state
+      // Get stored PKCE code verifier
+      const codeVerifier = sessionStorage.getItem('zalo_code_verifier')
+      if (!codeVerifier) {
+        throw new Error('Code verifier not found - possible session issue')
+      }
+
+      // Clean up stored state and verifier
       sessionStorage.removeItem('zalo_oauth_state')
+      sessionStorage.removeItem('zalo_code_verifier')
 
       // Step 1: Exchange authorization code for access token (server-side)
       const tokenResponse = await fetch('/api/auth/zalo/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          code,
+          code_verifier: codeVerifier, // PKCE verifier - REQUIRED by Zalo OAuth v4
+        }),
       })
 
       if (!tokenResponse.ok) {
