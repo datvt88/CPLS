@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
-import type { FinancialRatio } from '@/types/vndirect'
+import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import type { FinancialRatio, StockRecommendation } from '@/types/vndirect'
 
 interface StockAIEvaluationWidgetProps {
   symbol: string
@@ -17,6 +17,13 @@ interface Evaluation {
   currentPrice?: number
   buyPrice?: number
   cutLossPrice?: number
+  consensus?: {
+    total: number
+    buy: number
+    hold: number
+    sell: number
+    avgTargetPrice: number
+  }
 }
 
 interface AIAnalysis {
@@ -53,10 +60,16 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       setError(null)
 
       try {
-        // Fetch both technical and fundamental data
-        const [pricesResponse, ratiosResponse] = await Promise.all([
+        // Get recommendations from the last 12 months
+        const twelveMonthsAgo = new Date()
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
+        const startDate = twelveMonthsAgo.toISOString().split('T')[0]
+
+        // Fetch technical, fundamental, and recommendations data
+        const [pricesResponse, ratiosResponse, recommendationsResponse] = await Promise.all([
           fetchStockPrices(symbol, 150),
-          fetchFinancialRatios(symbol)
+          fetchFinancialRatios(symbol),
+          fetchStockRecommendations(symbol, startDate, 100).catch(() => ({ data: [], currentPage: 1, size: 0, totalElements: 0, totalPages: 0 }))
         ])
 
         if (!pricesResponse.data || pricesResponse.data.length === 0) {
@@ -76,7 +89,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         })
 
         // Perform analysis
-        const aiAnalysis = analyzeStock(sortedData, ratiosMap)
+        const aiAnalysis = analyzeStock(sortedData, ratiosMap, recommendationsResponse.data)
         setAnalysis(aiAnalysis)
       } catch (err) {
         console.error('Error performing AI analysis:', err)
@@ -89,12 +102,12 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     performAnalysis()
   }, [symbol])
 
-  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>): AIAnalysis => {
+  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>, recommendations: StockRecommendation[]): AIAnalysis => {
     // Technical Analysis for Short-term
     const shortTerm = analyzeShortTerm(priceData)
 
-    // Fundamental Analysis for Long-term
-    const longTerm = analyzeLongTerm(priceData, ratios)
+    // Fundamental Analysis for Long-term (including CTCK recommendations)
+    const longTerm = analyzeLongTerm(priceData, ratios, recommendations)
 
     return { shortTerm, longTerm }
   }
@@ -255,121 +268,177 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>): Evaluation => {
+  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>, recommendations: StockRecommendation[]): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
     let totalWeight = 0
 
-    // 1. P/E Ratio Analysis (Weight: 25%)
+    // Calculate current price
+    const closePrices = priceData.map(d => d.adClose)
+    const currentPrice = closePrices[closePrices.length - 1]
+
+    // Analyze Securities Companies Recommendations (Weight: 30%)
+    let consensus = undefined
+    if (recommendations.length > 0) {
+      const buy = recommendations.filter(r => r.type === 'BUY').length
+      const hold = recommendations.filter(r => r.type === 'HOLD').length
+      const sell = recommendations.filter(r => r.type === 'SELL').length
+      const total = buy + hold + sell
+      const avgTargetPrice = recommendations[0].avgTargetPrice
+
+      consensus = { total, buy, hold, sell, avgTargetPrice }
+
+      const buyPercent = (buy / total) * 100
+      const sellPercent = (sell / total) * 100
+
+      // Consensus analysis
+      if (buyPercent >= 60) {
+        bullishScore += 30
+        reasons.push(`✅ Consensus CTCK: ${buy}/${total} khuyến nghị MUA (${buyPercent.toFixed(0)}%)`)
+      } else if (buyPercent >= 40) {
+        bullishScore += 20
+        reasons.push(`✅ Consensus CTCK: ${buy}/${total} khuyến nghị MUA (${buyPercent.toFixed(0)}%)`)
+      } else if (sellPercent >= 40) {
+        bearishScore += 20
+        reasons.push(`❌ Consensus CTCK: ${sell}/${total} khuyến nghị BÁN (${sellPercent.toFixed(0)}%)`)
+      } else {
+        reasons.push(`⚠️ Consensus CTCK: Ý kiến trái chiều (${buy} MUA, ${hold} GIỮ, ${sell} BÁN)`)
+      }
+
+      // Target price vs current price analysis
+      const normalizedTarget = avgTargetPrice >= 1000 ? avgTargetPrice / 1000 : avgTargetPrice
+      const normalizedCurrent = currentPrice >= 1000 ? currentPrice / 1000 : currentPrice
+      const upside = ((normalizedTarget - normalizedCurrent) / normalizedCurrent) * 100
+
+      if (upside > 20) {
+        bullishScore += 15
+        reasons.push(`✅ Giá mục tiêu TB ${normalizedTarget.toFixed(1)}k cao hơn ${upside.toFixed(1)}% - Tiềm năng lớn`)
+      } else if (upside > 10) {
+        bullishScore += 10
+        reasons.push(`✅ Giá mục tiêu TB ${normalizedTarget.toFixed(1)}k cao hơn ${upside.toFixed(1)}%`)
+      } else if (upside > 0) {
+        bullishScore += 5
+        reasons.push(`✅ Giá mục tiêu TB ${normalizedTarget.toFixed(1)}k cao hơn ${upside.toFixed(1)}%`)
+      } else if (upside < -10) {
+        bearishScore += 15
+        reasons.push(`❌ Giá mục tiêu TB ${normalizedTarget.toFixed(1)}k thấp hơn ${Math.abs(upside).toFixed(1)}%`)
+      } else {
+        reasons.push(`⚠️ Giá hiện tại gần giá mục tiêu TB ${normalizedTarget.toFixed(1)}k`)
+      }
+
+      totalWeight += 30
+    }
+
+    // 2. P/E Ratio Analysis (Weight: 20%)
     const pe = ratios['PRICE_TO_EARNINGS']?.value
     if (pe !== undefined && pe !== null) {
       if (pe > 0 && pe < 10) {
-        bullishScore += 25
+        bullishScore += 20
         reasons.push(`✅ P/E thấp (${pe.toFixed(2)}) - Định giá hấp dẫn`)
       } else if (pe >= 10 && pe <= 20) {
-        bullishScore += 15
+        bullishScore += 12
         reasons.push(`✅ P/E hợp lý (${pe.toFixed(2)})`)
       } else if (pe > 20 && pe <= 30) {
-        bearishScore += 10
+        bearishScore += 8
         reasons.push(`⚠️ P/E cao (${pe.toFixed(2)}) - Cần thận trọng`)
       } else if (pe > 30) {
-        bearishScore += 25
+        bearishScore += 20
         reasons.push(`❌ P/E rất cao (${pe.toFixed(2)}) - Định giá cao`)
       } else if (pe < 0) {
-        bearishScore += 20
+        bearishScore += 16
         reasons.push(`❌ P/E âm (${pe.toFixed(2)}) - Công ty lỗ`)
-      }
-      totalWeight += 25
-    }
-
-    // 2. P/B Ratio Analysis (Weight: 20%)
-    const pb = ratios['PRICE_TO_BOOK']?.value
-    if (pb !== undefined && pb !== null) {
-      if (pb < 1) {
-        bullishScore += 20
-        reasons.push(`✅ P/B < 1 (${pb.toFixed(2)}) - Giá thấp hơn giá trị sổ sách`)
-      } else if (pb >= 1 && pb <= 2) {
-        bullishScore += 10
-        reasons.push(`✅ P/B hợp lý (${pb.toFixed(2)})`)
-      } else if (pb > 2 && pb <= 3) {
-        bearishScore += 5
-        reasons.push(`⚠️ P/B cao (${pb.toFixed(2)})`)
-      } else if (pb > 3) {
-        bearishScore += 20
-        reasons.push(`❌ P/B rất cao (${pb.toFixed(2)}) - Định giá cao so với tài sản`)
       }
       totalWeight += 20
     }
 
-    // 3. ROE Analysis (Weight: 25%)
+    // 3. P/B Ratio Analysis (Weight: 15%)
+    const pb = ratios['PRICE_TO_BOOK']?.value
+    if (pb !== undefined && pb !== null) {
+      if (pb < 1) {
+        bullishScore += 15
+        reasons.push(`✅ P/B < 1 (${pb.toFixed(2)}) - Giá thấp hơn giá trị sổ sách`)
+      } else if (pb >= 1 && pb <= 2) {
+        bullishScore += 8
+        reasons.push(`✅ P/B hợp lý (${pb.toFixed(2)})`)
+      } else if (pb > 2 && pb <= 3) {
+        bearishScore += 4
+        reasons.push(`⚠️ P/B cao (${pb.toFixed(2)})`)
+      } else if (pb > 3) {
+        bearishScore += 15
+        reasons.push(`❌ P/B rất cao (${pb.toFixed(2)}) - Định giá cao so với tài sản`)
+      }
+      totalWeight += 15
+    }
+
+    // 4. ROE Analysis (Weight: 20%)
     const roe = ratios['ROAE_TR_AVG5Q']?.value
     if (roe !== undefined && roe !== null) {
       const roePercent = roe * 100
       if (roePercent > 20) {
-        bullishScore += 25
+        bullishScore += 20
         reasons.push(`✅ ROE cao (${roePercent.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
       } else if (roePercent >= 15 && roePercent <= 20) {
-        bullishScore += 15
+        bullishScore += 12
         reasons.push(`✅ ROE tốt (${roePercent.toFixed(2)}%)`)
       } else if (roePercent >= 10 && roePercent < 15) {
-        bullishScore += 5
+        bullishScore += 4
         reasons.push(`⚠️ ROE trung bình (${roePercent.toFixed(2)}%)`)
       } else if (roePercent < 10 && roePercent > 0) {
-        bearishScore += 10
+        bearishScore += 8
         reasons.push(`❌ ROE thấp (${roePercent.toFixed(2)}%)`)
       } else {
-        bearishScore += 25
+        bearishScore += 20
         reasons.push(`❌ ROE âm (${roePercent.toFixed(2)}%) - Công ty lỗ`)
       }
-      totalWeight += 25
+      totalWeight += 20
     }
 
-    // 4. Dividend Yield (Weight: 15%)
+    // 5. Dividend Yield (Weight: 10%)
     const dividendYield = ratios['DIVIDEND_YIELD']?.value
     if (dividendYield !== undefined && dividendYield !== null) {
       const divPercent = dividendYield * 100
       if (divPercent > 5) {
-        bullishScore += 15
+        bullishScore += 10
         reasons.push(`✅ Cổ tức cao (${divPercent.toFixed(2)}%) - Thu nhập ổn định`)
       } else if (divPercent >= 3 && divPercent <= 5) {
-        bullishScore += 10
+        bullishScore += 7
         reasons.push(`✅ Cổ tức tốt (${divPercent.toFixed(2)}%)`)
       } else if (divPercent > 0 && divPercent < 3) {
         reasons.push(`⚠️ Cổ tức thấp (${divPercent.toFixed(2)}%)`)
       } else {
         reasons.push(`⚠️ Không trả cổ tức`)
       }
-      totalWeight += 15
+      totalWeight += 10
     }
 
-    // 5. Market Cap & Liquidity (Weight: 15%)
+    // 6. Market Cap & Liquidity (Weight: 5%)
     const marketCap = ratios['MARKETCAP']?.value
     const freeFloat = ratios['FREEFLOAT']?.value
 
     if (marketCap !== undefined && marketCap !== null) {
       if (marketCap > 10000000000000) { // > 10 nghìn tỷ
-        bullishScore += 10
+        bullishScore += 3
         reasons.push(`✅ Vốn hóa lớn (${(marketCap / 1000000000000).toFixed(2)} nghìn tỷ) - Cổ phiếu Blue-chip`)
       } else if (marketCap > 1000000000000) { // > 1 nghìn tỷ
-        bullishScore += 5
+        bullishScore += 2
         reasons.push(`✅ Vốn hóa vừa (${(marketCap / 1000000000000).toFixed(2)} nghìn tỷ)`)
       } else {
         reasons.push(`⚠️ Vốn hóa nhỏ (${(marketCap / 1000000000000).toFixed(2)} nghìn tỷ) - Rủi ro cao hơn`)
       }
-      totalWeight += 10
+      totalWeight += 3
     }
 
     if (freeFloat !== undefined && freeFloat !== null) {
       const ffPercent = freeFloat * 100
       if (ffPercent > 30) {
-        bullishScore += 5
+        bullishScore += 2
         reasons.push(`✅ Free float cao (${ffPercent.toFixed(2)}%) - Thanh khoản tốt`)
       } else if (ffPercent < 15) {
-        bearishScore += 5
+        bearishScore += 2
         reasons.push(`⚠️ Free float thấp (${ffPercent.toFixed(2)}%) - Thanh khoản hạn chế`)
       }
-      totalWeight += 5
+      totalWeight += 2
     }
 
     // If not enough fundamental data, add warning
@@ -390,7 +459,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       signal = 'NẮM GIỮ'
     }
 
-    return { signal, confidence, reasons }
+    return { signal, confidence, reasons, consensus }
   }
 
   const getSignalColor = (signal: Signal) => {
@@ -583,6 +652,44 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                 </div>
               ))}
             </div>
+
+            {/* Securities Companies Consensus */}
+            {analysis.longTerm.consensus && (
+              <div className="mt-4 pt-4 border-t border-purple-700/30">
+                <div className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
+                  💼 Consensus các CTCK
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-green-900/30 rounded-lg p-2 border border-green-700/30 text-center">
+                    <div className="text-xs text-gray-400">MUA</div>
+                    <div className="text-lg font-bold text-green-400">
+                      {analysis.longTerm.consensus.buy}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {((analysis.longTerm.consensus.buy / analysis.longTerm.consensus.total) * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  <div className="bg-yellow-900/30 rounded-lg p-2 border border-yellow-700/30 text-center">
+                    <div className="text-xs text-gray-400">GIỮ</div>
+                    <div className="text-lg font-bold text-yellow-400">
+                      {analysis.longTerm.consensus.hold}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {((analysis.longTerm.consensus.hold / analysis.longTerm.consensus.total) * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  <div className="bg-red-900/30 rounded-lg p-2 border border-red-700/30 text-center">
+                    <div className="text-xs text-gray-400">BÁN</div>
+                    <div className="text-lg font-bold text-red-400">
+                      {analysis.longTerm.consensus.sell}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {((analysis.longTerm.consensus.sell / analysis.longTerm.consensus.total) * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
