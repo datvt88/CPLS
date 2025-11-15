@@ -666,7 +666,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
             {analysis.longTerm.consensus && (
               <div className="mt-4 pt-4 border-t border-purple-700/30">
                 <div className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
-                  💼 Consensus các CTCK
+                  💼 Tổng hợp đánh giá từ các CTCK
                 </div>
                 {/* Recommendation Distribution */}
                 <div className="grid grid-cols-3 gap-2 mb-3">
