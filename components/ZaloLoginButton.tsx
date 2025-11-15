@@ -30,8 +30,18 @@ export default function ZaloLoginButton({
       }
 
       // Build Zalo OAuth URL - redirect directly to Zalo
-      const redirectUri = `${window.location.origin}/auth/callback`
+      // Support override via env variable for testing
+      const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI ||
+                          `${window.location.origin}/auth/callback`
       const state = generateState() // CSRF protection
+
+      // 🔍 DEBUG: Log OAuth configuration
+      console.log('=== ZALO OAUTH DEBUG ===')
+      console.log('Current origin:', window.location.origin)
+      console.log('Redirect URI:', redirectUri)
+      console.log('App ID:', appId)
+      console.log('⚠️  Make sure this redirect URI is registered in Zalo Developer Console!')
+      console.log('========================')
 
       // Generate PKCE values (REQUIRED by Zalo OAuth v4)
       const codeVerifier = generateCodeVerifier()
