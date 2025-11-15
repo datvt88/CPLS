@@ -132,6 +132,16 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   const total = stats.buy + stats.hold + stats.sell
   const displayedRecommendations = showAll ? recommendations : recommendations.slice(0, 5)
 
+  // Calculate average report price (average buy price from recommendations)
+  const avgReportPrice = recommendations.length > 0
+    ? recommendations
+        .filter(r => r.reportPrice && r.reportPrice > 0)
+        .reduce((sum, r, idx, arr) => {
+          const price = r.reportPrice! >= 1000 ? r.reportPrice! / 1000 : r.reportPrice!
+          return sum + price / arr.length
+        }, 0)
+    : 0
+
   return (
     <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
       {/* Header with inline stats */}
@@ -145,7 +155,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
           </p>
         </div>
         {total > 0 && (
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-sm flex-wrap">
             <div className="flex items-center gap-1">
               <span className="text-gray-400">Tổng:</span>
               <span className="font-bold text-white">{total}</span>
@@ -161,7 +171,12 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
             </div>
             <div className="h-4 w-px bg-gray-700"></div>
             <div className="flex items-center gap-1">
-              <span className="text-gray-400">Giá TB:</span>
+              <span className="text-gray-400">Giá TB mua:</span>
+              <span className="font-bold text-blue-400">{avgReportPrice > 0 ? avgReportPrice.toFixed(1) + 'k' : 'N/A'}</span>
+            </div>
+            <div className="h-4 w-px bg-gray-700"></div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400">Giá MT TB:</span>
               <span className="font-bold text-purple-400">{formatPrice(avgTargetPrice)}</span>
             </div>
           </div>

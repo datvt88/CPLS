@@ -23,6 +23,7 @@ interface Evaluation {
     hold: number
     sell: number
     avgTargetPrice: number
+    avgReportPrice: number
   }
 }
 
@@ -287,7 +288,15 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       const total = buy + hold + sell
       const avgTargetPrice = recommendations[0].avgTargetPrice
 
-      consensus = { total, buy, hold, sell, avgTargetPrice }
+      // Calculate average report price
+      const avgReportPrice = recommendations
+        .filter(r => r.reportPrice && r.reportPrice > 0)
+        .reduce((sum, r, idx, arr) => {
+          const price = r.reportPrice! >= 1000 ? r.reportPrice! / 1000 : r.reportPrice!
+          return sum + price / arr.length
+        }, 0)
+
+      consensus = { total, buy, hold, sell, avgTargetPrice, avgReportPrice }
 
       const buyPercent = (buy / total) * 100
       const sellPercent = (sell / total) * 100
@@ -659,7 +668,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                 <div className="text-sm font-semibold text-purple-400 mb-3 flex items-center gap-2">
                   💼 Consensus các CTCK
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                {/* Recommendation Distribution */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="bg-green-900/30 rounded-lg p-2 border border-green-700/30 text-center">
                     <div className="text-xs text-gray-400">MUA</div>
                     <div className="text-lg font-bold text-green-400">
@@ -686,6 +696,27 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                     <div className="text-xs text-gray-500">
                       {((analysis.longTerm.consensus.sell / analysis.longTerm.consensus.total) * 100).toFixed(0)}%
                     </div>
+                  </div>
+                </div>
+                {/* Average Prices */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-blue-900/30 rounded-lg p-2 border border-blue-700/30 text-center">
+                    <div className="text-xs text-gray-400">Giá TB mua</div>
+                    <div className="text-lg font-bold text-blue-400">
+                      {analysis.longTerm.consensus.avgReportPrice > 0
+                        ? `${analysis.longTerm.consensus.avgReportPrice.toFixed(1)}k`
+                        : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-500">Từ báo cáo CTCK</div>
+                  </div>
+                  <div className="bg-purple-900/30 rounded-lg p-2 border border-purple-700/30 text-center">
+                    <div className="text-xs text-gray-400">Giá MT TB</div>
+                    <div className="text-lg font-bold text-purple-400">
+                      {analysis.longTerm.consensus.avgTargetPrice >= 1000
+                        ? `${(analysis.longTerm.consensus.avgTargetPrice / 1000).toFixed(1)}k`
+                        : `${analysis.longTerm.consensus.avgTargetPrice.toFixed(1)}k`}
+                    </div>
+                    <div className="text-xs text-gray-500">Mục tiêu CTCK</div>
                   </div>
                 </div>
               </div>
