@@ -26,34 +26,56 @@ export async function POST(request: NextRequest) {
 
     // Fetch user info from Zalo Graph API
     // Request all available fields: id, name, birthday, gender, picture
-    // Send access_token in header (confirmed working from PHP reference)
+    // Zalo API v2.0 requires access_token in query parameter (NOT header)
     const userResponse = await fetch(
-      `https://graph.zalo.me/v2.0/me?fields=id,name,birthday,gender,picture`,
+      `https://graph.zalo.me/v2.0/me?fields=id,name,birthday,gender,picture&access_token=${access_token}`,
       {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'access_token': access_token,  // Fixed: access_token in header
         },
       }
     )
 
+    // Get response text for better debugging
+    const responseText = await userResponse.text()
+    console.log('Zalo user API response status:', userResponse.status)
+    console.log('Zalo user API response:', responseText)
+
     if (!userResponse.ok) {
-      const errorText = await userResponse.text()
-      console.error('Failed to fetch Zalo user info:', errorText)
+      console.error('Failed to fetch Zalo user info. Status:', userResponse.status)
+      console.error('Response:', responseText)
       return NextResponse.json(
-        { error: 'Failed to fetch user information' },
+        {
+          error: 'Failed to fetch user information',
+          details: responseText,
+          status: userResponse.status
+        },
         { status: 400 }
       )
     }
 
-    const userData = await userResponse.json()
+    // Parse JSON response
+    let userData
+    try {
+      userData = JSON.parse(responseText)
+    } catch (e) {
+      console.error('Failed to parse Zalo user response:', responseText)
+      return NextResponse.json(
+        { error: 'Invalid response from Zalo API' },
+        { status: 500 }
+      )
+    }
 
-    // Check for errors in response
+    // Check for errors in response (Zalo returns 200 with error field)
     if (userData.error) {
       console.error('Zalo API error:', userData)
       return NextResponse.json(
-        { error: userData.error.message || 'Failed to get user info' },
+        {
+          error: userData.error.message || 'Failed to get user info',
+          error_code: userData.error.code,
+          details: userData
+        },
         { status: 400 }
       )
     }
