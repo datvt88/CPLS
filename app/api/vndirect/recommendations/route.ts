@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         'Referer': 'https://dstock.vndirect.com.vn/',
         'Origin': 'https://dstock.vndirect.com.vn',
       },
-      next: { revalidate: 3600 }, // Cache for 1 hour (recommendations change less frequently)
+      cache: 'no-store', // Disable caching to ensure fresh data for each stock code
     })
 
     console.log('✅ VNDirect Recommendations API response status:', response.status)
@@ -138,7 +138,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(normalizedData, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
   } catch (error) {
