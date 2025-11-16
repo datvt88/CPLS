@@ -18,11 +18,18 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   useEffect(() => {
     if (!symbol) return
 
+    // Reset states when symbol changes
+    setShowAll(false)
+    setRecommendations([])
+    setStats({ buy: 0, hold: 0, sell: 0 })
+
     const loadRecommendations = async () => {
       setLoading(true)
       setError(null)
 
       try {
+        console.log('📊 Loading recommendations for:', symbol)
+
         // Get recommendations from the last 12 months
         const twelveMonthsAgo = new Date()
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
@@ -30,6 +37,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
 
         const response = await fetchStockRecommendations(symbol, startDate, 100)
 
+        console.log('✅ Recommendations loaded:', response.data.length, 'items')
         setRecommendations(response.data)
 
         // Calculate statistics
@@ -38,7 +46,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
         const sell = response.data.filter(r => r.type === 'SELL').length
         setStats({ buy, hold, sell })
       } catch (err) {
-        console.error('Error loading recommendations:', err)
+        console.error('❌ Error loading recommendations:', err)
         setError('Không tải được đánh giá từ các công ty chứng khoán')
       } finally {
         setLoading(false)

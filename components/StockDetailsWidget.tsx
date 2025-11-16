@@ -233,11 +233,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       }
 
       // Fetch fresh data - reduced from 270 to 150 days for better performance
+      console.log('📈 Loading stock prices for:', stockSymbol, forceRefresh ? '(force refresh)' : '')
       const response = await fetchStockPrices(stockSymbol, 150, forceRefresh)
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Không tìm thấy dữ liệu cho mã này')
       }
+
+      console.log('✅ Stock prices loaded:', response.data.length, 'records')
 
       // Filter out any future dates and sort by date ascending
       const validData = response.data.filter(item => isValidTradingDate(item.date))
@@ -457,6 +460,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const handleSearch = useCallback(() => {
     if (inputSymbol.trim()) {
       const newSymbol = inputSymbol.trim().toUpperCase()
+      console.log('🔍 Symbol changed to:', newSymbol)
       setSymbol(newSymbol)
       onSymbolChange?.(newSymbol)
     }
