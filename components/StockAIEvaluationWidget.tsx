@@ -48,11 +48,16 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
   useEffect(() => {
     if (!symbol) return
 
+    // Reset analysis when symbol changes
+    setAnalysis(null)
+
     const performAnalysis = async () => {
       setLoading(true)
       setError(null)
 
       try {
+        console.log('🤖 Performing AI analysis for:', symbol)
+
         // Fetch both technical and fundamental data
         const [pricesResponse, ratiosResponse] = await Promise.all([
           fetchStockPrices(symbol, 150),
@@ -77,9 +82,10 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
         // Perform analysis
         const aiAnalysis = analyzeStock(sortedData, ratiosMap)
+        console.log('✅ AI analysis completed for:', symbol)
         setAnalysis(aiAnalysis)
       } catch (err) {
-        console.error('Error performing AI analysis:', err)
+        console.error('❌ Error performing AI analysis:', err)
         setError('Không thể phân tích AI cho mã này')
       } finally {
         setLoading(false)

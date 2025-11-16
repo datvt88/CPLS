@@ -44,6 +44,48 @@ function generateMockStockData(code: string, size: number) {
   return data
 }
 
+/**
+ * Validate and normalize stock price data
+ * Ensures all required fields are present and have correct types
+ */
+function normalizeStockPriceData(data: any) {
+  return {
+    date: data.date || '',
+    open: Number(data.open) || 0,
+    high: Number(data.high) || 0,
+    low: Number(data.low) || 0,
+    close: Number(data.close) || 0,
+    // Adjusted prices - use these for accurate historical comparison
+    adOpen: Number(data.adOpen) || Number(data.open) || 0,
+    adHigh: Number(data.adHigh) || Number(data.high) || 0,
+    adLow: Number(data.adLow) || Number(data.low) || 0,
+    adClose: Number(data.adClose) || Number(data.close) || 0,
+    adAverage: Number(data.adAverage) || Number((data.adOpen + data.adClose) / 2) || 0,
+    nmVolume: Number(data.nmVolume) || 0,
+    nmValue: Number(data.nmValue) || 0,
+    ptVolume: Number(data.ptVolume) || 0,
+    ptValue: Number(data.ptValue) || 0,
+    change: Number(data.change) || 0,
+    pctChange: Number(data.pctChange) || 0,
+    adChange: Number(data.adChange) || Number(data.change) || 0,
+    code: String(data.code || '').toUpperCase(),
+  }
+}
+
+/**
+ * Validate date is not from the future
+ */
+function isValidTradingDate(dateStr: string): boolean {
+  try {
+    const dataDate = new Date(dateStr)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999) // End of today
+    return dataDate <= today && !isNaN(dataDate.getTime())
+  } catch {
+    return false
+  }
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
@@ -79,9 +121,17 @@ export async function GET(request: NextRequest) {
       throw new Error(`VNDirect API error: ${response.status}`)
     }
 
-    const data = await response.json()
+    const rawData = await response.json()
 
-    return NextResponse.json(data, {
+    // Normalize and validate the data
+    const normalizedData = {
+      ...rawData,
+      data: (rawData.data || [])
+        .filter((item: any) => isValidTradingDate(item.date))
+        .map(normalizeStockPriceData)
+    }
+
+    return NextResponse.json(normalizedData, {
       headers: {
         'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=240',
       },

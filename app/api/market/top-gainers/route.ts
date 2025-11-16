@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server'
 import type { TopGainerStock, VNDirectResponse } from '@/types/market'
 
+/**
+ * Validate and normalize top gainer stock data
+ * Ensures all required fields are present and have correct types
+ */
+function normalizeTopGainerStock(stock: any): TopGainerStock {
+  return {
+    code: String(stock.code || '').toUpperCase(),
+    index: String(stock.index || ''),
+    lastPrice: Number(stock.lastPrice) || 0,
+    lastUpdated: stock.lastUpdated || new Date().toISOString(),
+    priceChgCr1D: Number(stock.priceChgCr1D) || 0,
+    priceChgPctCr1D: Number(stock.priceChgPctCr1D) || 0,
+    accumulatedVal: Number(stock.accumulatedVal) || 0,
+    nmVolumeAvgCr20D: Number(stock.nmVolumeAvgCr20D) || 0,
+  }
+}
+
 export async function GET() {
   try {
     const url = 'https://api-finfo.vndirect.com.vn/v4/top_stocks?q=index:VNIndex~lastPrice:gte:6~nmVolumeAvgCr20D:gte:100000~priceChgPctCr1D:gt:0&size=10&sort=priceChgPctCr1D'
@@ -17,9 +34,15 @@ export async function GET() {
       throw new Error(`VNDirect API error: ${response.status}`)
     }
 
-    const data: VNDirectResponse<TopGainerStock> = await response.json()
+    const rawData: VNDirectResponse<any> = await response.json()
 
-    return NextResponse.json(data)
+    // Normalize the data
+    const normalizedData: VNDirectResponse<TopGainerStock> = {
+      ...rawData,
+      data: (rawData.data || []).map(normalizeTopGainerStock)
+    }
+
+    return NextResponse.json(normalizedData)
   } catch (error) {
     console.error('Error fetching top gainers:', error)
 

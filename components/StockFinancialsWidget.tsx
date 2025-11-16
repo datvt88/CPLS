@@ -16,11 +16,16 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
   useEffect(() => {
     if (!symbol) return
 
+    // Reset state when symbol changes
+    setRatios({})
+
     const loadRatios = async () => {
       setLoading(true)
       setError(null)
 
       try {
+        console.log('📊 Loading financial ratios for:', symbol)
+
         const response = await fetchFinancialRatios(symbol)
 
         const ratiosMap: Record<string, FinancialRatio> = {}
@@ -28,9 +33,10 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
           ratiosMap[ratio.ratioCode] = ratio
         })
 
+        console.log('✅ Financial ratios loaded:', Object.keys(ratiosMap).length, 'ratios')
         setRatios(ratiosMap)
       } catch (err) {
-        console.error('Error loading financial ratios:', err)
+        console.error('❌ Error loading financial ratios:', err)
         setError('Không tải được chỉ số tài chính')
       } finally {
         setLoading(false)
