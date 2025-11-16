@@ -91,26 +91,37 @@ export default function AuthCallbackPage() {
       // Use Zalo ID as pseudo-email since Zalo doesn't provide email
       const pseudoEmail = `zalo_${zaloUser.id}@cpls.app`
 
+      // Generate consistent password from Zalo ID (never changes)
+      const password = `zalo_oauth_${zaloUser.id}_cpls_secure_2024`
+
+      console.log('Attempting to sign in with email:', pseudoEmail)
+
       // Try to sign in first (user might already exist)
       let session
       const { data: signInData, error: signInError } = await authService.signIn({
         email: pseudoEmail,
-        password: `zalo_${zaloUser.id}_secure_password_${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10)}`,
+        password: password,
       })
 
       if (signInError) {
+        console.log('Sign in failed (expected for new users):', signInError.message)
+        console.log('Attempting to create new account...')
+
         // User doesn't exist, create new account
         const { data: signUpData, error: signUpError } = await authService.signUp({
           email: pseudoEmail,
-          password: `zalo_${zaloUser.id}_secure_password_${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10)}`,
+          password: password,
         })
 
         if (signUpError) {
+          console.error('Sign up failed:', signUpError)
           throw new Error(`Failed to create user: ${signUpError.message}`)
         }
 
+        console.log('New account created successfully')
         session = signUpData.session
       } else {
+        console.log('Sign in successful')
         session = signInData.session
       }
 
@@ -118,14 +129,22 @@ export default function AuthCallbackPage() {
         throw new Error('Failed to create session')
       }
 
+      console.log('Session created for user:', session.user.id)
+
       // Step 4: Create/update profile with Zalo data
-      const { profile } = await profileService.getProfile(session.user.id)
+      console.log('Getting profile for user:', session.user.id)
+      const { profile, error: getProfileError } = await profileService.getProfile(session.user.id)
+
+      if (getProfileError) {
+        console.log('Profile not found (this is OK for new users):', getProfileError)
+      }
 
       // IMPORTANT: Zalo does NOT provide phone_number through Graph API
       // Use placeholder phone number that user can update later in their profile
       const placeholderPhone = '0000000000'
 
       if (profile) {
+        console.log('Existing profile found, updating with Zalo data')
         // Update existing profile with Zalo data
         // Only update fields that Zalo provides, keep existing phone if available
         const updateData: any = {
@@ -142,15 +161,24 @@ export default function AuthCallbackPage() {
           updateData.phone_number = placeholderPhone
         }
 
-        await profileService.linkZaloAccount(
+        console.log('Updating profile with data:', updateData)
+        const { error: updateError } = await profileService.linkZaloAccount(
           session.user.id,
           zaloUser.id,
           updateData
         )
+
+        if (updateError) {
+          console.error('Failed to update profile:', updateError)
+          throw new Error(`Failed to update profile: ${updateError.message}`)
+        }
+
+        console.log('Profile updated successfully')
       } else {
+        console.log('No existing profile, creating new profile')
         // Create new profile with Zalo data
         // Note: User will need to update phone_number in their profile settings
-        await profileService.upsertProfile({
+        const profileData = {
           id: session.user.id,
           email: pseudoEmail,
           phone_number: placeholderPhone,  // Placeholder - Zalo doesn't provide phone
@@ -159,8 +187,18 @@ export default function AuthCallbackPage() {
           birthday: zaloUser.birthday,  // DD/MM/YYYY from Zalo
           gender: zaloUser.gender,      // "male" or "female" from Zalo
           zalo_id: zaloUser.id,
-          membership: 'free',
-        })
+          membership: 'free' as const,
+        }
+
+        console.log('Creating profile with data:', profileData)
+        const { error: createError } = await profileService.upsertProfile(profileData)
+
+        if (createError) {
+          console.error('Failed to create profile:', createError)
+          throw new Error(`Failed to create profile: ${createError.message}`)
+        }
+
+        console.log('Profile created successfully')
       }
 
       setStatus('success')
