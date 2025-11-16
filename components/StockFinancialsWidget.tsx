@@ -16,6 +16,8 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
   useEffect(() => {
     if (!symbol) return
 
+    console.log('🔄 StockFinancialsWidget: Symbol changed to:', symbol)
+
     // Reset state when symbol changes
     setRatios({})
 
@@ -28,15 +30,20 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
 
         const response = await fetchFinancialRatios(symbol)
 
+        console.log('📦 API Response received for', symbol)
+        console.log('   Data count:', response.data?.length || 0)
+
         const ratiosMap: Record<string, FinancialRatio> = {}
         response.data.forEach(ratio => {
           ratiosMap[ratio.ratioCode] = ratio
+          console.log(`   ${ratio.ratioCode}:`, ratio.value)
         })
 
-        console.log('✅ Financial ratios loaded:', Object.keys(ratiosMap).length, 'ratios')
+        console.log('✅ Financial ratios loaded for', symbol, ':', Object.keys(ratiosMap).length, 'ratios')
+        console.log('   Setting ratios state for', symbol)
         setRatios(ratiosMap)
       } catch (err) {
-        console.error('❌ Error loading financial ratios:', err)
+        console.error('❌ Error loading financial ratios for', symbol, ':', err)
         setError('Không tải được chỉ số tài chính')
       } finally {
         setLoading(false)

@@ -53,11 +53,14 @@ export async function fetchFinancialRatios(
   stockCode: string
 ): Promise<FinancialRatiosResponse> {
   try {
-    const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}`
+    // Add timestamp to prevent caching
+    const timestamp = Date.now()
+    const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}&_t=${timestamp}`
 
     console.log('📡 Fetching financial ratios via API proxy')
     console.log('   Stock Code:', stockCode.toUpperCase())
     console.log('   API URL:', url)
+    console.log('   Timestamp:', timestamp)
 
     const response = await fetch(url, {
       method: 'GET',
@@ -183,13 +186,16 @@ export async function fetchStockRecommendations(
   size: number = 100
 ): Promise<StockRecommendationsResponse> {
   try {
+    // Add timestamp to prevent caching
+    const timestamp = Date.now()
     const dateParam = startDate ? `&startDate=${startDate}` : ''
-    const url = `/api/vndirect/recommendations?code=${stockCode.toUpperCase()}&size=${size}${dateParam}`
+    const url = `/api/vndirect/recommendations?code=${stockCode.toUpperCase()}&size=${size}${dateParam}&_t=${timestamp}`
 
     console.log('📡 Fetching stock recommendations via API proxy')
     console.log('   Stock Code:', stockCode.toUpperCase())
     console.log('   API URL:', url)
     console.log('   Start Date:', startDate || 'all time')
+    console.log('   Timestamp:', timestamp)
 
     const response = await fetch(url, {
       method: 'GET',
