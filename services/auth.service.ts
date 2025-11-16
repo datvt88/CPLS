@@ -28,6 +28,40 @@ export const authService = {
   },
 
   /**
+   * Sign in with phone number and password
+   * Converts phone number to email, then authenticates with Supabase
+   */
+  async signInWithPhone({ phoneNumber, password }: { phoneNumber: string; password: string }) {
+    try {
+      // Lookup email by phone number
+      const response = await fetch('/api/auth/signin-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        return { data: null, error: { message: data.error || 'Số điện thoại không tồn tại' } }
+      }
+
+      // Sign in with the retrieved email
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: password,
+      })
+
+      return { data: authData, error }
+    } catch (err) {
+      return {
+        data: null,
+        error: { message: err instanceof Error ? err.message : 'Đã có lỗi xảy ra' }
+      }
+    }
+  },
+
+  /**
    * Sign in with Zalo OAuth
    * Requires Zalo OAuth to be configured in Supabase
    */
