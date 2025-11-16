@@ -11,9 +11,9 @@ function generateMockRecommendations(code: string) {
         reportDate: "2025-09-29",
         source: "BLOOMBERG",
         analyst: "Chau Bui",
-        reportPrice: 60.3,
-        targetPrice: 79100.0,
-        avgTargetPrice: 65206.98823529412
+        reportPrice: 60300,
+        targetPrice: 79100,
+        avgTargetPrice: 65207
       },
       {
         code,
@@ -22,9 +22,9 @@ function generateMockRecommendations(code: string) {
         reportDate: "2025-09-24",
         source: "BLOOMBERG",
         analyst: "Huong My Tran",
-        reportPrice: 62.0,
-        targetPrice: 64300.0,
-        avgTargetPrice: 65206.98823529412
+        reportPrice: 62000,
+        targetPrice: 64300,
+        avgTargetPrice: 65207
       },
       {
         code,
@@ -33,9 +33,9 @@ function generateMockRecommendations(code: string) {
         reportDate: "2025-09-17",
         source: "BLOOMBERG",
         analyst: "Nhan Tran Thi Thnah",
-        reportPrice: 65.1,
-        targetPrice: 75200.0,
-        avgTargetPrice: 65206.98823529412
+        reportPrice: 65100,
+        targetPrice: 75200,
+        avgTargetPrice: 65207
       },
       {
         code,
@@ -44,15 +44,40 @@ function generateMockRecommendations(code: string) {
         reportDate: "2024-12-25",
         source: "VNDIRECT",
         analyst: "Hien Ha Thu",
-        reportPrice: 64.4,
-        targetPrice: 74.8,
-        avgTargetPrice: 65206.98823529412
+        reportPrice: 64400,
+        targetPrice: 74800,
+        avgTargetPrice: 65207
       }
     ],
     currentPage: 1,
     size: 100,
     totalElements: 4,
     totalPages: 1
+  }
+}
+
+/**
+ * Normalize recommendation data from VNDirect API
+ * Ensures prices are in consistent format (VND)
+ */
+function normalizeRecommendation(rec: any) {
+  return {
+    code: rec.code || '',
+    firm: rec.firm || '',
+    type: rec.type || 'HOLD',
+    reportDate: rec.reportDate || '',
+    source: rec.source || '',
+    analyst: rec.analyst || '',
+    // Normalize prices: if < 1000, assume it's in thousands and convert to VND
+    reportPrice: rec.reportPrice
+      ? (rec.reportPrice < 1000 ? rec.reportPrice * 1000 : rec.reportPrice)
+      : undefined,
+    targetPrice: rec.targetPrice
+      ? (rec.targetPrice < 1000 ? rec.targetPrice * 1000 : rec.targetPrice)
+      : 0,
+    avgTargetPrice: rec.avgTargetPrice
+      ? (rec.avgTargetPrice < 1000 ? rec.avgTargetPrice * 1000 : rec.avgTargetPrice)
+      : 0,
   }
 }
 
@@ -99,9 +124,15 @@ export async function GET(request: NextRequest) {
       throw new Error(`VNDirect API error: ${response.status}`)
     }
 
-    const data = await response.json()
+    const rawData = await response.json()
 
-    return NextResponse.json(data, {
+    // Normalize the data
+    const normalizedData = {
+      ...rawData,
+      data: rawData.data?.map(normalizeRecommendation) || []
+    }
+
+    return NextResponse.json(normalizedData, {
       headers: {
         'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
       },

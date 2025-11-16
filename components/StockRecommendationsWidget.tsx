@@ -86,22 +86,16 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   const formatPrice = (price: number | undefined) => {
     if (!price) return 'N/A'
 
-    // If price is greater than 1000, it's likely in VND (thousands)
-    if (price >= 1000) {
-      return `${(price / 1000).toFixed(1)}k`
-    }
-
-    return price.toFixed(2)
+    // Price is already normalized to VND in the API
+    // Format as thousands (k)
+    return `${(price / 1000).toFixed(1)}k`
   }
 
   const calculatePotential = (reportPrice: number | undefined, targetPrice: number) => {
     if (!reportPrice || !targetPrice) return null
 
-    // Normalize prices (handle case where targetPrice might be in thousands)
-    const normalizedTarget = targetPrice >= 1000 ? targetPrice / 1000 : targetPrice
-    const normalizedReport = reportPrice >= 1000 ? reportPrice / 1000 : reportPrice
-
-    const potential = ((normalizedTarget - normalizedReport) / normalizedReport) * 100
+    // Prices are already normalized to VND in the API
+    const potential = ((targetPrice - reportPrice) / reportPrice) * 100
     return potential
   }
 

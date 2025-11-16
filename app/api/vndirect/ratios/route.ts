@@ -20,6 +20,17 @@ function generateMockRatios(code: string) {
   ]
 }
 
+/**
+ * Validate and normalize financial ratio data
+ * Ensures all required fields are present and have correct types
+ */
+function normalizeFinancialRatio(ratio: any) {
+  return {
+    ratioCode: String(ratio.ratioCode || ''),
+    value: Number(ratio.value) || 0,
+  }
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
@@ -71,9 +82,15 @@ export async function GET(request: NextRequest) {
       throw new Error(`VNDirect API error: ${response.status}`)
     }
 
-    const data = await response.json()
+    const rawData = await response.json()
 
-    return NextResponse.json(data, {
+    // Normalize the data
+    const normalizedData = {
+      ...rawData,
+      data: (rawData.data || []).map(normalizeFinancialRatio)
+    }
+
+    return NextResponse.json(normalizedData, {
       headers: {
         'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
       },
