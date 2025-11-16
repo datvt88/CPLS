@@ -17,7 +17,10 @@ export async function fetchStockPrices(
     const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : ''
     const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}${cacheBuster}`
 
-    console.log('📡 Calling API proxy:', url, forceRefresh ? '(force refresh)' : '')
+    console.log('📡 Fetching stock prices via API proxy')
+    console.log('   Stock Code:', stockCode.toUpperCase())
+    console.log('   API URL:', url)
+    console.log('   Force Refresh:', forceRefresh)
 
     const response = await fetch(url, {
       method: 'GET',
@@ -52,7 +55,9 @@ export async function fetchFinancialRatios(
   try {
     const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}`
 
-    console.log('📡 Calling API proxy for ratios:', url)
+    console.log('📡 Fetching financial ratios via API proxy')
+    console.log('   Stock Code:', stockCode.toUpperCase())
+    console.log('   API URL:', url)
 
     const response = await fetch(url, {
       method: 'GET',
@@ -181,7 +186,10 @@ export async function fetchStockRecommendations(
     const dateParam = startDate ? `&startDate=${startDate}` : ''
     const url = `/api/vndirect/recommendations?code=${stockCode.toUpperCase()}&size=${size}${dateParam}`
 
-    console.log('📡 Calling API proxy for recommendations:', url)
+    console.log('📡 Fetching stock recommendations via API proxy')
+    console.log('   Stock Code:', stockCode.toUpperCase())
+    console.log('   API URL:', url)
+    console.log('   Start Date:', startDate || 'all time')
 
     const response = await fetch(url, {
       method: 'GET',

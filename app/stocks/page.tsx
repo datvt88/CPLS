@@ -27,6 +27,16 @@ const StockDetailsWidget = dynamic(
 export default function StocksPage() {
   const [currentSymbol, setCurrentSymbol] = useState('VNM')
 
+  // Symbol change flow:
+  // 1. User enters new stock code in StockDetailsWidget input
+  // 2. StockDetailsWidget calls setCurrentSymbol via onSymbolChange callback
+  // 3. currentSymbol state updates, triggering re-render
+  // 4. All widgets receive new symbol via props (key ensures fresh mount)
+  // 5. Each widget's useEffect triggers with new symbol
+  // 6. Each widget fetches data: /api/vndirect/*?code={NEW_SYMBOL}
+  // 7. API routes build VNDirect URLs: ...&q=code:{NEW_SYMBOL} or ...&where=code:{NEW_SYMBOL}
+  // 8. Fresh data displayed for new stock code
+
   return (
     <div className="space-y-6">
       {/* Header */}

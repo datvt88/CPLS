@@ -63,7 +63,10 @@ export async function GET(request: NextRequest) {
     const filter = ratios.join(',')
     const url = `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=ratioCode:${filter}&where=code:${code.toUpperCase()}&order=reportDate&fields=ratioCode,value`
 
-    console.log('🔄 Proxy fetching ratios from VNDirect:', url)
+    console.log('🔄 Fetching financial ratios from VNDirect API')
+    console.log('   Stock Code:', code.toUpperCase())
+    console.log('   Ratios:', ratios.length, 'metrics')
+    console.log('   Full URL:', url)
 
     const response = await fetch(url, {
       headers: {

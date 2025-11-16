@@ -105,7 +105,11 @@ export async function GET(request: NextRequest) {
 
     const url = `https://api-finfo.vndirect.com.vn/v4/recommendations?q=${encodeURIComponent(query)}&size=${size}&sort=reportDate:DESC`
 
-    console.log('🔄 Proxy fetching recommendations from VNDirect:', url)
+    console.log('🔄 Fetching stock recommendations from VNDirect API')
+    console.log('   Stock Code:', code.toUpperCase())
+    console.log('   Start Date:', startDate || 'all time')
+    console.log('   Max Results:', size)
+    console.log('   Full URL:', url)
 
     const response = await fetch(url, {
       headers: {
