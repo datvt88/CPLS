@@ -78,8 +78,17 @@ export default function AuthCallbackPage() {
 
       const zaloUser = await userResponse.json()
 
+      // Log received Zalo user data for debugging
+      console.log('Zalo user data received:', {
+        id: zaloUser.id,
+        name: zaloUser.name,
+        birthday: zaloUser.birthday,
+        gender: zaloUser.gender,
+        has_picture: !!zaloUser.picture
+      })
+
       // Step 3: Create/sign in user with Supabase
-      // Use Zalo ID as pseudo-email since Zalo doesn't always provide email
+      // Use Zalo ID as pseudo-email since Zalo doesn't provide email
       const pseudoEmail = `zalo_${zaloUser.id}@cpls.app`
 
       // Try to sign in first (user might already exist)
@@ -112,28 +121,43 @@ export default function AuthCallbackPage() {
       // Step 4: Create/update profile with Zalo data
       const { profile } = await profileService.getProfile(session.user.id)
 
+      // IMPORTANT: Zalo does NOT provide phone_number through Graph API
+      // Use placeholder phone number that user can update later in their profile
+      const placeholderPhone = '0000000000'
+
       if (profile) {
         // Update existing profile with Zalo data
+        // Only update fields that Zalo provides, keep existing phone if available
+        const updateData: any = {
+          full_name: zaloUser.name,
+          avatar_url: zaloUser.picture,
+        }
+
+        // Add birthday and gender if provided by Zalo
+        if (zaloUser.birthday) updateData.birthday = zaloUser.birthday
+        if (zaloUser.gender) updateData.gender = zaloUser.gender
+
+        // Only update phone to placeholder if profile doesn't have a real phone yet
+        if (!profile.phone_number || profile.phone_number === '0000000000') {
+          updateData.phone_number = placeholderPhone
+        }
+
         await profileService.linkZaloAccount(
           session.user.id,
           zaloUser.id,
-          {
-            full_name: zaloUser.name,
-            avatar_url: zaloUser.picture,
-            phone_number: zaloUser.phone,
-          }
+          updateData
         )
       } else {
-        // Create new profile
-        // Phone number từ Zalo, hoặc dùng placeholder nếu không có
-        const phoneNumber = zaloUser.phone || '0000000000'
-
+        // Create new profile with Zalo data
+        // Note: User will need to update phone_number in their profile settings
         await profileService.upsertProfile({
           id: session.user.id,
           email: pseudoEmail,
-          phone_number: phoneNumber,
+          phone_number: placeholderPhone,  // Placeholder - Zalo doesn't provide phone
           full_name: zaloUser.name,
           avatar_url: zaloUser.picture,
+          birthday: zaloUser.birthday,  // DD/MM/YYYY from Zalo
+          gender: zaloUser.gender,      // "male" or "female" from Zalo
           zalo_id: zaloUser.id,
           membership: 'free',
         })
