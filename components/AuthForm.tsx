@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import { authService } from '@/services/auth.service';
 import { validateEmail, validatePassword, sanitizeInput } from '@/utils/validation';
-import ZaloLoginButton from './ZaloLoginButton';
+// import ZaloLoginButton from './ZaloLoginButton'; // REMOVED: Using ZNS OTP instead
+import RegisterForm from './RegisterForm';
 
 export function AuthForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register'>('login'); // Changed from isSignUp
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
@@ -45,18 +46,16 @@ export function AuthForm() {
       const sanitizedEmail = sanitizeInput(email);
       const sanitizedPassword = sanitizeInput(password);
 
-      const { error } = isSignUp
-        ? await authService.signUp({ email: sanitizedEmail, password: sanitizedPassword })
-        : await authService.signIn({ email: sanitizedEmail, password: sanitizedPassword });
+      // Only handle login here - registration is in RegisterForm
+      const { error } = await authService.signIn({
+        email: sanitizedEmail,
+        password: sanitizedPassword
+      });
 
       if (error) {
         setMessage(error.message);
       } else {
-        setMessage(
-          isSignUp
-            ? 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.'
-            : 'Đăng nhập thành công!'
-        );
+        setMessage('Đăng nhập thành công!');
         // Clear form on success
         setEmail('');
         setPassword('');
@@ -68,8 +67,24 @@ export function AuthForm() {
     }
   };
 
+  // Show RegisterForm if in register mode
+  if (mode === 'register') {
+    return (
+      <RegisterForm
+        onSuccess={() => {
+          setMessage('Đăng ký thành công!');
+          setMode('login');
+        }}
+        onSwitchToLogin={() => setMode('login')}
+      />
+    );
+  }
+
+  // Login form
   return (
     <div>
+      <h2 className="text-2xl font-bold text-[--fg] mb-6">Đăng nhập</h2>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <input
@@ -104,7 +119,7 @@ export function AuthForm() {
               if (errors.password) setErrors({ ...errors, password: undefined });
             }}
             disabled={loading}
-            autoComplete={isSignUp ? 'new-password' : 'current-password'}
+            autoComplete="current-password"
           />
           {errors.password && (
             <p className="text-red-400 text-xs mt-1">{errors.password}</p>
@@ -116,38 +131,16 @@ export function AuthForm() {
           type="submit"
           disabled={loading}
         >
-          {loading
-            ? (isSignUp ? 'Đang đăng ký...' : 'Đang đăng nhập...')
-            : (isSignUp ? 'Đăng ký' : 'Đăng nhập')
-          }
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
 
-      {/* Divider */}
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-zinc-700"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-zinc-900 text-gray-400">hoặc</span>
-        </div>
-      </div>
-
-      {/* Zalo OAuth Login */}
-      <ZaloLoginButton
-        onSuccess={() => {
-          setMessage('Đang chuyển hướng đến Zalo...')
-        }}
-        onError={(error) => {
-          setMessage(`Lỗi đăng nhập Zalo: ${error.message}`)
-        }}
-        fullWidth
-      />
+      {/* REMOVED: Zalo OAuth - Now using ZNS OTP for registration */}
 
       <p
         onClick={() => {
           if (!loading) {
-            setIsSignUp(!isSignUp);
+            setMode('register');
             setMessage('');
             setErrors({});
           }
@@ -156,7 +149,7 @@ export function AuthForm() {
           loading ? 'cursor-not-allowed' : 'cursor-pointer hover:text-gray-300'
         }`}
       >
-        {isSignUp ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
+        Chưa có tài khoản? Đăng ký ngay
       </p>
 
       {message && (
