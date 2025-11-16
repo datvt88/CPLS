@@ -11,6 +11,8 @@ export interface Profile {
   stock_account_number?: string  // Số tài khoản chứng khoán (optional)
   avatar_url?: string
   zalo_id?: string
+  birthday?: string  // Ngày sinh từ Zalo (DD/MM/YYYY)
+  gender?: 'male' | 'female'  // Giới tính từ Zalo
   membership: MembershipTier
   membership_expires_at?: string
   tcbs_api_key?: string
@@ -28,6 +30,8 @@ export interface CreateProfileData {
   stock_account_number?: string
   avatar_url?: string
   zalo_id?: string
+  birthday?: string  // Ngày sinh từ Zalo (DD/MM/YYYY)
+  gender?: 'male' | 'female'  // Giới tính từ Zalo
   membership?: MembershipTier
   created_at?: string
 }
@@ -38,6 +42,8 @@ export interface UpdateProfileData {
   phone_number?: string
   stock_account_number?: string
   avatar_url?: string
+  birthday?: string
+  gender?: 'male' | 'female'
 }
 
 export const profileService = {
@@ -70,6 +76,8 @@ export const profileService = {
           stock_account_number: profileData.stock_account_number,
           avatar_url: profileData.avatar_url,
           zalo_id: profileData.zalo_id,
+          birthday: profileData.birthday,
+          gender: profileData.gender,
           membership: profileData.membership || 'free',
           created_at: profileData.created_at || new Date().toISOString()
         },
@@ -160,6 +168,8 @@ export const profileService = {
     if (zaloData?.nickname) updates.nickname = zaloData.nickname
     if (zaloData?.phone_number) updates.phone_number = zaloData.phone_number
     if (zaloData?.avatar_url) updates.avatar_url = zaloData.avatar_url
+    if (zaloData?.birthday) updates.birthday = zaloData.birthday
+    if (zaloData?.gender) updates.gender = zaloData.gender
 
     const { data, error } = await supabase
       .from('profiles')

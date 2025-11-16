@@ -11,6 +11,8 @@ create table if not exists profiles (
   stock_account_number text,  -- Số tài khoản chứng khoán (optional)
   avatar_url text,
   zalo_id text unique,
+  birthday text,  -- Ngày sinh từ Zalo (format: DD/MM/YYYY)
+  gender text check (gender in ('male', 'female')),  -- Giới tính từ Zalo
   membership text default 'free' check (membership in ('free','premium')),
   membership_expires_at timestamptz,
   tcbs_api_key text,
