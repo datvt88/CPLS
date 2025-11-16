@@ -49,25 +49,47 @@ function generateMockStockData(code: string, size: number) {
  * Ensures all required fields are present and have correct types
  */
 function normalizeStockPriceData(data: any) {
+  // Helper to safely get number value, using fallback only if source is null/undefined
+  const getNumber = (value: any, fallback?: any): number => {
+    if (value !== null && value !== undefined && value !== '') {
+      const num = Number(value)
+      return isNaN(num) ? (fallback !== undefined ? Number(fallback) || 0 : 0) : num
+    }
+    return fallback !== undefined ? Number(fallback) || 0 : 0
+  }
+
+  // Parse all numeric fields
+  const open = getNumber(data.open, 0)
+  const high = getNumber(data.high, 0)
+  const low = getNumber(data.low, 0)
+  const close = getNumber(data.close, 0)
+  const adOpen = getNumber(data.adOpen, open)
+  const adHigh = getNumber(data.adHigh, high)
+  const adLow = getNumber(data.adLow, low)
+  const adClose = getNumber(data.adClose, close)
+
+  // Calculate adAverage from already-converted numbers
+  const adAverage = getNumber(data.adAverage, (adOpen + adClose) / 2)
+
   return {
     date: data.date || '',
-    open: Number(data.open) || 0,
-    high: Number(data.high) || 0,
-    low: Number(data.low) || 0,
-    close: Number(data.close) || 0,
+    open,
+    high,
+    low,
+    close,
     // Adjusted prices - use these for accurate historical comparison
-    adOpen: Number(data.adOpen) || Number(data.open) || 0,
-    adHigh: Number(data.adHigh) || Number(data.high) || 0,
-    adLow: Number(data.adLow) || Number(data.low) || 0,
-    adClose: Number(data.adClose) || Number(data.close) || 0,
-    adAverage: Number(data.adAverage) || Number((data.adOpen + data.adClose) / 2) || 0,
-    nmVolume: Number(data.nmVolume) || 0,
-    nmValue: Number(data.nmValue) || 0,
-    ptVolume: Number(data.ptVolume) || 0,
-    ptValue: Number(data.ptValue) || 0,
-    change: Number(data.change) || 0,
-    pctChange: Number(data.pctChange) || 0,
-    adChange: Number(data.adChange) || Number(data.change) || 0,
+    adOpen,
+    adHigh,
+    adLow,
+    adClose,
+    adAverage,
+    nmVolume: getNumber(data.nmVolume, 0),
+    nmValue: getNumber(data.nmValue, 0),
+    ptVolume: getNumber(data.ptVolume, 0),
+    ptValue: getNumber(data.ptValue, 0),
+    change: getNumber(data.change, 0),
+    pctChange: getNumber(data.pctChange, 0),
+    adChange: getNumber(data.adChange, getNumber(data.change, 0)),
     code: String(data.code || '').toUpperCase(),
   }
 }
@@ -132,7 +154,22 @@ export async function GET(request: NextRequest) {
       data: (rawData.data || [])
         .filter((item: any) => isValidTradingDate(item.date))
         .map(normalizeStockPriceData)
+        .filter((item: any) => {
+          // Filter out invalid data points
+          const hasValidPrices = !isNaN(item.open) && !isNaN(item.high) &&
+                                !isNaN(item.low) && !isNaN(item.close) &&
+                                item.open > 0 && item.high > 0 &&
+                                item.low > 0 && item.close > 0
+
+          if (!hasValidPrices) {
+            console.warn('⚠️ Filtered out invalid data point:', item.date, item)
+          }
+
+          return hasValidPrices
+        })
     }
+
+    console.log('✅ Normalized data points:', normalizedData.data.length)
 
     return NextResponse.json(normalizedData, {
       headers: {
