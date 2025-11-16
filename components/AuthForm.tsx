@@ -1,24 +1,25 @@
 'use client';
 import { useState } from 'react';
 import { authService } from '@/services/auth.service';
-import { validateEmail, validatePassword, sanitizeInput } from '@/utils/validation';
+import { validatePassword, sanitizeInput } from '@/utils/validation';
 // import ZaloLoginButton from './ZaloLoginButton'; // REMOVED: Using ZNS OTP instead
 import RegisterForm from './RegisterForm';
 
 export function AuthForm() {
-  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login'); // Changed from isSignUp
   const [message, setMessage] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ phoneNumber?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
 
   const validateForm = (): boolean => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: { phoneNumber?: string; password?: string } = {};
 
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) {
-      newErrors.email = emailValidation.error;
+    // Validate phone number (Vietnam format)
+    const phoneRegex = /^(0|\+84)[3|5|7|8|9][0-9]{8}$/;
+    if (!phoneNumber || !phoneRegex.test(phoneNumber)) {
+      newErrors.phoneNumber = 'Số điện thoại không hợp lệ';
     }
 
     const passwordValidation = validatePassword(password);
@@ -43,12 +44,12 @@ export function AuthForm() {
 
     try {
       // Sanitize inputs
-      const sanitizedEmail = sanitizeInput(email);
+      const sanitizedPhone = sanitizeInput(phoneNumber);
       const sanitizedPassword = sanitizeInput(password);
 
-      // Only handle login here - registration is in RegisterForm
-      const { error } = await authService.signIn({
-        email: sanitizedEmail,
+      // Login with phone number - registration is in RegisterForm
+      const { error } = await authService.signInWithPhone({
+        phoneNumber: sanitizedPhone,
         password: sanitizedPassword
       });
 
@@ -57,7 +58,7 @@ export function AuthForm() {
       } else {
         setMessage('Đăng nhập thành công!');
         // Clear form on success
-        setEmail('');
+        setPhoneNumber('');
         setPassword('');
       }
     } catch (err) {
@@ -89,20 +90,20 @@ export function AuthForm() {
         <div>
           <input
             className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white ${
-              errors.email ? 'border-2 border-red-500' : 'border border-zinc-700'
+              errors.phoneNumber ? 'border-2 border-red-500' : 'border border-zinc-700'
             }`}
-            type="email"
-            placeholder="Email"
-            value={email}
+            type="tel"
+            placeholder="Số điện thoại"
+            value={phoneNumber}
             onChange={(e) => {
-              setEmail(e.target.value);
-              if (errors.email) setErrors({ ...errors, email: undefined });
+              setPhoneNumber(e.target.value);
+              if (errors.phoneNumber) setErrors({ ...errors, phoneNumber: undefined });
             }}
             disabled={loading}
-            autoComplete="email"
+            autoComplete="tel"
           />
-          {errors.email && (
-            <p className="text-red-400 text-xs mt-1">{errors.email}</p>
+          {errors.phoneNumber && (
+            <p className="text-red-400 text-xs mt-1">{errors.phoneNumber}</p>
           )}
         </div>
 
