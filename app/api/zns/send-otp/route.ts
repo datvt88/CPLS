@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { otpService } from '@/services/otp.service'
 
 /**
  * ZNS API: Send OTP via Zalo Notification Service
@@ -27,24 +28,40 @@ export async function POST(request: NextRequest) {
     const znsAccessToken = process.env.ZNS_ACCESS_TOKEN
     const znsTemplateId = process.env.ZNS_TEMPLATE_ID
 
+    // Enhanced logging for debugging
+    console.log('=== ZNS Configuration Check ===')
+    console.log('ZNS_ACCESS_TOKEN exists:', !!znsAccessToken)
+    console.log('ZNS_TEMPLATE_ID exists:', !!znsTemplateId)
+    console.log('Environment:', process.env.NODE_ENV)
+
     if (!znsAccessToken || !znsTemplateId) {
       console.error('ZNS credentials not configured')
+      console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('ZNS')))
       return NextResponse.json(
-        { error: 'ZNS service not properly configured' },
+        {
+          error: 'ZNS service not properly configured',
+          hint: 'Please check ZNS_ACCESS_TOKEN and ZNS_TEMPLATE_ID in Vercel environment variables'
+        },
         { status: 500 }
       )
     }
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otpExpiryMinutes = 5
 
-    // Store OTP in memory/database with expiry (5 minutes)
-    // In production, use Redis or database
-    // For now, we'll return it for demo (REMOVE IN PRODUCTION)
-    const otpExpiry = Date.now() + 5 * 60 * 1000 // 5 minutes
+    // Store OTP in database
+    const storeResult = await otpService.storeOTP(phoneNumber, otp, otpExpiryMinutes)
 
-    // TODO: Store OTP in database/Redis
-    // await storeOTP(phoneNumber, otp, otpExpiry)
+    if (!storeResult.success) {
+      console.error('Failed to store OTP:', storeResult.error)
+      return NextResponse.json(
+        { error: 'Failed to generate OTP. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    const otpExpiry = Date.now() + otpExpiryMinutes * 60 * 1000
 
     // Format phone number for Zalo (must start with 84)
     const formattedPhone = phoneNumber.startsWith('0')
@@ -87,6 +104,10 @@ export async function POST(request: NextRequest) {
 
     if (znsData.error !== 0) {
       console.error('ZNS API error:', znsData)
+
+      // Delete the stored OTP since sending failed
+      await otpService.deleteOTP(phoneNumber)
+
       return NextResponse.json(
         {
           error: znsData.message || 'Failed to send OTP',
@@ -95,6 +116,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    console.log('✅ OTP sent successfully to', phoneNumber)
 
     // ⚠️ DEMO ONLY - REMOVE IN PRODUCTION
     // In production, don't return OTP to client

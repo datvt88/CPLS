@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { otpService } from '@/services/otp.service'
 
 /**
  * ZNS API: Verify OTP
- * Verifies the OTP code entered by user
+ * Verifies the OTP code entered by user against stored OTP in database
  */
 export async function POST(request: NextRequest) {
   try {
@@ -15,25 +16,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Retrieve stored OTP from database/Redis
-    // const storedOTP = await getOTP(phoneNumber)
-    // const isValid = storedOTP.code === otp && storedOTP.expiresAt > Date.now()
-
-    // For now, simple validation (REPLACE WITH REAL IMPLEMENTATION)
-    // In production, check against stored OTP in database
-
-    // ⚠️ DEMO ONLY - REPLACE WITH REAL VALIDATION
-    const isValid = otp.length === 6 && /^\d{6}$/.test(otp)
-
-    if (!isValid) {
+    // Validate OTP format
+    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
       return NextResponse.json(
-        { error: 'Invalid or expired OTP' },
+        { error: 'OTP must be a 6-digit number' },
         { status: 400 }
       )
     }
 
-    // TODO: Delete used OTP from storage
-    // await deleteOTP(phoneNumber)
+    console.log('Verifying OTP for phone:', phoneNumber)
+
+    // Verify OTP from database
+    const verificationResult = await otpService.verifyOTP(phoneNumber, otp)
+
+    if (!verificationResult.valid) {
+      console.log('❌ OTP verification failed:', verificationResult.error)
+      return NextResponse.json(
+        { error: verificationResult.error || 'Invalid or expired OTP' },
+        { status: 400 }
+      )
+    }
+
+    console.log('✅ OTP verified successfully for', phoneNumber)
+
+    // Delete the used OTP to prevent reuse
+    await otpService.deleteOTP(phoneNumber)
 
     return NextResponse.json({
       success: true,
