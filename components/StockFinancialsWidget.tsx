@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { fetchFinancialRatios } from '@/services/vndirect'
+import { fetchFinancialRatiosClient } from '@/services/vndirect-client'
 import type { FinancialRatio } from '@/types/vndirect'
 import { formatFinancialRatio } from '@/utils/formatters'
 
@@ -27,7 +27,7 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
       try {
         console.log('📊 Loading financial ratios for:', symbol)
 
-        const response = await fetchFinancialRatios(symbol)
+        const response = await fetchFinancialRatiosClient(symbol)
 
         const ratiosMap: Record<string, FinancialRatio> = {}
         response.data.forEach(ratio => {
