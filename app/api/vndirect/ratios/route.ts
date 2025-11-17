@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
       'EPS_TR'
     ]
 
-    const filter = ratios.join(',')
-    const url = `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=ratioCode:${filter}&where=code:${code.toUpperCase()}&order=reportDate&fields=ratioCode,value`
+    const ratiosFilter = ratios.join(',')
+    const url = `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=ratioCode:${ratiosFilter}&where=code:${code.toUpperCase()}&order=reportDate&fields=ratioCode,value`
 
     console.log('🔄 Proxy fetching ratios from VNDirect:', url)
 
