@@ -44,7 +44,25 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
         setStats({ buy, hold, sell })
       } catch (err) {
         console.error('❌ Error loading recommendations:', err)
-        setError('Không tải được đánh giá từ các công ty chứng khoán')
+
+        // Provide more specific error message
+        let errorMessage = 'Không tải được đánh giá từ các công ty chứng khoán'
+        if (err instanceof Error) {
+          // Extract status code from error message if available
+          const statusMatch = err.message.match(/error: (\d+)/)
+          if (statusMatch) {
+            const status = statusMatch[1]
+            if (status === '404') {
+              errorMessage = 'VNDirect không có dữ liệu đánh giá cho mã này'
+            } else if (status === '403') {
+              errorMessage = 'Bị chặn truy cập API (403)'
+            } else if (status === '500' || status === '502' || status === '503') {
+              errorMessage = 'VNDirect API tạm thời không khả dụng'
+            }
+          }
+          console.error('Error details:', err.message)
+        }
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
