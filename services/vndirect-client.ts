@@ -117,10 +117,21 @@ export async function fetchFinancialRatiosClient(
 
   return {
     ...data,
-    data: (data.data || []).map((item: any) => ({
-      ratioCode: String(item.ratioCode || ''),
-      value: Number(item.value) || 0,
-    }))
+    data: (data.data || []).map((item: any) => {
+      const ratioCode = String(item.ratioCode || '')
+      let value = Number(item.value) || 0
+
+      // VNDirect API returns price values in thousands (similar to targetPrice in recommendations)
+      // Example: 35300 means 35.3 VND, so divide by 1000
+      if (ratioCode === 'PRICE_HIGHEST_CR_52W' || ratioCode === 'PRICE_LOWEST_CR_52W') {
+        value = value / 1000
+      }
+
+      return {
+        ratioCode: ratioCode,
+        value: value,
+      }
+    })
   }
 }
 
