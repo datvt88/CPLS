@@ -13,6 +13,7 @@ interface StockDetailsWidgetProps {
 }
 
 // Data cache to avoid redundant API calls
+// Clear cache on app restart to avoid stale data from old API versions
 const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>()
 const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes (reduced for fresher trading data)
 
@@ -44,6 +45,12 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   // Watchlist state
   const [watchlist, setWatchlist] = useState<string[]>([])
   const [isInWatchlist, setIsInWatchlist] = useState(false)
+
+  // Clear data cache on mount to avoid stale data from previous API versions
+  useEffect(() => {
+    dataCache.clear()
+    console.log('🗑️ Cleared stock data cache on component mount')
+  }, [])
 
   // Load watchlist from localStorage on mount
   useEffect(() => {

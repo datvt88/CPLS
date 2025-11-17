@@ -59,9 +59,11 @@ export async function fetchStockPrices(
   // Wrap fetch in retry logic
   return retryWithBackoff(async () => {
     try {
-      // Add cache busting parameter when force refresh
+      // Add version parameter to bust cache when API data format changes
+      // Increment API_VER when changing price normalization logic
+      const API_VER = '2' // v2: using raw API prices without conversion
       const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : ''
-      const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}${cacheBuster}`
+      const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}&v=${API_VER}${cacheBuster}`
 
       console.log('📡 Calling API proxy:', url, forceRefresh ? '(force refresh)' : '')
 
