@@ -88,8 +88,8 @@ export async function fetchFinancialRatiosClient(
     'EPS_TR',
   ]
 
-  const ratiosQuery = ratios.join(',')
-  const url = `https://api-finfo.vndirect.com.vn/v4/ratios?q=code:${stockCode.toUpperCase()}~ratioCode:${ratiosQuery}`
+  const ratiosFilter = ratios.join(',')
+  const url = `https://api-finfo.vndirect.com.vn/v4/ratios/latest?filter=ratioCode:${ratiosFilter}&where=code:${stockCode.toUpperCase()}&order=reportDate&fields=ratioCode,value`
 
   console.log('🌐 Fetching ratios directly from VNDirect (client-side):', stockCode)
 
