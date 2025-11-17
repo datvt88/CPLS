@@ -38,6 +38,19 @@ export async function fetchStockPricesClient(
   const data = await response.json()
   console.log('✅ VNDirect direct response:', data.data?.length, 'records')
 
+  // Debug: Log raw price data for first record
+  if (data.data && data.data.length > 0) {
+    const latest = data.data[0]
+    console.log('🔍 Latest price data:', {
+      code: latest.code,
+      date: latest.date,
+      close: latest.close,
+      adClose: latest.adClose,
+      high: latest.high,
+      low: latest.low
+    })
+  }
+
   return {
     ...data,
     data: (data.data || []).map((item: any) => ({
