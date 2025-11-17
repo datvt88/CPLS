@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { fetchStockRecommendations } from '@/services/vndirect'
 import type { StockRecommendation } from '@/types/vndirect'
+import { formatPrice as formatPriceUtil } from '@/utils/formatters'
 
 interface StockRecommendationsWidgetProps {
   symbol: string
@@ -91,12 +92,9 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
     })
   }
 
+  // Use standardized price formatter
   const formatPrice = (price: number | undefined) => {
-    if (!price) return 'N/A'
-
-    // Price is already normalized to VND in the API
-    // Format as thousands (k)
-    return `${(price / 1000).toFixed(1)}k`
+    return formatPriceUtil(price, 0)
   }
 
   const calculatePotential = (reportPrice: number | undefined, targetPrice: number) => {

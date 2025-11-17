@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { fetchFinancialRatios } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
+import { formatFinancialRatio } from '@/utils/formatters'
 
 interface StockFinancialsWidgetProps {
   symbol: string
@@ -46,64 +47,9 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
     loadRatios()
   }, [symbol])
 
+  // Use standardized formatter from utils
   const formatValue = (ratioCode: string, value: number | undefined): string => {
-    if (value === undefined || value === null) return 'N/A'
-
-    // Format based on ratio type
-    switch (ratioCode) {
-      case 'MARKETCAP':
-        // Market cap in VND
-        if (value >= 1000000000000) {
-          return `${(value / 1000000000000).toFixed(2)} nghìn tỷ`
-        } else if (value >= 1000000000) {
-          return `${(value / 1000000000).toFixed(2)} tỷ`
-        }
-        return `${value.toFixed(2)}`
-
-      case 'NMVOLUME_AVG_CR_10D':
-        // Volume - show in millions
-        if (value >= 1000000) {
-          return `${(value / 1000000).toFixed(2)}M`
-        } else if (value >= 1000) {
-          return `${(value / 1000).toFixed(2)}K`
-        }
-        return `${value.toFixed(0)}`
-
-      case 'PRICE_HIGHEST_CR_52W':
-      case 'PRICE_LOWEST_CR_52W':
-      case 'BVPS_CR':
-        // Prices in VND
-        return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`
-
-      case 'OUTSTANDING_SHARES':
-        // Shares - show in billions/millions
-        if (value >= 1000000000) {
-          return `${(value / 1000000000).toFixed(2)} tỷ CP`
-        } else if (value >= 1000000) {
-          return `${(value / 1000000).toFixed(2)} triệu CP`
-        }
-        return `${value.toFixed(0)}`
-
-      case 'FREEFLOAT':
-      case 'DIVIDEND_YIELD':
-      case 'ROAE_TR_AVG5Q':
-      case 'ROAA_TR_AVG5Q':
-        // Percentages
-        return `${(value * 100).toFixed(2)}%`
-
-      case 'EPS_TR':
-        // EPS in VND
-        return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}`
-
-      case 'BETA':
-      case 'PRICE_TO_EARNINGS':
-      case 'PRICE_TO_BOOK':
-        // Ratios - 2 decimal places
-        return `${value.toFixed(2)}`
-
-      default:
-        return `${value.toFixed(2)}`
-    }
+    return formatFinancialRatio(ratioCode, value)
   }
 
   const financialMetrics = [

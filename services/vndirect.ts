@@ -1,44 +1,97 @@
 import { StockPriceResponse, FinancialRatiosResponse, StockRecommendationsResponse } from '@/types/vndirect'
 
 /**
+ * Retry a function with exponential backoff
+ * @param fn - Function to retry
+ * @param maxRetries - Maximum number of retries (default: 3)
+ * @param baseDelay - Base delay in milliseconds (default: 1000)
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | unknown
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      // Don't retry if request was aborted
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw error
+      }
+
+      // Don't retry on last attempt
+      if (attempt === maxRetries) {
+        break
+      }
+
+      // Calculate delay with exponential backoff
+      const delay = baseDelay * Math.pow(2, attempt)
+      console.log(`⚠️ Request failed, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`)
+
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+
+  // If we got here, all retries failed
+  throw lastError
+}
+
+/**
  * Fetch historical stock prices via Next.js API proxy
  * This avoids CORS issues and API access restrictions
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  * @param size - Number of data points to fetch (default: 270 for ~1 year of data)
  * @param forceRefresh - Force bypass cache and fetch fresh data (default: false)
+ * @param signal - AbortSignal to cancel the request
  */
 export async function fetchStockPrices(
   stockCode: string,
   size: number = 270,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  signal?: AbortSignal
 ): Promise<StockPriceResponse> {
-  try {
-    // Add cache busting parameter when force refresh
-    const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : ''
-    const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}${cacheBuster}`
+  // Wrap fetch in retry logic
+  return retryWithBackoff(async () => {
+    try {
+      // Add cache busting parameter when force refresh
+      const cacheBuster = forceRefresh ? `&_t=${Date.now()}` : ''
+      const url = `/api/vndirect/stock-prices?code=${stockCode.toUpperCase()}&size=${size}${cacheBuster}`
 
-    console.log('📡 Calling API proxy:', url, forceRefresh ? '(force refresh)' : '')
+      console.log('📡 Calling API proxy:', url, forceRefresh ? '(force refresh)' : '')
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      cache: forceRefresh ? 'no-store' : 'default',
-    })
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: forceRefresh ? 'no-store' : 'default',
+        signal, // Pass abort signal to fetch
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log('✅ API response received:', data.data?.length, 'records')
+      return data
+    } catch (error) {
+      // Don't log error if request was aborted (user cancelled)
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('⚠️ Request aborted by user')
+        throw error
+      }
+      console.error('❌ Error fetching stock prices:', error)
+      throw error
     }
-
-    const data = await response.json()
-    console.log('✅ API response received:', data.data?.length, 'records')
-    return data
-  } catch (error) {
-    console.error('❌ Error fetching stock prices:', error)
-    throw error
-  }
+  }, 3, 1000) // 3 retries with 1s base delay
 }
 
 /**
@@ -47,33 +100,42 @@ export async function fetchStockPrices(
  * @param stockCode - Stock symbol (e.g., FPT, TCB, VNM)
  */
 export async function fetchFinancialRatios(
-  stockCode: string
+  stockCode: string,
+  signal?: AbortSignal
 ): Promise<FinancialRatiosResponse> {
-  try {
-    const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}`
+  // Wrap fetch in retry logic
+  return retryWithBackoff(async () => {
+    try {
+      const url = `/api/vndirect/ratios?code=${stockCode.toUpperCase()}`
 
-    console.log('📡 Calling API proxy for ratios:', url)
+      console.log('📡 Calling API proxy for ratios:', url)
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-    })
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-store',
+        signal,
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log('✅ Ratios API response received:', data.data?.length, 'ratios')
+      return data
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('⚠️ Request aborted by user')
+        throw error
+      }
+      console.error('❌ Error fetching financial ratios:', error)
+      throw error
     }
-
-    const data = await response.json()
-    console.log('✅ Ratios API response received:', data.data?.length, 'ratios')
-    return data
-  } catch (error) {
-    console.error('❌ Error fetching financial ratios:', error)
-    throw error
-  }
+  }, 3, 1000)
 }
 
 /**
@@ -175,32 +237,41 @@ export function calculateWoodiePivotPoints(high: number, low: number, close: num
 export async function fetchStockRecommendations(
   stockCode: string,
   startDate?: string,
-  size: number = 100
+  size: number = 100,
+  signal?: AbortSignal
 ): Promise<StockRecommendationsResponse> {
-  try {
-    const dateParam = startDate ? `&startDate=${startDate}` : ''
-    const url = `/api/vndirect/recommendations?code=${stockCode.toUpperCase()}&size=${size}${dateParam}`
+  // Wrap fetch in retry logic
+  return retryWithBackoff(async () => {
+    try {
+      const dateParam = startDate ? `&startDate=${startDate}` : ''
+      const url = `/api/vndirect/recommendations?code=${stockCode.toUpperCase()}&size=${size}${dateParam}`
 
-    console.log('📡 Calling API proxy for recommendations:', url)
+      console.log('📡 Calling API proxy for recommendations:', url)
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-    })
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-store',
+        signal,
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log('✅ Recommendations API response received:', data.data?.length, 'recommendations')
+      return data
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('⚠️ Request aborted by user')
+        throw error
+      }
+      console.error('❌ Error fetching stock recommendations:', error)
+      throw error
     }
-
-    const data = await response.json()
-    console.log('✅ Recommendations API response received:', data.data?.length, 'recommendations')
-    return data
-  } catch (error) {
-    console.error('❌ Error fetching stock recommendations:', error)
-    throw error
-  }
+  }, 3, 1000)
 }
