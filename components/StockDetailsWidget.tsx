@@ -260,10 +260,10 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       setStockData(sortedData)
       setLastRefreshTime(new Date())
 
-      // Calculate pivot points from previous day (using adjusted prices)
+      // Calculate pivot points from previous day (using raw API prices)
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
-        const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
+        const pivots = calculateWoodiePivotPoints(prevDay.high, prevDay.low, prevDay.close)
         setPivotPoints(pivots)
       }
     } catch (err) {
@@ -337,29 +337,29 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return stockData
   }, [stockData, timeframe])
 
-  // Memoize chart data (using adjusted prices for accurate historical comparison)
+  // Memoize chart data (using raw API prices for accurate display)
   const chartData = useMemo(() => {
     if (!displayData.length) return { candleData: [], lineData: [], closePrices: [], volumeData: [] }
 
     const candleData: CandlestickData[] = displayData.map(d => ({
       time: d.date as Time,
-      open: d.adOpen,
-      high: d.adHigh,
-      low: d.adLow,
-      close: d.adClose,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
     }))
 
     const lineData: LineData[] = displayData.map(d => ({
       time: d.date as Time,
-      value: d.adClose,
+      value: d.close,
     }))
 
-    const closePrices = displayData.map(d => d.adClose)
+    const closePrices = displayData.map(d => d.close)
 
     const volumeData = displayData.map(d => ({
       time: d.date as Time,
       value: d.nmVolume,
-      color: d.adClose >= d.adOpen ? '#26a69a' : '#ef5350',
+      color: d.close >= d.open ? '#26a69a' : '#ef5350',
     }))
 
     return { candleData, lineData, closePrices, volumeData }
@@ -822,24 +822,24 @@ function aggregateWeekly(data: StockPriceData[]): StockPriceData[] {
   })
 
   return Array.from(weeks.values()).map(weekData => {
-    const adOpen = weekData[0].adOpen
-    const adClose = weekData[weekData.length - 1].adClose
-    const adHigh = Math.max(...weekData.map(d => d.adHigh))
-    const adLow = Math.min(...weekData.map(d => d.adLow))
+    const open = weekData[0].open
+    const close = weekData[weekData.length - 1].close
+    const high = Math.max(...weekData.map(d => d.high))
+    const low = Math.min(...weekData.map(d => d.low))
     const nmVolume = weekData.reduce((sum, d) => sum + d.nmVolume, 0)
     const nmValue = weekData.reduce((sum, d) => sum + d.nmValue, 0)
-    const adChange = adClose - adOpen
-    const pctChange = (adChange / adOpen) * 100
+    const change = close - open
+    const pctChange = (change / open) * 100
 
     return {
       ...weekData[weekData.length - 1],
-      adOpen,
-      adHigh,
-      adLow,
-      adClose,
+      open,
+      high,
+      low,
+      close,
       nmVolume,
       nmValue,
-      adChange,
+      change,
       pctChange,
     }
   })
@@ -859,24 +859,24 @@ function aggregateMonthly(data: StockPriceData[]): StockPriceData[] {
   })
 
   return Array.from(months.values()).map(monthData => {
-    const adOpen = monthData[0].adOpen
-    const adClose = monthData[monthData.length - 1].adClose
-    const adHigh = Math.max(...monthData.map(d => d.adHigh))
-    const adLow = Math.min(...monthData.map(d => d.adLow))
+    const open = monthData[0].open
+    const close = monthData[monthData.length - 1].close
+    const high = Math.max(...monthData.map(d => d.high))
+    const low = Math.min(...monthData.map(d => d.low))
     const nmVolume = monthData.reduce((sum, d) => sum + d.nmVolume, 0)
     const nmValue = monthData.reduce((sum, d) => sum + d.nmValue, 0)
-    const adChange = adClose - adOpen
-    const pctChange = (adChange / adOpen) * 100
+    const change = close - open
+    const pctChange = (change / open) * 100
 
     return {
       ...monthData[monthData.length - 1],
-      adOpen,
-      adHigh,
-      adLow,
-      adClose,
+      open,
+      high,
+      low,
+      close,
       nmVolume,
       nmValue,
-      adChange,
+      change,
       pctChange,
     }
   })
