@@ -324,6 +324,7 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0',
+        'X-Data-Source': 'vndirect-api', // Indicator of real API data
       },
     })
   } catch (error) {
@@ -341,6 +342,7 @@ export async function GET(request: NextRequest) {
       headers: {
         // Mock data also shouldn't be cached
         'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'X-Data-Source': 'mock-data', // Clearly indicate this is mock data
         'X-Mock-Data': 'true', // Indicator that this is mock data
       },
     })

@@ -85,6 +85,17 @@ export async function fetchStockPrices(
 
       const data = await response.json()
       console.log('✅ API response received:', data.data?.length, 'records')
+
+      // Check if data is from mock or real API
+      const dataSource = response.headers.get('X-Data-Source')
+      if (dataSource === 'mock-data') {
+        console.warn('⚠️⚠️⚠️ USING MOCK DATA - VNDirect API is unavailable!')
+        console.warn('⚠️ Prices shown are randomly generated, not real market data!')
+        console.warn('⚠️ Check server logs for VNDirect API errors')
+      } else if (dataSource === 'vndirect-api') {
+        console.log('✅ Data from VNDirect API (real market data)')
+      }
+
       return data
     } catch (error) {
       // Don't log error if request was aborted (user cancelled)
