@@ -108,6 +108,13 @@ export async function fetchFinancialRatiosClient(
   const data = await response.json()
   console.log('✅ Ratios API response received:', data.data?.length, 'ratios')
 
+  // Debug logging for SSI or when data is sparse
+  if (data.data && data.data.length > 0) {
+    console.log('📊 Sample ratio data:', data.data[0])
+    const ratiosCodes = data.data.map((r: any) => r.ratioCode)
+    console.log('📋 Available ratio codes:', ratiosCodes.join(', '))
+  }
+
   return {
     ...data,
     data: (data.data || []).map((item: any) => ({
@@ -144,16 +151,32 @@ export async function fetchRecommendationsClient(
   const data = await response.json()
   console.log('✅ Recommendations API response received:', data.data?.length, 'recommendations')
 
+  // Debug logging
+  if (data.data && data.data.length > 0) {
+    console.log('📊 Sample recommendation:', data.data[0])
+  } else {
+    console.warn('⚠️ No recommendations found for', stockCode)
+  }
+
   return {
     ...data,
-    data: (data.data || []).map((item: any) => ({
-      code: String(item.code || ''),
-      firm: String(item.firm || ''),
-      type: String(item.type || ''),
-      reportDate: item.reportDate || '',
-      reportPrice: Number(item.reportPrice) || undefined,
-      targetPrice: Number(item.targetPrice) || undefined,
-      avgTargetPrice: Number(item.avgTargetPrice) || undefined,
-    }))
+    data: (data.data || []).map((item: any) => {
+      // Helper to parse price values (avoid || undefined which treats 0 as falsy)
+      const parsePrice = (val: any): number | undefined => {
+        if (val === null || val === undefined || val === '') return undefined
+        const num = Number(val)
+        return isNaN(num) ? undefined : num
+      }
+
+      return {
+        code: String(item.code || ''),
+        firm: String(item.firm || ''),
+        type: String(item.type || ''),
+        reportDate: item.reportDate || '',
+        reportPrice: parsePrice(item.reportPrice),
+        targetPrice: parsePrice(item.targetPrice),
+        avgTargetPrice: parsePrice(item.avgTargetPrice),
+      }
+    })
   }
 }
