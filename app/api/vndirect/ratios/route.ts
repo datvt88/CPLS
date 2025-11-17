@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering - disable all caching for real-time financial data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Development mock data fallback
 function generateMockRatios(code: string) {
   return [
@@ -92,7 +96,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(normalizedData, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=7200',
+        // Disable caching to ensure fresh financial data
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
   } catch (error) {
@@ -105,8 +112,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(mockData, {
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-        'X-Mock-Data': 'true', // Indicator that this is mock data
+        // Mock data also shouldn't be cached
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'X-Mock-Data': 'true',
       },
     })
   }

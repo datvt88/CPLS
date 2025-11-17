@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { fetchStockRecommendations } from '@/services/vndirect'
+import { fetchRecommendationsClient } from '@/services/vndirect-client'
 import type { StockRecommendation } from '@/types/vndirect'
+import { formatPrice as formatPriceUtil } from '@/utils/formatters'
 
 interface StockRecommendationsWidgetProps {
   symbol: string
@@ -30,12 +31,8 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
       try {
         console.log('📊 Loading recommendations for:', symbol)
 
-        // Get recommendations from the last 12 months
-        const twelveMonthsAgo = new Date()
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
-        const startDate = twelveMonthsAgo.toISOString().split('T')[0]
-
-        const response = await fetchStockRecommendations(symbol, startDate, 100)
+        // Fetch recommendations directly from VNDirect (already sorted by reportDate:desc)
+        const response = await fetchRecommendationsClient(symbol)
 
         console.log('✅ Recommendations loaded:', response.data.length, 'items')
         setRecommendations(response.data)
@@ -91,12 +88,9 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
     })
   }
 
+  // Use standardized price formatter
   const formatPrice = (price: number | undefined) => {
-    if (!price) return 'N/A'
-
-    // Price is already normalized to VND in the API
-    // Format as thousands (k)
-    return `${(price / 1000).toFixed(1)}k`
+    return formatPriceUtil(price, 0)
   }
 
   const calculatePotential = (reportPrice: number | undefined, targetPrice: number) => {

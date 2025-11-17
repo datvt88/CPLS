@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react'
 import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { CandlestickData, LineData } from 'lightweight-charts'
-import { fetchStockPrices, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { fetchStockPricesClient } from '@/services/vndirect-client'
 import type { StockPriceData, WoodiePivotPoints } from '@/types/vndirect'
+import { formatVolume, formatCurrency, formatPrice, formatChange } from '@/utils/formatters'
 
 interface StockDetailsWidgetProps {
   initialSymbol?: string
@@ -12,26 +14,18 @@ interface StockDetailsWidgetProps {
 }
 
 // Data cache to avoid redundant API calls
+// Clear cache on app restart to avoid stale data from old API versions
 const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>()
 const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes (reduced for fresher trading data)
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
+// Returns end-of-day for consistent date comparisons
 function getVietnamDate(): Date {
   const now = new Date()
   // Convert to Vietnam timezone (UTC+7)
   const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
-  vietnamTime.setHours(0, 0, 0, 0)
+  vietnamTime.setHours(23, 59, 59, 999)
   return vietnamTime
-}
-
-// Helper function to parse date string and ensure it's not from the future
-function isValidTradingDate(dateStr: string): boolean {
-  const dataDate = new Date(dateStr)
-  dataDate.setHours(0, 0, 0, 0)
-  const today = getVietnamDate()
-
-  // Data should not be from the future
-  return dataDate <= today
 }
 
 const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: StockDetailsWidgetProps) => {
@@ -45,6 +39,71 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const [pivotPoints, setPivotPoints] = useState<WoodiePivotPoints | null>(null)
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // AbortController ref to cancel in-flight requests
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Watchlist state
+  const [watchlist, setWatchlist] = useState<string[]>([])
+  const [isInWatchlist, setIsInWatchlist] = useState(false)
+
+  // Clear data cache on mount to avoid stale data from previous API versions
+  useEffect(() => {
+    dataCache.clear()
+    console.log('🗑️ Cleared stock data cache on component mount')
+  }, [])
+
+  // Load watchlist from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('stock_watchlist')
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[]
+        setWatchlist(parsed)
+      }
+    } catch (err) {
+      console.error('Error loading watchlist:', err)
+    }
+  }, [])
+
+  // Update isInWatchlist when symbol or watchlist changes
+  useEffect(() => {
+    setIsInWatchlist(watchlist.includes(symbol))
+  }, [symbol, watchlist])
+
+  // Save watchlist to localStorage whenever it changes
+  const saveWatchlist = useCallback((newWatchlist: string[]) => {
+    try {
+      localStorage.setItem('stock_watchlist', JSON.stringify(newWatchlist))
+      setWatchlist(newWatchlist)
+    } catch (err) {
+      console.error('Error saving watchlist:', err)
+    }
+  }, [])
+
+  // Toggle symbol in watchlist
+  const toggleWatchlist = useCallback(() => {
+    if (isInWatchlist) {
+      // Remove from watchlist
+      const newWatchlist = watchlist.filter(s => s !== symbol)
+      saveWatchlist(newWatchlist)
+    } else {
+      // Add to watchlist (max 10 symbols)
+      if (watchlist.length >= 10) {
+        alert('Bạn chỉ có thể theo dõi tối đa 10 mã cổ phiếu')
+        return
+      }
+      const newWatchlist = [...watchlist, symbol]
+      saveWatchlist(newWatchlist)
+    }
+  }, [symbol, isInWatchlist, watchlist, saveWatchlist])
+
+  // Quick switch to watchlist symbol
+  const switchToSymbol = useCallback((newSymbol: string) => {
+    setSymbol(newSymbol)
+    setInputSymbol(newSymbol)
+    onSymbolChange?.(newSymbol)
+  }, [onSymbolChange])
 
   // Sync with external symbol changes only when initialSymbol changes
   useEffect(() => {
@@ -197,12 +256,36 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     return () => {
       window.removeEventListener('resize', handleResize)
+
+      // Clean up all series references before removing chart
+      if (seriesRefs.current) {
+        seriesRefs.current.candlestick = null
+        seriesRefs.current.line = null
+        seriesRefs.current.bbUpper = null
+        seriesRefs.current.bbMiddle = null
+        seriesRefs.current.bbLower = null
+        seriesRefs.current.s2Line = null
+        seriesRefs.current.r3Line = null
+        seriesRefs.current.volume = null
+      }
+
+      // Remove chart instance
       chart.remove()
+      chartRef.current = null
     }
   }, [])
 
   // Fetch stock data with caching
   const loadStockData = useCallback(async (stockSymbol: string, forceRefresh: boolean = false) => {
+    // Cancel any previous in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+
     setLoading(true)
     setError(null)
 
@@ -232,9 +315,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         dataCache.delete(stockSymbol)
       }
 
-      // Fetch fresh data - reduced from 270 to 150 days for better performance
+      // Fetch fresh data directly from VNDirect (client-side to avoid 403)
       console.log('📈 Loading stock prices for:', stockSymbol, forceRefresh ? '(force refresh)' : '')
-      const response = await fetchStockPrices(stockSymbol, 150, forceRefresh)
+      const response = await fetchStockPricesClient(stockSymbol, 150, abortController.signal)
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Không tìm thấy dữ liệu cho mã này')
@@ -242,16 +325,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
       console.log('✅ Stock prices loaded:', response.data.length, 'records')
 
-      // Filter out any future dates and sort by date ascending
-      const validData = response.data.filter(item => isValidTradingDate(item.date))
-
-      if (validData.length === 0) {
-        throw new Error('Không có dữ liệu hợp lệ cho mã này')
-      }
-
-      const sortedData = [...validData].sort(
+      // Sort by date ascending (oldest first) for chart display
+      const sortedData = [...response.data].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
+
+      if (sortedData.length === 0) {
+        throw new Error('Không có dữ liệu hợp lệ cho mã này')
+      }
 
       // Cache the data with current timestamp
       const now = Date.now()
@@ -260,6 +341,19 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       setStockData(sortedData)
       setLastRefreshTime(new Date())
 
+      // Debug logging after setting stock data
+      if (sortedData.length > 0) {
+        const latest = sortedData[sortedData.length - 1]
+        console.log('🔵 Stock data set - latest record:', {
+          date: latest.date,
+          close: latest.close,
+          adClose: latest.adClose,
+          open: latest.open,
+          high: latest.high,
+          low: latest.low,
+        })
+      }
+
       // Calculate pivot points from previous day (using adjusted prices)
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
@@ -267,10 +361,18 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         setPivotPoints(pivots)
       }
     } catch (err) {
+      // Ignore abort errors (user cancelled the request)
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('⚠️ Data loading cancelled for:', stockSymbol)
+        return
+      }
       setError(err instanceof Error ? err.message : 'Lỗi tải dữ liệu')
     } finally {
-      setLoading(false)
-      setIsRefreshing(false)
+      // Only clear loading state if this request wasn't aborted
+      if (!abortController.signal.aborted) {
+        setLoading(false)
+        setIsRefreshing(false)
+      }
     }
   }, [])
 
@@ -468,6 +570,20 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
   const latestData = stockData[stockData.length - 1]
 
+  // Debug logging for price display
+  if (latestData) {
+    console.log('🎯 Latest data for display:', {
+      symbol: symbol,
+      date: latestData.date,
+      close: latestData.close,
+      adClose: latestData.adClose,
+      open: latestData.open,
+      high: latestData.high,
+      low: latestData.low,
+      formatted: formatPrice(latestData.close),
+    })
+  }
+
   return (
     <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 space-y-4">
       {/* Search Bar */}
@@ -488,17 +604,57 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           {loading ? 'Đang tải...' : 'Xem'}
         </button>
         {stockData.length > 0 && (
-          <button
-            onClick={handleRefresh}
-            disabled={loading || isRefreshing}
-            className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
-            title="Làm mới dữ liệu (Auto-refresh mỗi 5 phút)"
-          >
-            <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
-            <span className="hidden sm:inline">{isRefreshing ? 'Đang làm mới...' : 'Làm mới'}</span>
-          </button>
+          <>
+            <button
+              onClick={handleRefresh}
+              disabled={loading || isRefreshing}
+              className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+              title="Làm mới dữ liệu (Auto-refresh mỗi 5 phút)"
+            >
+              <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
+              <span className="hidden sm:inline">{isRefreshing ? 'Đang làm mới...' : 'Làm mới'}</span>
+            </button>
+            <button
+              onClick={toggleWatchlist}
+              className={`px-6 py-3 rounded-lg transition-colors font-medium flex items-center gap-2 ${
+                isInWatchlist
+                  ? 'bg-yellow-600 hover:bg-yellow-700'
+                  : 'bg-gray-700 hover:bg-gray-600'
+              }`}
+              title={isInWatchlist ? 'Bỏ theo dõi' : 'Theo dõi mã này'}
+            >
+              <span>{isInWatchlist ? '⭐' : '☆'}</span>
+              <span className="hidden sm:inline">{isInWatchlist ? 'Đang theo dõi' : 'Theo dõi'}</span>
+            </button>
+          </>
         )}
       </div>
+
+      {/* Watchlist Quick Access */}
+      {watchlist.length > 0 && (
+        <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-yellow-400 text-sm font-semibold">⭐ Danh sách theo dõi:</span>
+            <span className="text-gray-400 text-xs">({watchlist.length}/10)</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {watchlist.map((sym) => (
+              <button
+                key={sym}
+                onClick={() => switchToSymbol(sym)}
+                disabled={loading || isRefreshing}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  sym === symbol
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {sym}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
@@ -567,19 +723,17 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 latestData.close > latestData.open ? 'text-green-400' :
                 latestData.close < latestData.open ? 'text-red-400' : 'text-yellow-400'
               }`}>
-                {latestData.close.toFixed(2)}
+                {formatPrice(latestData.close)}
               </div>
             </div>
 
             {/* 2. Thay đổi */}
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-gray-400 text-xs mb-1">Thay đổi</div>
-              <div className={`text-xl font-bold ${
-                latestData.change >= 0 ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {latestData.change >= 0 ? '+' : ''}{latestData.change.toFixed(2)}
-                <span className="text-sm ml-1">
-                  ({latestData.pctChange >= 0 ? '+' : ''}{latestData.pctChange.toFixed(2)}%)
+              <div className={`text-xl font-bold ${formatChange(latestData.change).colorClass}`}>
+                {formatChange(latestData.change).text}
+                <span className={`text-sm ml-1 ${formatChange(latestData.pctChange).colorClass}`}>
+                  ({formatChange(latestData.pctChange).text}%)
                 </span>
               </div>
             </div>
@@ -588,7 +742,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-700/30">
               <div className="text-purple-400 text-xs mb-1">Giá trần</div>
               <div className="text-xl font-bold text-purple-300">
-                {(latestData.close * 1.07).toFixed(2)}
+                {formatPrice(latestData.close * 1.07)}
               </div>
             </div>
 
@@ -596,7 +750,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             <div className="bg-cyan-900/20 rounded-lg p-3 border border-cyan-700/30">
               <div className="text-cyan-400 text-xs mb-1">Giá sàn</div>
               <div className="text-xl font-bold text-cyan-300">
-                {(latestData.close * 0.93).toFixed(2)}
+                {formatPrice(latestData.close * 0.93)}
               </div>
             </div>
 
@@ -604,15 +758,15 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="text-gray-400 text-xs mb-1">Khối lượng</div>
               <div className="text-lg font-bold text-white">
-                {(latestData.nmVolume / 1000000).toFixed(2)}M
+                {formatVolume(latestData.nmVolume)}
               </div>
             </div>
 
             {/* 6. Giá trị */}
             <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="text-gray-400 text-xs mb-1">Giá trị (tỷ VNĐ)</div>
+              <div className="text-gray-400 text-xs mb-1">Giá trị</div>
               <div className="text-lg font-bold text-white">
-                {(latestData.nmValue / 1000000000).toFixed(2)}
+                {formatCurrency(latestData.nmValue)}
               </div>
             </div>
           </div>
@@ -703,7 +857,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 <div>
                   <span className="text-yellow-400 font-semibold">Giá hiện tại:</span>
                   <span className="ml-2 text-white font-bold">
-                    {latestData.close.toFixed(2)}
+                    {formatPrice(latestData.close)}
                   </span>
                 </div>
 
@@ -713,13 +867,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                     <div>
                       <span className="text-purple-400 font-semibold">Hỗ trợ mạnh:</span>
                       <span className="ml-2 text-white font-bold">
-                        {bollingerBands.lower[bollingerBands.lower.length - 1]?.value.toFixed(2) || 'N/A'}
+                        {formatPrice(bollingerBands.lower[bollingerBands.lower.length - 1]?.value)}
                       </span>
                     </div>
                     <div>
                       <span className="text-cyan-400 font-semibold">Kháng cự:</span>
                       <span className="ml-2 text-white font-bold">
-                        {bollingerBands.upper[bollingerBands.upper.length - 1]?.value.toFixed(2) || 'N/A'}
+                        {formatPrice(bollingerBands.upper[bollingerBands.upper.length - 1]?.value)}
                       </span>
                     </div>
                   </>
@@ -730,15 +884,15 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                   <>
                     <div>
                       <span className="text-green-400 font-semibold">Buy T+:</span>
-                      <span className="ml-2 text-white font-bold">{pivotPoints.S2}</span>
+                      <span className="ml-2 text-white font-bold">{formatPrice(pivotPoints.S2)}</span>
                     </div>
                     <div>
                       <span className="text-red-400 font-semibold">Sell T+:</span>
-                      <span className="ml-2 text-white font-bold">{pivotPoints.R3}</span>
+                      <span className="ml-2 text-white font-bold">{formatPrice(pivotPoints.R3)}</span>
                     </div>
                     <div>
                       <span className="text-gray-400 font-semibold">Pivot:</span>
-                      <span className="ml-2 text-white font-bold">{pivotPoints.pivot}</span>
+                      <span className="ml-2 text-white font-bold">{formatPrice(pivotPoints.pivot)}</span>
                     </div>
                   </>
                 )}
@@ -751,13 +905,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                     <div>
                       <span className="text-blue-400 font-semibold">MA10:</span>
                       <span className="ml-2 text-white font-bold">
-                        {movingAverages.ma10.toFixed(2)}
+                        {formatPrice(movingAverages.ma10)}
                       </span>
                     </div>
                     <div>
                       <span className="text-orange-400 font-semibold">MA30:</span>
                       <span className="ml-2 text-white font-bold">
-                        {bollingerBands.middle[bollingerBands.middle.length - 1]?.value.toFixed(2) || 'N/A'}
+                        {formatPrice(bollingerBands.middle[bollingerBands.middle.length - 1]?.value)}
                       </span>
                     </div>
                     <div>
