@@ -341,6 +341,19 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       setStockData(sortedData)
       setLastRefreshTime(new Date())
 
+      // Debug logging after setting stock data
+      if (sortedData.length > 0) {
+        const latest = sortedData[sortedData.length - 1]
+        console.log('🔵 Stock data set - latest record:', {
+          date: latest.date,
+          close: latest.close,
+          adClose: latest.adClose,
+          open: latest.open,
+          high: latest.high,
+          low: latest.low,
+        })
+      }
+
       // Calculate pivot points from previous day (using adjusted prices)
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
@@ -556,6 +569,20 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   }, [inputSymbol, onSymbolChange])
 
   const latestData = stockData[stockData.length - 1]
+
+  // Debug logging for price display
+  if (latestData) {
+    console.log('🎯 Latest data for display:', {
+      symbol: symbol,
+      date: latestData.date,
+      close: latestData.close,
+      adClose: latestData.adClose,
+      open: latestData.open,
+      high: latestData.high,
+      low: latestData.low,
+      formatted: formatPrice(latestData.close),
+    })
+  }
 
   return (
     <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 space-y-4">
