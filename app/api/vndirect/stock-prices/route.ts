@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering - disable all caching for real-time stock data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Development mock data fallback
 // Generates data using the same format as VNDirect API returns
 function generateMockStockData(code: string, size: number) {
@@ -235,7 +239,7 @@ export async function GET(request: NextRequest) {
         'Referer': 'https://dstock.vndirect.com.vn/',
         'Origin': 'https://dstock.vndirect.com.vn',
       },
-      next: { revalidate: 120 }, // Cache for 2 minutes (reduced for fresher trading data)
+      cache: 'no-store', // Never cache - always fetch fresh data from VNDirect
     })
 
     console.log('✅ VNDirect API response status:', response.status)
@@ -315,7 +319,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(normalizedData, {
       headers: {
-        'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=240',
+        // Disable caching to ensure fresh stock data
+        // Stock prices change frequently, always fetch latest from server
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       },
     })
   } catch (error) {
@@ -331,7 +339,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(mockData, {
       headers: {
-        'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=240',
+        // Mock data also shouldn't be cached
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
         'X-Mock-Data': 'true', // Indicator that this is mock data
       },
     })

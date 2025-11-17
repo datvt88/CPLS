@@ -72,7 +72,9 @@ export async function fetchStockPrices(
         headers: {
           'Accept': 'application/json',
         },
-        cache: forceRefresh ? 'no-store' : 'default',
+        // Always fetch fresh data for real-time stock prices
+        // Stock market data changes frequently and needs to be current
+        cache: 'no-store',
         signal, // Pass abort signal to fetch
       })
 
