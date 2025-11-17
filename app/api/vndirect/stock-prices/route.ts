@@ -68,8 +68,9 @@ function normalizeStockPriceData(data: any) {
   const adLow = getNumber(data.adLow, low)
   const adClose = getNumber(data.adClose, close)
 
-  // Calculate adAverage from already-converted numbers
-  const adAverage = getNumber(data.adAverage, (adOpen + adClose) / 2)
+  // Calculate adAverage: if API returns 0 or invalid, recalculate from adOpen and adClose
+  const apiAdAverage = getNumber(data.adAverage, 0)
+  const adAverage = (apiAdAverage > 0) ? apiAdAverage : (adOpen + adClose) / 2
 
   return {
     date: data.date || '',
@@ -148,6 +149,25 @@ export async function GET(request: NextRequest) {
 
     const rawData = await response.json()
 
+    console.log('📦 Raw API data received:', {
+      code: code.toUpperCase(),
+      dataPoints: rawData.data?.length || 0,
+      firstDate: rawData.data?.[0]?.date,
+      lastDate: rawData.data?.[rawData.data.length - 1]?.date,
+    })
+
+    // Log first data point for verification
+    if (rawData.data && rawData.data.length > 0) {
+      const firstPoint = rawData.data[0]
+      console.log('📊 First raw data point:', {
+        code: firstPoint.code,
+        date: firstPoint.date,
+        open: firstPoint.open,
+        close: firstPoint.close,
+        adAverage: firstPoint.adAverage,
+      })
+    }
+
     // Normalize and validate the data
     const normalizedData = {
       ...rawData,
@@ -169,7 +189,19 @@ export async function GET(request: NextRequest) {
         })
     }
 
-    console.log('✅ Normalized data points:', normalizedData.data.length)
+    // Log first normalized data point for verification
+    if (normalizedData.data && normalizedData.data.length > 0) {
+      const firstNormalized = normalizedData.data[0]
+      console.log('✅ First normalized data point:', {
+        code: firstNormalized.code,
+        date: firstNormalized.date,
+        open: firstNormalized.open,
+        close: firstNormalized.close,
+        adAverage: firstNormalized.adAverage,
+      })
+    }
+
+    console.log('✅ Total normalized data points:', normalizedData.data.length)
 
     return NextResponse.json(normalizedData, {
       headers: {
