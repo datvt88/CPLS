@@ -7,7 +7,7 @@ import type {
   StockPriceData,
   StockPriceResponse,
   FinancialRatiosResponse,
-  RecommendationsResponse
+  StockRecommendationsResponse
 } from '@/types/vndirect'
 
 /**
@@ -124,7 +124,7 @@ export async function fetchFinancialRatiosClient(
 export async function fetchRecommendationsClient(
   stockCode: string,
   signal?: AbortSignal
-): Promise<RecommendationsResponse> {
+): Promise<StockRecommendationsResponse> {
   const url = `https://api-finfo.vndirect.com.vn/v4/stock_evaluation_history?q=code:${stockCode.toUpperCase()}&sort=reportDate:desc&size=20`
 
   console.log('🌐 Fetching recommendations directly from VNDirect (client-side):', stockCode)
