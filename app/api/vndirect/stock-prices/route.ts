@@ -68,9 +68,9 @@ function normalizeStockPriceData(data: any) {
   const adLow = getNumber(data.adLow, low)
   const adClose = getNumber(data.adClose, close)
 
-  // Calculate adAverage: if API returns 0 or invalid, recalculate from adOpen and adClose
-  const apiAdAverage = getNumber(data.adAverage, 0)
-  const adAverage = (apiAdAverage > 0) ? apiAdAverage : (adOpen + adClose) / 2
+  // Use API's adAverage if provided, otherwise calculate from adOpen and adClose
+  // Note: 0 is a valid value (e.g., when no trades occurred), so only fallback when null/undefined
+  const adAverage = getNumber(data.adAverage, (adOpen + adClose) / 2)
 
   return {
     date: data.date || '',
