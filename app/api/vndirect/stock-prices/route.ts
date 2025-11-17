@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Development mock data fallback
+// Generates data in thousands format (nghìn VND) to match VNDirect API behavior
 function generateMockStockData(code: string, size: number) {
   const data = []
-  const basePrice = 80000 + Math.random() * 20000
+  // Base price in thousands (80-100 nghìn VND)
+  const basePrice = 80 + Math.random() * 20
   let currentDate = new Date()
   currentDate.setHours(0, 0, 0, 0)
 
@@ -12,16 +14,17 @@ function generateMockStockData(code: string, size: number) {
     // Skip weekends (Saturday = 6, Sunday = 0)
     const dayOfWeek = currentDate.getDay()
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      const dayChange = (Math.random() - 0.5) * 4000
+      const dayChange = (Math.random() - 0.5) * 4
       const open = basePrice + dayChange
-      const close = open + (Math.random() - 0.5) * 2000
-      const high = Math.max(open, close) + Math.random() * 1000
-      const low = Math.min(open, close) - Math.random() * 1000
+      const close = open + (Math.random() - 0.5) * 2
+      const high = Math.max(open, close) + Math.random() * 1
+      const low = Math.min(open, close) - Math.random() * 1
       const change = close - open
       const pctChange = (change / open) * 100
 
       data.unshift({
         date: currentDate.toISOString().split('T')[0],
+        // Prices in thousands format (will be multiplied by 1000 in normalize)
         open: Number(open.toFixed(2)),
         high: Number(high.toFixed(2)),
         low: Number(low.toFixed(2)),
@@ -86,8 +89,34 @@ function isValidOHLC(open: number, high: number, low: number, close: number): bo
 }
 
 /**
+ * Detect if stock prices are in thousands format (nghìn VND)
+ * VN stock prices typically range from 10,000 - 500,000 VND
+ * VNDirect API returns prices in thousands (e.g., 34.65 = 34,650 VND)
+ */
+function detectStockPriceFormat(data: any): 'thousands' | 'vnd' {
+  const prices = [data.open, data.high, data.low, data.close, data.basicPrice]
+    .filter(p => p !== null && p !== undefined && !isNaN(Number(p)))
+    .map(p => Number(p))
+
+  if (prices.length === 0) return 'thousands' // Default to thousands for VNDirect
+
+  // If ALL prices are < 1000, they're in thousands format (VNDirect standard)
+  // Vietnamese stocks rarely trade below 1,000 VND, typically 10,000-500,000 VND
+  const allUnder1000 = prices.every(p => p < 1000)
+  const anyOver10000 = prices.some(p => p >= 10000)
+
+  if (anyOver10000) return 'vnd' // Already in VND
+  if (allUnder1000) return 'thousands' // In thousands (need × 1000)
+
+  // Mixed case - use heuristic: if average > 5000, likely VND
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length
+  return avg > 5000 ? 'vnd' : 'thousands'
+}
+
+/**
  * Validate and normalize stock price data
  * Ensures all required fields are present and have correct types
+ * Converts prices from thousands to VND if needed
  */
 function normalizeStockPriceData(data: any) {
   // Parse numbers carefully - don't use || 0 which converts valid 0 values
@@ -96,38 +125,47 @@ function normalizeStockPriceData(data: any) {
     return isNaN(num) ? 0 : num
   }
 
+  // Detect price format (VNDirect returns in thousands)
+  const format = detectStockPriceFormat(data)
+  const multiplier = format === 'thousands' ? 1000 : 1
+
+  // Helper to parse and convert price
+  const parsePrice = (val: any): number => {
+    return parseNumber(val) * multiplier
+  }
+
   const normalized = {
     date: data.date || '',
-    open: parseNumber(data.open),
-    high: parseNumber(data.high),
-    low: parseNumber(data.low),
-    close: parseNumber(data.close),
+    open: parsePrice(data.open),
+    high: parsePrice(data.high),
+    low: parsePrice(data.low),
+    close: parsePrice(data.close),
     // Adjusted prices - use these for accurate historical comparison
     // If adOpen exists, use it, otherwise fall back to open
     adOpen: data.adOpen !== undefined && data.adOpen !== null
-      ? parseNumber(data.adOpen)
-      : parseNumber(data.open),
+      ? parsePrice(data.adOpen)
+      : parsePrice(data.open),
     adHigh: data.adHigh !== undefined && data.adHigh !== null
-      ? parseNumber(data.adHigh)
-      : parseNumber(data.high),
+      ? parsePrice(data.adHigh)
+      : parsePrice(data.high),
     adLow: data.adLow !== undefined && data.adLow !== null
-      ? parseNumber(data.adLow)
-      : parseNumber(data.low),
+      ? parsePrice(data.adLow)
+      : parsePrice(data.low),
     adClose: data.adClose !== undefined && data.adClose !== null
-      ? parseNumber(data.adClose)
-      : parseNumber(data.close),
+      ? parsePrice(data.adClose)
+      : parsePrice(data.close),
     adAverage: data.adAverage !== undefined && data.adAverage !== null
-      ? parseNumber(data.adAverage)
-      : parseNumber((parseNumber(data.adOpen || data.open) + parseNumber(data.adClose || data.close)) / 2),
+      ? parsePrice(data.adAverage)
+      : (parsePrice(data.adOpen || data.open) + parsePrice(data.adClose || data.close)) / 2,
     nmVolume: parseNumber(data.nmVolume),
     nmValue: parseNumber(data.nmValue),
     ptVolume: parseNumber(data.ptVolume),
     ptValue: parseNumber(data.ptValue),
-    change: parseNumber(data.change),
+    change: parsePrice(data.change),
     pctChange: parseNumber(data.pctChange),
     adChange: data.adChange !== undefined && data.adChange !== null
-      ? parseNumber(data.adChange)
-      : parseNumber(data.change),
+      ? parsePrice(data.adChange)
+      : parsePrice(data.change),
     code: String(data.code || '').toUpperCase(),
   }
 
@@ -252,15 +290,25 @@ export async function GET(request: NextRequest) {
     // Log sample data for debugging (first record is LATEST due to sort=date:desc)
     if (rawData.data && rawData.data.length > 0) {
       const latest = rawData.data[0]
+      const format = detectStockPriceFormat(latest)
       console.log(`📊 Raw API data for ${code}:`, {
         totalRecords: rawData.data.length,
         latestDate: latest?.date,
-        latestPrices: {
+        priceFormat: format,
+        multiplier: format === 'thousands' ? '×1000' : '×1',
+        latestPricesRaw: {
           open: latest?.open,
           high: latest?.high,
           low: latest?.low,
-          close: latest?.close,  // THIS is what user sees on API
-          adClose: latest?.adClose // Adjusted close (if different)
+          close: latest?.close,  // THIS is what API returns
+          adClose: latest?.adClose
+        },
+        latestPricesConverted: {
+          open: latest?.open * (format === 'thousands' ? 1000 : 1),
+          high: latest?.high * (format === 'thousands' ? 1000 : 1),
+          low: latest?.low * (format === 'thousands' ? 1000 : 1),
+          close: latest?.close * (format === 'thousands' ? 1000 : 1),  // THIS is what user will see
+          adClose: latest?.adClose * (format === 'thousands' ? 1000 : 1)
         },
         hasAdjustedPrices: latest?.adOpen !== undefined
       })
