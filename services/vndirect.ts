@@ -140,16 +140,32 @@ export async function fetchFinancialRatios(
 
 /**
  * Calculate Simple Moving Average
+ * @param data - Array of price data
+ * @param period - Period for SMA calculation
  */
 export function calculateSMA(data: number[], period: number): number[] {
+  // Validate inputs
+  if (!Array.isArray(data) || data.length === 0) {
+    return []
+  }
+  if (period <= 0 || period > data.length) {
+    return new Array(data.length).fill(NaN)
+  }
+
   const result: number[] = []
 
   for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
       result.push(NaN)
     } else {
-      const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0)
-      result.push(sum / period)
+      const subset = data.slice(i - period + 1, i + 1)
+      // Check for invalid values in subset
+      if (subset.some(v => v === null || v === undefined || isNaN(v))) {
+        result.push(NaN)
+      } else {
+        const sum = subset.reduce((a, b) => a + b, 0)
+        result.push(sum / period)
+      }
     }
   }
 
@@ -158,11 +174,23 @@ export function calculateSMA(data: number[], period: number): number[] {
 
 /**
  * Calculate Standard Deviation
+ * @param data - Array of price data
+ * @param period - Period for calculation
+ * @param index - Index to calculate at
  */
 export function calculateStdDev(data: number[], period: number, index: number): number {
+  // Validate inputs
+  if (!Array.isArray(data) || data.length === 0) return NaN
+  if (period <= 0 || index < 0 || index >= data.length) return NaN
   if (index < period - 1) return NaN
 
   const subset = data.slice(index - period + 1, index + 1)
+
+  // Check for invalid values
+  if (subset.some(v => v === null || v === undefined || isNaN(v))) {
+    return NaN
+  }
+
   const mean = subset.reduce((a, b) => a + b, 0) / period
   const squaredDiffs = subset.map(val => Math.pow(val - mean, 2))
   const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period
@@ -204,8 +232,37 @@ export function calculateBollingerBands(
  * @param high - Previous day high
  * @param low - Previous day low
  * @param close - Previous day close
+ * @returns Pivot points with resistance (R1-R3) and support (S1-S3) levels, or null if inputs are invalid
  */
-export function calculateWoodiePivotPoints(high: number, low: number, close: number) {
+export function calculateWoodiePivotPoints(
+  high: number,
+  low: number,
+  close: number
+): { pivot: number; R1: number; R2: number; R3: number; S1: number; S2: number; S3: number } | null {
+  // Validate inputs - return null instead of throwing for graceful degradation
+  if (
+    high <= 0 ||
+    low <= 0 ||
+    close <= 0 ||
+    isNaN(high) ||
+    isNaN(low) ||
+    isNaN(close)
+  ) {
+    console.warn('⚠️ Invalid pivot point inputs: prices must be positive and numeric')
+    return null
+  }
+
+  if (high < low) {
+    console.warn('⚠️ Invalid pivot point inputs: high must be >= low')
+    return null
+  }
+
+  if (close < low || close > high) {
+    console.warn('⚠️ Invalid pivot point inputs: close must be between low and high')
+    return null
+  }
+
+  // Woodie's formula: Pivot = (H + L + 2*C) / 4
   const pivot = (high + low + 2 * close) / 4
 
   const R1 = 2 * pivot - low

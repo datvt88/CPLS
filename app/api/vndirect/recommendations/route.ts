@@ -57,10 +57,55 @@ function generateMockRecommendations(code: string) {
 }
 
 /**
+ * Detect if prices are in thousands format
+ * VN stock prices typically range from 10,000 - 200,000 VND
+ * If all prices are < 1000, they're likely in thousands format
+ */
+function detectPriceFormat(rec: any): 'thousands' | 'vnd' {
+  const prices = [rec.reportPrice, rec.targetPrice, rec.avgTargetPrice]
+    .filter(p => p !== null && p !== undefined && !isNaN(Number(p)))
+    .map(p => Number(p))
+
+  if (prices.length === 0) return 'vnd'
+
+  // If ALL prices are < 1000, assume thousands format
+  // If ANY price is >= 1000, assume VND format
+  const allUnder1000 = prices.every(p => p < 1000)
+  const anyOver10000 = prices.some(p => p >= 10000)
+
+  if (anyOver10000) return 'vnd' // Clearly in VND
+  if (allUnder1000) return 'thousands' // Clearly in thousands
+
+  // Mixed case - use heuristic: if average > 5000, likely VND
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length
+  return avg > 5000 ? 'vnd' : 'thousands'
+}
+
+/**
+ * Normalize a single price value
+ */
+function normalizePrice(price: number | null | undefined, format: 'thousands' | 'vnd'): number | undefined {
+  if (price === null || price === undefined || isNaN(Number(price))) {
+    return undefined
+  }
+
+  const numPrice = Number(price)
+
+  // If price is 0 or negative, invalid
+  if (numPrice <= 0) return undefined
+
+  // Convert based on detected format
+  return format === 'thousands' ? numPrice * 1000 : numPrice
+}
+
+/**
  * Normalize recommendation data from VNDirect API
  * Ensures prices are in consistent format (VND)
  */
 function normalizeRecommendation(rec: any) {
+  // Detect format for this recommendation
+  const format = detectPriceFormat(rec)
+
   return {
     code: rec.code || '',
     firm: rec.firm || '',
@@ -68,16 +113,9 @@ function normalizeRecommendation(rec: any) {
     reportDate: rec.reportDate || '',
     source: rec.source || '',
     analyst: rec.analyst || '',
-    // Normalize prices: if < 1000, assume it's in thousands and convert to VND
-    reportPrice: rec.reportPrice
-      ? (rec.reportPrice < 1000 ? rec.reportPrice * 1000 : rec.reportPrice)
-      : undefined,
-    targetPrice: rec.targetPrice
-      ? (rec.targetPrice < 1000 ? rec.targetPrice * 1000 : rec.targetPrice)
-      : 0,
-    avgTargetPrice: rec.avgTargetPrice
-      ? (rec.avgTargetPrice < 1000 ? rec.avgTargetPrice * 1000 : rec.avgTargetPrice)
-      : 0,
+    reportPrice: normalizePrice(rec.reportPrice, format),
+    targetPrice: normalizePrice(rec.targetPrice, format) || 0,
+    avgTargetPrice: normalizePrice(rec.avgTargetPrice, format) || 0,
   }
 }
 
