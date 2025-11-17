@@ -58,19 +58,21 @@ function normalizeStockPriceData(data: any) {
     return fallback !== undefined ? Number(fallback) || 0 : 0
   }
 
-  // Parse all numeric fields
+  // Parse all numeric fields - use raw market prices as base
   const open = getNumber(data.open, 0)
   const high = getNumber(data.high, 0)
   const low = getNumber(data.low, 0)
   const close = getNumber(data.close, 0)
+
+  // Adjusted prices fallback to raw prices if not provided
   const adOpen = getNumber(data.adOpen, open)
   const adHigh = getNumber(data.adHigh, high)
   const adLow = getNumber(data.adLow, low)
   const adClose = getNumber(data.adClose, close)
 
-  // Use API's adAverage if provided, otherwise calculate from adOpen and adClose
-  // Note: 0 is a valid value (e.g., when no trades occurred), so only fallback when null/undefined
-  const adAverage = getNumber(data.adAverage, (adOpen + adClose) / 2)
+  // Use API's adAverage if provided, otherwise calculate from raw open/close
+  // Fallback to raw prices ensures we always have valid values even if adjusted data is missing
+  const adAverage = getNumber(data.adAverage, (open + close) / 2)
 
   return {
     date: data.date || '',
@@ -164,7 +166,10 @@ export async function GET(request: NextRequest) {
         date: firstPoint.date,
         open: firstPoint.open,
         close: firstPoint.close,
+        adOpen: firstPoint.adOpen,
+        adClose: firstPoint.adClose,
         adAverage: firstPoint.adAverage,
+        calculatedAverage: (firstPoint.open + firstPoint.close) / 2,
       })
     }
 
