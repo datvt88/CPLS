@@ -174,6 +174,14 @@ export async function fetchRecommendationsClient(
         return isNaN(num) ? undefined : num
       }
 
+      // VNDirect API returns prices in different formats:
+      // - reportPrice: actual VND (e.g., 28.65)
+      // - targetPrice: thousands of VND (e.g., 35300.0 = 35.3 VND)
+      // - avgTargetPrice: thousands of VND (e.g., 30022.96 = 30.02 VND)
+      const reportPrice = parsePrice(item.reportPrice)
+      const targetPrice = parsePrice(item.targetPrice)
+      const avgTargetPrice = parsePrice(item.avgTargetPrice)
+
       return {
         code: String(item.code || ''),
         firm: String(item.firm || ''),
@@ -181,9 +189,9 @@ export async function fetchRecommendationsClient(
         reportDate: item.reportDate || '',
         source: String(item.source || ''),
         analyst: String(item.analyst || ''),
-        reportPrice: parsePrice(item.reportPrice),
-        targetPrice: parsePrice(item.targetPrice),
-        avgTargetPrice: parsePrice(item.avgTargetPrice),
+        reportPrice: reportPrice,
+        targetPrice: targetPrice !== undefined ? targetPrice / 1000 : undefined,
+        avgTargetPrice: avgTargetPrice !== undefined ? avgTargetPrice / 1000 : undefined,
       }
     })
   }
