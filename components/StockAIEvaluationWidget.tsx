@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
-import type { FinancialRatio } from '@/types/vndirect'
+import { fetchRecommendationsClient } from '@/services/vndirect-client'
+import type { FinancialRatio, StockRecommendation } from '@/types/vndirect'
 
 interface StockAIEvaluationWidgetProps {
   symbol: string
@@ -58,10 +59,11 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       try {
         console.log('🤖 Performing AI analysis for:', symbol)
 
-        // Fetch both technical and fundamental data
-        const [pricesResponse, ratiosResponse] = await Promise.all([
+        // Fetch technical, fundamental, and recommendations data
+        const [pricesResponse, ratiosResponse, recommendationsResponse] = await Promise.all([
           fetchStockPrices(symbol, 150),
-          fetchFinancialRatios(symbol)
+          fetchFinancialRatios(symbol),
+          fetchRecommendationsClient(symbol).catch(() => ({ data: [] })) // Graceful fallback if no recommendations
         ])
 
         if (!pricesResponse.data || pricesResponse.data.length === 0) {
@@ -81,7 +83,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         })
 
         // Perform analysis
-        const aiAnalysis = analyzeStock(sortedData, ratiosMap)
+        const aiAnalysis = analyzeStock(sortedData, ratiosMap, recommendationsResponse.data)
         console.log('✅ AI analysis completed for:', symbol)
         setAnalysis(aiAnalysis)
       } catch (err) {
@@ -95,17 +97,17 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     performAnalysis()
   }, [symbol])
 
-  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>): AIAnalysis => {
-    // Technical Analysis for Short-term
-    const shortTerm = analyzeShortTerm(priceData)
+  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>, recommendations: StockRecommendation[]): AIAnalysis => {
+    // Short-term: 70% Technical + 30% Fundamental
+    const shortTerm = analyzeShortTerm(priceData, ratios)
 
-    // Fundamental Analysis for Long-term
-    const longTerm = analyzeLongTerm(priceData, ratios)
+    // Long-term: 70% Fundamental + 20% Technical + 10% Analyst Recommendations
+    const longTerm = analyzeLongTerm(priceData, ratios, recommendations)
 
     return { shortTerm, longTerm }
   }
 
-  const analyzeShortTerm = (priceData: any[]): Evaluation => {
+  const analyzeShortTerm = (priceData: any[], ratios: Record<string, FinancialRatio>): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
@@ -123,7 +125,9 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     const currentPrice = closePrices[closePrices.length - 1]
     const volumes = priceData.map(d => d.nmVolume)
 
-    // 1. Moving Averages Analysis (Weight: 30%)
+    // ============ TECHNICAL ANALYSIS: 70% ============
+
+    // 1. Moving Averages Analysis (Weight: 20%)
     const ma10 = calculateSMA(closePrices, 10)
     const ma30 = calculateSMA(closePrices, 30)
     const currentMA10 = ma10[ma10.length - 1]
@@ -134,25 +138,25 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
       if (currentMA10 > currentMA30) {
         if (maDiff > 2) {
-          bullishScore += 30
+          bullishScore += 20
           reasons.push(`✅ MA10 > MA30 (${maDiff.toFixed(2)}%) - Xu hướng tăng mạnh`)
         } else {
-          bullishScore += 20
+          bullishScore += 13
           reasons.push(`✅ MA10 > MA30 (${maDiff.toFixed(2)}%) - Xu hướng tăng nhẹ`)
         }
       } else {
         if (maDiff < -2) {
-          bearishScore += 30
+          bearishScore += 20
           reasons.push(`❌ MA10 < MA30 (${maDiff.toFixed(2)}%) - Xu hướng giảm mạnh`)
         } else {
-          bearishScore += 20
+          bearishScore += 13
           reasons.push(`❌ MA10 < MA30 (${maDiff.toFixed(2)}%) - Xu hướng giảm nhẹ`)
         }
       }
-      totalWeight += 30
+      totalWeight += 20
     }
 
-    // 2. Bollinger Bands Analysis (Weight: 25%)
+    // 2. Bollinger Bands Analysis (Weight: 18%)
     const bb = calculateBollingerBands(closePrices, 20, 2)
     const currentBBUpper = bb.upper[bb.upper.length - 1]
     const currentBBLower = bb.lower[bb.lower.length - 1]
@@ -161,69 +165,135 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       const bandPosition = (currentPrice - currentBBLower) / (currentBBUpper - currentBBLower)
 
       if (bandPosition <= 0.2) {
-        bullishScore += 25
+        bullishScore += 18
         reasons.push(`✅ Giá gần sát Lower Band (${(bandPosition * 100).toFixed(1)}%) - Vùng mua`)
       } else if (bandPosition >= 0.8) {
-        bearishScore += 25
+        bearishScore += 18
         reasons.push(`❌ Giá gần sát Upper Band (${(bandPosition * 100).toFixed(1)}%) - Vùng bán`)
       } else if (bandPosition < 0.4) {
-        bullishScore += 15
+        bullishScore += 10
         reasons.push(`✅ Giá ở vùng hỗ trợ (${(bandPosition * 100).toFixed(1)}%)`)
       } else if (bandPosition > 0.6) {
-        bearishScore += 15
+        bearishScore += 10
         reasons.push(`❌ Giá ở vùng kháng cự (${(bandPosition * 100).toFixed(1)}%)`)
       }
-      totalWeight += 25
+      totalWeight += 18
     }
 
-    // 3. Price Momentum (Weight: 20%)
+    // 3. Price Momentum (Weight: 15%)
     const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
     const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
 
     if (priceChange5D > 3 && priceChange10D > 5) {
-      bullishScore += 20
+      bullishScore += 15
       reasons.push(`✅ Tăng mạnh 5 ngày (+${priceChange5D.toFixed(2)}%) và 10 ngày (+${priceChange10D.toFixed(2)}%)`)
     } else if (priceChange5D < -3 && priceChange10D < -5) {
-      bearishScore += 20
+      bearishScore += 15
       reasons.push(`❌ Giảm mạnh 5 ngày (${priceChange5D.toFixed(2)}%) và 10 ngày (${priceChange10D.toFixed(2)}%)`)
     } else if (priceChange5D > 0) {
-      bullishScore += 10
+      bullishScore += 8
       reasons.push(`✅ Tăng nhẹ 5 ngày (+${priceChange5D.toFixed(2)}%)`)
     } else if (priceChange5D < 0) {
-      bearishScore += 10
+      bearishScore += 8
       reasons.push(`❌ Giảm nhẹ 5 ngày (${priceChange5D.toFixed(2)}%)`)
     }
-    totalWeight += 20
+    totalWeight += 15
 
-    // 4. Volume Analysis (Weight: 15%)
+    // 4. Volume Analysis (Weight: 12%)
     const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
     const currentVolume = volumes[volumes.length - 1]
     const volumeRatio = currentVolume / avgVolume10
 
     if (volumeRatio > 1.5 && priceChange5D > 0) {
-      bullishScore += 15
+      bullishScore += 12
       reasons.push(`✅ Khối lượng tăng mạnh (${(volumeRatio * 100).toFixed(0)}% TB) với giá tăng`)
     } else if (volumeRatio > 1.5 && priceChange5D < 0) {
-      bearishScore += 15
+      bearishScore += 12
       reasons.push(`❌ Khối lượng tăng mạnh (${(volumeRatio * 100).toFixed(0)}% TB) với giá giảm`)
     } else if (volumeRatio < 0.7) {
       reasons.push(`⚠️ Khối lượng thấp (${(volumeRatio * 100).toFixed(0)}% TB)`)
     }
-    totalWeight += 15
+    totalWeight += 12
 
-    // 5. 52-Week High/Low (Weight: 10%)
+    // 5. 52-Week High/Low (Weight: 5%)
     const high52W = Math.max(...closePrices)
     const low52W = Math.min(...closePrices)
     const pricePosition = (currentPrice - low52W) / (high52W - low52W)
 
     if (pricePosition < 0.3) {
-      bullishScore += 10
+      bullishScore += 5
       reasons.push(`✅ Giá gần đáy 52 tuần (${(pricePosition * 100).toFixed(0)}%)`)
     } else if (pricePosition > 0.7) {
-      bearishScore += 10
+      bearishScore += 5
       reasons.push(`❌ Giá gần đỉnh 52 tuần (${(pricePosition * 100).toFixed(0)}%)`)
     }
-    totalWeight += 10
+    totalWeight += 5
+
+    // ============ FUNDAMENTAL ANALYSIS: 30% ============
+
+    // 6. P/E Ratio Analysis (Weight: 12%)
+    const pe = ratios['PRICE_TO_EARNINGS']?.value
+    if (pe !== undefined && pe !== null) {
+      if (pe > 0 && pe < 10) {
+        bullishScore += 12
+        reasons.push(`✅ P/E thấp (${pe.toFixed(2)}) - Định giá hấp dẫn`)
+      } else if (pe >= 10 && pe <= 20) {
+        bullishScore += 7
+        reasons.push(`✅ P/E hợp lý (${pe.toFixed(2)})`)
+      } else if (pe > 20 && pe <= 30) {
+        bearishScore += 5
+        reasons.push(`⚠️ P/E cao (${pe.toFixed(2)}) - Cần thận trọng`)
+      } else if (pe > 30) {
+        bearishScore += 12
+        reasons.push(`❌ P/E rất cao (${pe.toFixed(2)}) - Định giá cao`)
+      } else if (pe < 0) {
+        bearishScore += 10
+        reasons.push(`❌ P/E âm (${pe.toFixed(2)}) - Công ty lỗ`)
+      }
+      totalWeight += 12
+    }
+
+    // 7. ROE Analysis (Weight: 10%)
+    const roe = ratios['ROAE_TR_AVG5Q']?.value
+    if (roe !== undefined && roe !== null) {
+      const roePercent = roe * 100
+      if (roePercent > 20) {
+        bullishScore += 10
+        reasons.push(`✅ ROE cao (${roePercent.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
+      } else if (roePercent >= 15 && roePercent <= 20) {
+        bullishScore += 6
+        reasons.push(`✅ ROE tốt (${roePercent.toFixed(2)}%)`)
+      } else if (roePercent >= 10 && roePercent < 15) {
+        bullishScore += 3
+        reasons.push(`⚠️ ROE trung bình (${roePercent.toFixed(2)}%)`)
+      } else if (roePercent < 10 && roePercent > 0) {
+        bearishScore += 5
+        reasons.push(`❌ ROE thấp (${roePercent.toFixed(2)}%)`)
+      } else {
+        bearishScore += 10
+        reasons.push(`❌ ROE âm (${roePercent.toFixed(2)}%) - Công ty lỗ`)
+      }
+      totalWeight += 10
+    }
+
+    // 8. P/B Ratio Analysis (Weight: 8%)
+    const pb = ratios['PRICE_TO_BOOK']?.value
+    if (pb !== undefined && pb !== null) {
+      if (pb < 1) {
+        bullishScore += 8
+        reasons.push(`✅ P/B < 1 (${pb.toFixed(2)}) - Giá thấp hơn giá trị sổ sách`)
+      } else if (pb >= 1 && pb <= 2) {
+        bullishScore += 4
+        reasons.push(`✅ P/B hợp lý (${pb.toFixed(2)})`)
+      } else if (pb > 2 && pb <= 3) {
+        bearishScore += 3
+        reasons.push(`⚠️ P/B cao (${pb.toFixed(2)})`)
+      } else if (pb > 3) {
+        bearishScore += 8
+        reasons.push(`❌ P/B rất cao (${pb.toFixed(2)}) - Định giá cao so với tài sản`)
+      }
+      totalWeight += 8
+    }
 
     // Calculate final signal and confidence
     const netScore = bullishScore - bearishScore
@@ -261,126 +331,247 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>): Evaluation => {
+  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>, recommendations: StockRecommendation[]): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
     let totalWeight = 0
 
-    // 1. P/E Ratio Analysis (Weight: 25%)
+    // ============ FUNDAMENTAL ANALYSIS: 70% ============
+
+    // 1. P/E Ratio Analysis (Weight: 20%)
     const pe = ratios['PRICE_TO_EARNINGS']?.value
     if (pe !== undefined && pe !== null) {
       if (pe > 0 && pe < 10) {
-        bullishScore += 25
+        bullishScore += 20
         reasons.push(`✅ P/E thấp (${pe.toFixed(2)}) - Định giá hấp dẫn`)
       } else if (pe >= 10 && pe <= 20) {
-        bullishScore += 15
+        bullishScore += 12
         reasons.push(`✅ P/E hợp lý (${pe.toFixed(2)})`)
       } else if (pe > 20 && pe <= 30) {
-        bearishScore += 10
+        bearishScore += 8
         reasons.push(`⚠️ P/E cao (${pe.toFixed(2)}) - Cần thận trọng`)
       } else if (pe > 30) {
-        bearishScore += 25
+        bearishScore += 20
         reasons.push(`❌ P/E rất cao (${pe.toFixed(2)}) - Định giá cao`)
       } else if (pe < 0) {
-        bearishScore += 20
+        bearishScore += 16
         reasons.push(`❌ P/E âm (${pe.toFixed(2)}) - Công ty lỗ`)
       }
-      totalWeight += 25
+      totalWeight += 20
     }
 
-    // 2. P/B Ratio Analysis (Weight: 20%)
+    // 2. ROE Analysis (Weight: 18%)
+    const roe = ratios['ROAE_TR_AVG5Q']?.value
+    if (roe !== undefined && roe !== null) {
+      const roePercent = roe * 100
+      if (roePercent > 20) {
+        bullishScore += 18
+        reasons.push(`✅ ROE cao (${roePercent.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
+      } else if (roePercent >= 15 && roePercent <= 20) {
+        bullishScore += 12
+        reasons.push(`✅ ROE tốt (${roePercent.toFixed(2)}%)`)
+      } else if (roePercent >= 10 && roePercent < 15) {
+        bullishScore += 6
+        reasons.push(`⚠️ ROE trung bình (${roePercent.toFixed(2)}%)`)
+      } else if (roePercent < 10 && roePercent > 0) {
+        bearishScore += 9
+        reasons.push(`❌ ROE thấp (${roePercent.toFixed(2)}%)`)
+      } else {
+        bearishScore += 18
+        reasons.push(`❌ ROE âm (${roePercent.toFixed(2)}%) - Công ty lỗ`)
+      }
+      totalWeight += 18
+    }
+
+    // 3. P/B Ratio Analysis (Weight: 15%)
     const pb = ratios['PRICE_TO_BOOK']?.value
     if (pb !== undefined && pb !== null) {
       if (pb < 1) {
-        bullishScore += 20
+        bullishScore += 15
         reasons.push(`✅ P/B < 1 (${pb.toFixed(2)}) - Giá thấp hơn giá trị sổ sách`)
       } else if (pb >= 1 && pb <= 2) {
-        bullishScore += 10
+        bullishScore += 8
         reasons.push(`✅ P/B hợp lý (${pb.toFixed(2)})`)
       } else if (pb > 2 && pb <= 3) {
         bearishScore += 5
         reasons.push(`⚠️ P/B cao (${pb.toFixed(2)})`)
       } else if (pb > 3) {
-        bearishScore += 20
+        bearishScore += 15
         reasons.push(`❌ P/B rất cao (${pb.toFixed(2)}) - Định giá cao so với tài sản`)
       }
-      totalWeight += 20
+      totalWeight += 15
     }
 
-    // 3. ROE Analysis (Weight: 25%)
-    const roe = ratios['ROAE_TR_AVG5Q']?.value
-    if (roe !== undefined && roe !== null) {
-      const roePercent = roe * 100
-      if (roePercent > 20) {
-        bullishScore += 25
-        reasons.push(`✅ ROE cao (${roePercent.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
-      } else if (roePercent >= 15 && roePercent <= 20) {
-        bullishScore += 15
-        reasons.push(`✅ ROE tốt (${roePercent.toFixed(2)}%)`)
-      } else if (roePercent >= 10 && roePercent < 15) {
-        bullishScore += 5
-        reasons.push(`⚠️ ROE trung bình (${roePercent.toFixed(2)}%)`)
-      } else if (roePercent < 10 && roePercent > 0) {
-        bearishScore += 10
-        reasons.push(`❌ ROE thấp (${roePercent.toFixed(2)}%)`)
-      } else {
-        bearishScore += 25
-        reasons.push(`❌ ROE âm (${roePercent.toFixed(2)}%) - Công ty lỗ`)
-      }
-      totalWeight += 25
-    }
-
-    // 4. Dividend Yield (Weight: 15%)
+    // 4. Dividend Yield (Weight: 10%)
     const dividendYield = ratios['DIVIDEND_YIELD']?.value
     if (dividendYield !== undefined && dividendYield !== null) {
       const divPercent = dividendYield * 100
       if (divPercent > 5) {
-        bullishScore += 15
+        bullishScore += 10
         reasons.push(`✅ Cổ tức cao (${divPercent.toFixed(2)}%) - Thu nhập ổn định`)
       } else if (divPercent >= 3 && divPercent <= 5) {
-        bullishScore += 10
+        bullishScore += 6
         reasons.push(`✅ Cổ tức tốt (${divPercent.toFixed(2)}%)`)
       } else if (divPercent > 0 && divPercent < 3) {
         reasons.push(`⚠️ Cổ tức thấp (${divPercent.toFixed(2)}%)`)
       } else {
         reasons.push(`⚠️ Không trả cổ tức`)
       }
-      totalWeight += 15
+      totalWeight += 10
     }
 
-    // 5. Market Cap & Liquidity (Weight: 15%)
+    // 5. Market Cap & Liquidity (Weight: 7%)
     const marketCap = ratios['MARKETCAP']?.value
     const freeFloat = ratios['FREEFLOAT']?.value
 
     if (marketCap !== undefined && marketCap !== null) {
       if (marketCap > 10000000000000) { // > 10 nghìn tỷ
-        bullishScore += 10
+        bullishScore += 5
         reasons.push(`✅ Vốn hóa lớn (${(marketCap / 1000000000000).toFixed(2)} nghìn tỷ) - Cổ phiếu Blue-chip`)
       } else if (marketCap > 1000000000000) { // > 1 nghìn tỷ
-        bullishScore += 5
+        bullishScore += 2
         reasons.push(`✅ Vốn hóa vừa (${(marketCap / 1000000000000).toFixed(2)} nghìn tỷ)`)
       } else {
         reasons.push(`⚠️ Vốn hóa nhỏ (${(marketCap / 1000000000000).toFixed(2)} nghìn tỷ) - Rủi ro cao hơn`)
       }
-      totalWeight += 10
+      totalWeight += 4
     }
 
     if (freeFloat !== undefined && freeFloat !== null) {
       const ffPercent = freeFloat * 100
       if (ffPercent > 30) {
-        bullishScore += 5
+        bullishScore += 3
         reasons.push(`✅ Free float cao (${ffPercent.toFixed(2)}%) - Thanh khoản tốt`)
       } else if (ffPercent < 15) {
-        bearishScore += 5
+        bearishScore += 3
         reasons.push(`⚠️ Free float thấp (${ffPercent.toFixed(2)}%) - Thanh khoản hạn chế`)
       }
-      totalWeight += 5
+      totalWeight += 3
     }
 
-    // If not enough fundamental data, add warning
+    // ============ TECHNICAL ANALYSIS: 20% ============
+
+    const closePrices = priceData.map(d => d.adClose)
+    const currentPrice = closePrices[closePrices.length - 1]
+
+    // 6. Long-term Trend (MA50 vs MA100) (Weight: 8%)
+    if (priceData.length >= 100) {
+      const ma50 = calculateSMA(closePrices, 50)
+      const ma100 = calculateSMA(closePrices, 100)
+      const currentMA50 = ma50[ma50.length - 1]
+      const currentMA100 = ma100[ma100.length - 1]
+
+      if (!isNaN(currentMA50) && !isNaN(currentMA100)) {
+        const maDiff = ((currentMA50 - currentMA100) / currentMA100) * 100
+
+        if (currentMA50 > currentMA100) {
+          if (maDiff > 3) {
+            bullishScore += 8
+            reasons.push(`✅ MA50 > MA100 (${maDiff.toFixed(2)}%) - Xu hướng dài hạn tăng mạnh`)
+          } else {
+            bullishScore += 5
+            reasons.push(`✅ MA50 > MA100 (${maDiff.toFixed(2)}%) - Xu hướng dài hạn tăng`)
+          }
+        } else {
+          if (maDiff < -3) {
+            bearishScore += 8
+            reasons.push(`❌ MA50 < MA100 (${maDiff.toFixed(2)}%) - Xu hướng dài hạn giảm mạnh`)
+          } else {
+            bearishScore += 5
+            reasons.push(`❌ MA50 < MA100 (${maDiff.toFixed(2)}%) - Xu hướng dài hạn giảm`)
+          }
+        }
+        totalWeight += 8
+      }
+    }
+
+    // 7. Long-term Momentum (30 days) (Weight: 7%)
+    if (priceData.length >= 30) {
+      const priceChange30D = ((currentPrice - closePrices[closePrices.length - 31]) / closePrices[closePrices.length - 31]) * 100
+
+      if (priceChange30D > 10) {
+        bullishScore += 7
+        reasons.push(`✅ Tăng mạnh 30 ngày (+${priceChange30D.toFixed(2)}%)`)
+      } else if (priceChange30D > 5) {
+        bullishScore += 4
+        reasons.push(`✅ Tăng 30 ngày (+${priceChange30D.toFixed(2)}%)`)
+      } else if (priceChange30D < -10) {
+        bearishScore += 7
+        reasons.push(`❌ Giảm mạnh 30 ngày (${priceChange30D.toFixed(2)}%)`)
+      } else if (priceChange30D < -5) {
+        bearishScore += 4
+        reasons.push(`❌ Giảm 30 ngày (${priceChange30D.toFixed(2)}%)`)
+      }
+      totalWeight += 7
+    }
+
+    // 8. 52-Week Position (Weight: 5%)
+    const high52W = Math.max(...closePrices)
+    const low52W = Math.min(...closePrices)
+    const pricePosition = (currentPrice - low52W) / (high52W - low52W)
+
+    if (pricePosition < 0.3) {
+      bullishScore += 5
+      reasons.push(`✅ Giá gần đáy 52 tuần (${(pricePosition * 100).toFixed(0)}%) - Tiềm năng tăng`)
+    } else if (pricePosition > 0.7) {
+      bearishScore += 5
+      reasons.push(`❌ Giá gần đỉnh 52 tuần (${(pricePosition * 100).toFixed(0)}%) - Tiềm năng hạn chế`)
+    }
+    totalWeight += 5
+
+    // ============ ANALYST RECOMMENDATIONS: 10% ============
+
+    if (recommendations && recommendations.length > 0) {
+      const buyCount = recommendations.filter(r => r.type === 'BUY').length
+      const holdCount = recommendations.filter(r => r.type === 'HOLD').length
+      const sellCount = recommendations.filter(r => r.type === 'SELL').length
+      const total = recommendations.length
+
+      const buyPercent = (buyCount / total) * 100
+      const sellPercent = (sellCount / total) * 100
+
+      // Average target price vs current price
+      const avgTargetPrice = recommendations.length > 0 ? recommendations[0].avgTargetPrice : undefined
+
+      if (avgTargetPrice && currentPrice) {
+        const upside = ((avgTargetPrice - currentPrice) / currentPrice) * 100
+
+        if (buyPercent >= 60) {
+          bullishScore += 10
+          reasons.push(`✅ ${buyCount}/${total} CTCK khuyến nghị MUA (${buyPercent.toFixed(0)}%) - Giá MT TB: ${avgTargetPrice.toFixed(0)} (+${upside.toFixed(1)}%)`)
+        } else if (buyPercent >= 40) {
+          bullishScore += 6
+          reasons.push(`✅ ${buyCount}/${total} CTCK khuyến nghị MUA (${buyPercent.toFixed(0)}%) - Giá MT TB: ${avgTargetPrice.toFixed(0)} (+${upside.toFixed(1)}%)`)
+        } else if (sellPercent >= 40) {
+          bearishScore += 8
+          reasons.push(`❌ ${sellCount}/${total} CTCK khuyến nghị BÁN (${sellPercent.toFixed(0)}%)`)
+        } else {
+          reasons.push(`⚠️ ${total} CTCK: ${buyCount} MUA, ${holdCount} GIỮ, ${sellCount} BÁN - Giá MT TB: ${avgTargetPrice.toFixed(0)}`)
+        }
+      } else {
+        if (buyPercent >= 60) {
+          bullishScore += 10
+          reasons.push(`✅ ${buyCount}/${total} CTCK khuyến nghị MUA (${buyPercent.toFixed(0)}%)`)
+        } else if (buyPercent >= 40) {
+          bullishScore += 6
+          reasons.push(`✅ ${buyCount}/${total} CTCK khuyến nghị MUA (${buyPercent.toFixed(0)}%)`)
+        } else if (sellPercent >= 40) {
+          bearishScore += 8
+          reasons.push(`❌ ${sellCount}/${total} CTCK khuyến nghị BÁN (${sellPercent.toFixed(0)}%)`)
+        } else {
+          reasons.push(`⚠️ ${total} CTCK: ${buyCount} MUA, ${holdCount} GIỮ, ${sellCount} BÁN`)
+        }
+      }
+
+      totalWeight += 10
+    } else {
+      reasons.push(`⚠️ Chưa có đánh giá từ các CTCK`)
+    }
+
+    // If not enough data, add warning
     if (totalWeight < 50) {
-      reasons.push(`⚠️ Thiếu dữ liệu cơ bản để đánh giá đầy đủ`)
+      reasons.push(`⚠️ Thiếu dữ liệu để đánh giá đầy đủ`)
     }
 
     // Calculate final signal and confidence
