@@ -17,12 +17,13 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
   useEffect(() => {
     if (!symbol) return
 
-    // Reset state when symbol changes
+    // Reset all states when symbol changes
     setRatios({})
+    setError(null)
+    setLoading(false)
 
     const loadRatios = async () => {
       setLoading(true)
-      setError(null)
 
       try {
         console.log('📊 Loading financial ratios for:', symbol)
