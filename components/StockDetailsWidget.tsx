@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react'
 import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
 import type { CandlestickData, LineData } from 'lightweight-charts'
-import { fetchStockPrices, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { fetchStockPricesClient } from '@/services/vndirect-client'
 import type { StockPriceData, WoodiePivotPoints } from '@/types/vndirect'
 import { formatVolume, formatCurrency, formatPrice, formatChange } from '@/utils/formatters'
 
@@ -314,9 +315,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         dataCache.delete(stockSymbol)
       }
 
-      // Fetch fresh data - reduced from 270 to 150 days for better performance
+      // Fetch fresh data directly from VNDirect (client-side to avoid 403)
       console.log('📈 Loading stock prices for:', stockSymbol, forceRefresh ? '(force refresh)' : '')
-      const response = await fetchStockPrices(stockSymbol, 150, forceRefresh, abortController.signal)
+      const response = await fetchStockPricesClient(stockSymbol, 150, abortController.signal)
 
       if (!response.data || response.data.length === 0) {
         throw new Error('Không tìm thấy dữ liệu cho mã này')
@@ -324,8 +325,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
       console.log('✅ Stock prices loaded:', response.data.length, 'records')
 
-      // API route already filters dates and validates OHLC data
-      // Trust the API's validation and just sort by date ascending (oldest first)
+      // Sort by date ascending (oldest first) for chart display
       const sortedData = [...response.data].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
