@@ -249,17 +249,28 @@ export async function GET(request: NextRequest) {
       throw new Error('Invalid API response structure')
     }
 
-    // Log sample data for debugging
+    // Log sample data for debugging (first record is LATEST due to sort=date:desc)
     if (rawData.data && rawData.data.length > 0) {
-      console.log(`📊 Sample raw data for ${code}:`, {
+      const latest = rawData.data[0]
+      console.log(`📊 Raw API data for ${code}:`, {
         totalRecords: rawData.data.length,
-        firstRecord: rawData.data[0],
-        hasAdjustedPrices: rawData.data[0]?.adOpen !== undefined
+        latestDate: latest?.date,
+        latestPrices: {
+          open: latest?.open,
+          high: latest?.high,
+          low: latest?.low,
+          close: latest?.close,  // THIS is what user sees on API
+          adClose: latest?.adClose // Adjusted close (if different)
+        },
+        hasAdjustedPrices: latest?.adOpen !== undefined
       })
     }
 
     // Normalize and validate the data
     const filteredByDate = (rawData.data || []).filter((item: any) => isValidTradingDate(item.date))
+
+    console.log(`✓ After date filter: ${filteredByDate.length} records (latest: ${filteredByDate[0]?.date})`)
+
     const normalized = filteredByDate.map(normalizeStockPriceData)
     const validData = normalized.filter((item: any) => item !== null)
 
@@ -267,6 +278,23 @@ export async function GET(request: NextRequest) {
     if (filteredByDate.length !== validData.length) {
       const rejected = filteredByDate.length - validData.length
       console.warn(`⚠️ Rejected ${rejected}/${filteredByDate.length} records for ${code} due to OHLC validation`)
+
+      // Check if LATEST record was rejected (this would cause wrong price display!)
+      const latestNormalized = normalized[0]
+      if (latestNormalized === null) {
+        console.error(`🚨 CRITICAL: Latest record (${filteredByDate[0]?.date}) was REJECTED!`)
+        console.error('Latest raw:', filteredByDate[0])
+        console.error('This causes displaying OLD price instead of current price!')
+      }
+    }
+
+    // Log what will actually be displayed to user (after sorting)
+    if (validData.length > 0) {
+      // Data is currently in DESC order (newest first), will be sorted ASC later
+      const newestValid = validData[0]
+      const oldestValid = validData[validData.length - 1]
+      console.log(`✓ Valid data range: ${oldestValid?.date} to ${newestValid?.date}`)
+      console.log(`✓ Latest valid price (will be displayed): close=${newestValid?.close}, adClose=${newestValid?.adClose}`)
     }
 
     const normalizedData = {
