@@ -132,7 +132,13 @@ export async function fetchRecommendationsClient(
   stockCode: string,
   signal?: AbortSignal
 ): Promise<StockRecommendationsResponse> {
-  const url = `https://api-finfo.vndirect.com.vn/v4/stock_evaluation_history?q=code:${stockCode.toUpperCase()}&sort=reportDate:desc&size=20`
+  // Calculate date 12 months ago for filtering
+  const date12MonthsAgo = new Date()
+  date12MonthsAgo.setMonth(date12MonthsAgo.getMonth() - 12)
+  const dateFilter = date12MonthsAgo.toISOString().split('T')[0] // Format: YYYY-MM-DD
+
+  // Use the correct recommendations endpoint with date filter
+  const url = `https://api-finfo.vndirect.com.vn/v4/recommendations?q=code:${stockCode.toUpperCase()}~reportDate:gte:${dateFilter}&size=100&sort=reportDate:DESC`
 
   console.log('🌐 Fetching recommendations directly from VNDirect (client-side):', stockCode)
 
@@ -173,6 +179,8 @@ export async function fetchRecommendationsClient(
         firm: String(item.firm || ''),
         type: String(item.type || ''),
         reportDate: item.reportDate || '',
+        source: String(item.source || ''),
+        analyst: String(item.analyst || ''),
         reportPrice: parsePrice(item.reportPrice),
         targetPrice: parsePrice(item.targetPrice),
         avgTargetPrice: parsePrice(item.avgTargetPrice),
