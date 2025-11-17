@@ -17,22 +17,13 @@ const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>
 const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes (reduced for fresher trading data)
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
+// Returns end-of-day for consistent date comparisons
 function getVietnamDate(): Date {
   const now = new Date()
   // Convert to Vietnam timezone (UTC+7)
   const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
-  vietnamTime.setHours(0, 0, 0, 0)
+  vietnamTime.setHours(23, 59, 59, 999)
   return vietnamTime
-}
-
-// Helper function to parse date string and ensure it's not from the future
-function isValidTradingDate(dateStr: string): boolean {
-  const dataDate = new Date(dateStr)
-  dataDate.setHours(0, 0, 0, 0)
-  const today = getVietnamDate()
-
-  // Data should not be from the future
-  return dataDate <= today
 }
 
 const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: StockDetailsWidgetProps) => {
@@ -326,16 +317,15 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
       console.log('✅ Stock prices loaded:', response.data.length, 'records')
 
-      // Filter out any future dates and sort by date ascending
-      const validData = response.data.filter(item => isValidTradingDate(item.date))
-
-      if (validData.length === 0) {
-        throw new Error('Không có dữ liệu hợp lệ cho mã này')
-      }
-
-      const sortedData = [...validData].sort(
+      // API route already filters dates and validates OHLC data
+      // Trust the API's validation and just sort by date ascending (oldest first)
+      const sortedData = [...response.data].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       )
+
+      if (sortedData.length === 0) {
+        throw new Error('Không có dữ liệu hợp lệ cho mã này')
+      }
 
       // Cache the data with current timestamp
       const now = Date.now()
