@@ -315,7 +315,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     if (priceData.length >= 2) {
       const prevDay = priceData[priceData.length - 2]
       const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
-      buyPrice = pivots.S2 // Buy T+ is S2 support level
+      buyPrice = Number(pivots.S2.toFixed(2)) // Buy T+ is S2 support level, rounded to 2 decimals
     }
 
     // Calculate cut loss price (3.5% below current price)
