@@ -123,7 +123,10 @@ export async function fetchFinancialRatiosClient(
 
       // VNDirect API returns price values in thousands (similar to targetPrice in recommendations)
       // Example: 35300 means 35.3 VND, so divide by 1000
-      if (ratioCode === 'PRICE_HIGHEST_CR_52W' || ratioCode === 'PRICE_LOWEST_CR_52W') {
+      if (ratioCode === 'PRICE_HIGHEST_CR_52W' ||
+          ratioCode === 'PRICE_LOWEST_CR_52W' ||
+          ratioCode === 'BVPS_CR' ||
+          ratioCode === 'EPS_TR') {
         value = value / 1000
       }
 
