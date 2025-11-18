@@ -22,6 +22,25 @@ interface Evaluation {
 interface AIAnalysis {
   shortTerm: Evaluation
   longTerm: Evaluation
+  gemini?: GeminiAnalysis
+}
+
+interface GeminiAnalysis {
+  shortTerm?: {
+    signal: string
+    confidence: number
+    summary: string
+  }
+  longTerm?: {
+    signal: string
+    confidence: number
+    summary: string
+  }
+  targetPrice?: string
+  stopLoss?: string
+  risks?: string[]
+  opportunities?: string[]
+  rawText?: string
 }
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
@@ -105,6 +124,17 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         // Perform analysis
         const aiAnalysis = analyzeStock(sortedData, ratiosMap)
         console.log('✅ AI analysis completed for:', symbol)
+
+        // Call Gemini API for enhanced analysis (don't wait, run in background)
+        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, aiAnalysis).then(geminiResult => {
+          if (geminiResult) {
+            console.log('✅ Gemini analysis completed for:', symbol)
+            setAnalysis(prev => prev ? { ...prev, gemini: geminiResult } : prev)
+          }
+        }).catch(err => {
+          console.warn('⚠️ Gemini analysis failed, continuing without it:', err)
+        })
+
         setAnalysis(aiAnalysis)
       } catch (err) {
         console.error('❌ Error performing AI analysis:', err)
@@ -116,6 +146,95 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
     performAnalysis()
   }, [symbol])
+
+  const fetchGeminiAnalysis = async (
+    symbol: string,
+    priceData: any[],
+    ratios: Record<string, FinancialRatio>,
+    baseAnalysis: AIAnalysis
+  ): Promise<GeminiAnalysis | null> => {
+    try {
+      const closePrices = priceData.map(d => d.adClose)
+      const currentPrice = closePrices[closePrices.length - 1]
+      const volumes = priceData.map(d => d.nmVolume)
+
+      // Prepare technical data
+      const ma10 = calculateSMA(closePrices, 10)
+      const ma30 = calculateSMA(closePrices, 30)
+      const bb = calculateBollingerBands(closePrices, 20, 2)
+
+      const latestIdx = closePrices.length - 1
+      const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
+      const currentVolume = volumes[volumes.length - 1]
+
+      const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
+      const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
+
+      const high52W = Math.max(...closePrices)
+      const low52W = Math.min(...closePrices)
+
+      const technicalData = {
+        currentPrice,
+        ma10: ma10[latestIdx],
+        ma30: ma30[latestIdx],
+        bollinger: {
+          upper: bb.upper[latestIdx],
+          middle: bb.middle[latestIdx],
+          lower: bb.lower[latestIdx]
+        },
+        momentum: {
+          day5: priceChange5D,
+          day10: priceChange10D
+        },
+        volume: {
+          current: currentVolume,
+          avg10: avgVolume10,
+          ratio: (currentVolume / avgVolume10) * 100
+        },
+        week52: {
+          high: high52W,
+          low: low52W
+        },
+        buyPrice: baseAnalysis.shortTerm.buyPrice
+      }
+
+      // Prepare fundamental data
+      const fundamentalData = {
+        pe: ratios['PRICE_TO_EARNINGS']?.value,
+        pb: ratios['PRICE_TO_BOOK']?.value,
+        roe: ratios['ROAE_TR_AVG5Q']?.value,
+        roa: ratios['ROAA_TR_AVG5Q']?.value,
+        dividendYield: ratios['DIVIDEND_YIELD']?.value,
+        marketCap: ratios['MARKETCAP']?.value,
+        freeFloat: ratios['FREEFLOAT']?.value,
+        eps: ratios['EPS_TR']?.value,
+        bvps: ratios['BVPS_CR']?.value
+      }
+
+      // Call Gemini API
+      const response = await fetch('/api/gemini/stock-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          symbol,
+          technicalData,
+          fundamentalData
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data as GeminiAnalysis
+    } catch (error) {
+      console.error('Error fetching Gemini analysis:', error)
+      return null
+    }
+  }
 
   const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>): AIAnalysis => {
     // Technical Analysis for Short-term
@@ -632,6 +751,110 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           </div>
         </div>
       </div>
+
+      {/* Gemini AI Analysis */}
+      {analysis.gemini && (
+        <div className="mt-6 bg-gradient-to-br from-indigo-900/20 to-violet-900/20 rounded-lg p-5 border border-indigo-700/30">
+          <h4 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            🤖 Gemini AI - Phân tích chuyên sâu
+          </h4>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            {/* Gemini Short-term */}
+            {analysis.gemini.shortTerm && (
+              <div className="bg-cyan-900/20 rounded-lg p-4 border border-cyan-700/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-semibold text-cyan-300">⚡ Ngắn hạn</h5>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded text-sm font-bold ${
+                      analysis.gemini.shortTerm.signal.includes('MUA') ? 'bg-green-600' :
+                      analysis.gemini.shortTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
+                    }`}>
+                      {analysis.gemini.shortTerm.signal}
+                    </span>
+                    <span className="text-sm text-gray-400">{analysis.gemini.shortTerm.confidence}%</span>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed">{analysis.gemini.shortTerm.summary}</p>
+              </div>
+            )}
+
+            {/* Gemini Long-term */}
+            {analysis.gemini.longTerm && (
+              <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-700/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-semibold text-purple-300">🎯 Dài hạn</h5>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded text-sm font-bold ${
+                      analysis.gemini.longTerm.signal.includes('MUA') ? 'bg-green-600' :
+                      analysis.gemini.longTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
+                    }`}>
+                      {analysis.gemini.longTerm.signal}
+                    </span>
+                    <span className="text-sm text-gray-400">{analysis.gemini.longTerm.confidence}%</span>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed">{analysis.gemini.longTerm.summary}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Price Targets and Stop Loss */}
+          {(analysis.gemini.targetPrice || analysis.gemini.stopLoss) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              {analysis.gemini.targetPrice && (
+                <div className="bg-green-900/20 rounded-lg p-3 border border-green-700/30">
+                  <div className="text-xs text-gray-400 mb-1">🎯 Giá mục tiêu</div>
+                  <div className="text-lg font-bold text-green-400">{analysis.gemini.targetPrice}</div>
+                </div>
+              )}
+              {analysis.gemini.stopLoss && (
+                <div className="bg-red-900/20 rounded-lg p-3 border border-red-700/30">
+                  <div className="text-xs text-gray-400 mb-1">🛑 Mức cắt lỗ</div>
+                  <div className="text-lg font-bold text-red-400">{analysis.gemini.stopLoss}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Risks and Opportunities */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Risks */}
+            {analysis.gemini.risks && analysis.gemini.risks.length > 0 && (
+              <div className="bg-red-900/10 rounded-lg p-4 border border-red-700/20">
+                <h5 className="text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
+                  ⚠️ Rủi ro
+                </h5>
+                <ul className="space-y-1">
+                  {analysis.gemini.risks.map((risk, idx) => (
+                    <li key={idx} className="text-xs text-gray-300 flex items-start gap-2">
+                      <span className="text-red-400 mt-0.5">•</span>
+                      <span>{risk}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Opportunities */}
+            {analysis.gemini.opportunities && analysis.gemini.opportunities.length > 0 && (
+              <div className="bg-green-900/10 rounded-lg p-4 border border-green-700/20">
+                <h5 className="text-sm font-semibold text-green-400 mb-2 flex items-center gap-2">
+                  💡 Cơ hội
+                </h5>
+                <ul className="space-y-1">
+                  {analysis.gemini.opportunities.map((opp, idx) => (
+                    <li key={idx} className="text-xs text-gray-300 flex items-start gap-2">
+                      <span className="text-green-400 mt-0.5">•</span>
+                      <span>{opp}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Disclaimer */}
       <div className="mt-4 bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-3">
