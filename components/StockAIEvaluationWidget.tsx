@@ -75,6 +75,27 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         )
 
+        // Verify we have correct symbol data
+        if (sortedData.length > 0) {
+          const firstRecord = sortedData[0]
+          const lastRecord = sortedData[sortedData.length - 1]
+          console.log('📈 Price data received:', {
+            requestedSymbol: symbol,
+            receivedSymbol: firstRecord.code || lastRecord.code,
+            recordCount: sortedData.length,
+            dateRange: `${firstRecord.date} to ${lastRecord.date}`,
+            latestPrice: lastRecord.adClose
+          })
+
+          // Check for symbol mismatch
+          if (firstRecord.code && firstRecord.code.toUpperCase() !== symbol.toUpperCase()) {
+            console.error('❌ SYMBOL MISMATCH:', {
+              requested: symbol,
+              received: firstRecord.code
+            })
+          }
+        }
+
         // Process fundamental data
         const ratiosMap: Record<string, FinancialRatio> = {}
         ratiosResponse.data.forEach(ratio => {
@@ -244,11 +265,26 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     let cutLossPrice: number | undefined
 
     if (priceData.length >= 2) {
-      const prevDay = priceData[priceData.length - 2]
-      const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
+      // Use the most recent trading day (last element) for pivot calculation
+      // This ensures we use the latest completed trading session
+      const latestDay = priceData[priceData.length - 1]
+
+      console.log('📊 Calculating pivot points:', {
+        symbol: latestDay.code || 'unknown',
+        date: latestDay.date,
+        high: latestDay.adHigh,
+        low: latestDay.adLow,
+        close: latestDay.adClose,
+        currentPrice: currentPrice
+      })
+
+      const pivots = calculateWoodiePivotPoints(latestDay.adHigh, latestDay.adLow, latestDay.adClose)
       // Check if pivots is valid before accessing S2
       if (pivots) {
         buyPrice = pivots.S2 // Buy T+ is S2 support level
+        console.log('✅ Pivot points calculated:', { S2: pivots.S2, S1: pivots.S1, pivot: pivots.pivot })
+      } else {
+        console.warn('⚠️ Pivot points calculation returned null')
       }
     }
 
