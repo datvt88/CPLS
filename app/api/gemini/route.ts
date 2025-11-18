@@ -1,66 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseGeminiResponse } from '@/lib/geminiClient'
 import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
-
-// Helper function to get current date in Vietnam timezone (GMT+7)
-function getVietnamDate(): Date {
-  const now = new Date()
-  const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
-  vietnamTime.setHours(0, 0, 0, 0)
-  return vietnamTime
-}
-
-// Helper function to validate trading date
-function isValidTradingDate(dateStr: string): boolean {
-  const dataDate = new Date(dateStr)
-  dataDate.setHours(0, 0, 0, 0)
-  const today = getVietnamDate()
-  return dataDate <= today
-}
-
-// Calculate Simple Moving Average
-function calculateSMA(data: number[], period: number): number[] {
-  const result: number[] = []
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      result.push(NaN)
-    } else {
-      const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0)
-      result.push(sum / period)
-    }
-  }
-  return result
-}
-
-// Calculate Standard Deviation
-function calculateStdDev(data: number[], period: number, index: number): number {
-  if (index < period - 1) return NaN
-  const subset = data.slice(index - period + 1, index + 1)
-  const mean = subset.reduce((a, b) => a + b, 0) / period
-  const squaredDiffs = subset.map(val => Math.pow(val - mean, 2))
-  const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period
-  return Math.sqrt(variance)
-}
-
-// Calculate Bollinger Bands
-function calculateBollingerBands(closePrices: number[], period: number = 20, stdDev: number = 2) {
-  const middleBand = calculateSMA(closePrices, period)
-  const upper: number[] = []
-  const lower: number[] = []
-
-  for (let i = 0; i < closePrices.length; i++) {
-    if (i < period - 1) {
-      upper.push(NaN)
-      lower.push(NaN)
-    } else {
-      const sd = calculateStdDev(closePrices, period, i)
-      upper.push(middleBand[i] + stdDev * sd)
-      lower.push(middleBand[i] - stdDev * sd)
-    }
-  }
-
-  return { upper, middle: middleBand, lower }
-}
+import { isValidTradingDate } from '@/lib/utils/trading'
+import { calculateSMA, calculateBollingerBands } from '@/services/vndirect'
 
 // Calculate MA Amplitude (maximum difference between MA10 and MA30)
 function calculateMAAmplitude(ma10: number[], ma30: number[]) {

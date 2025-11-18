@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
-import type { FinancialRatio } from '@/types/vndirect'
+import type { FinancialRatio, StockPriceData } from '@/types/vndirect'
+import { isValidTradingDate } from '@/lib/utils/trading'
+import {
+  FETCH_CONFIG,
+  TECHNICAL_INDICATORS,
+  SHORT_TERM_WEIGHTS,
+  LONG_TERM_WEIGHTS,
+  SIGNAL_THRESHOLDS,
+  FUNDAMENTAL_THRESHOLDS,
+  TRADING_CONFIG,
+  MOMENTUM_CONFIG
+} from '@/lib/constants/analysis'
 
 interface StockAIEvaluationWidgetProps {
   symbol: string
@@ -22,22 +33,6 @@ interface Evaluation {
 interface AIAnalysis {
   shortTerm: Evaluation
   longTerm: Evaluation
-}
-
-// Helper function to get current date in Vietnam timezone (GMT+7)
-function getVietnamDate(): Date {
-  const now = new Date()
-  const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
-  vietnamTime.setHours(0, 0, 0, 0)
-  return vietnamTime
-}
-
-// Helper function to validate trading date
-function isValidTradingDate(dateStr: string): boolean {
-  const dataDate = new Date(dateStr)
-  dataDate.setHours(0, 0, 0, 0)
-  const today = getVietnamDate()
-  return dataDate <= today
 }
 
 export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWidgetProps) {
@@ -60,7 +55,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
         // Fetch both technical and fundamental data
         const [pricesResponse, ratiosResponse] = await Promise.all([
-          fetchStockPrices(symbol, 150),
+          fetchStockPrices(symbol, FETCH_CONFIG.SHORT_TERM_SESSIONS),
           fetchFinancialRatios(symbol)
         ])
 
@@ -95,7 +90,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     performAnalysis()
   }, [symbol])
 
-  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>): AIAnalysis => {
+  const analyzeStock = (priceData: StockPriceData[], ratios: Record<string, FinancialRatio>): AIAnalysis => {
     // Technical Analysis for Short-term
     const shortTerm = analyzeShortTerm(priceData)
 
@@ -105,13 +100,13 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     return { shortTerm, longTerm }
   }
 
-  const analyzeShortTerm = (priceData: any[]): Evaluation => {
+  const analyzeShortTerm = (priceData: StockPriceData[]): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
     let totalWeight = 0
 
-    if (priceData.length < 30) {
+    if (priceData.length < FETCH_CONFIG.MIN_SESSIONS) {
       return {
         signal: 'NẮM GIỮ',
         confidence: 0,
@@ -123,9 +118,9 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     const currentPrice = closePrices[closePrices.length - 1]
     const volumes = priceData.map(d => d.nmVolume)
 
-    // 1. Moving Averages Analysis (Weight: 30%)
-    const ma10 = calculateSMA(closePrices, 10)
-    const ma30 = calculateSMA(closePrices, 30)
+    // 1. Moving Averages Analysis
+    const ma10 = calculateSMA(closePrices, TECHNICAL_INDICATORS.MA_SHORT_PERIOD)
+    const ma30 = calculateSMA(closePrices, TECHNICAL_INDICATORS.MA_LONG_PERIOD)
     const currentMA10 = ma10[ma10.length - 1]
     const currentMA30 = ma30[ma30.length - 1]
 
@@ -133,67 +128,81 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       const maDiff = ((currentMA10 - currentMA30) / currentMA30) * 100
 
       if (currentMA10 > currentMA30) {
-        if (maDiff > 2) {
-          bullishScore += 30
+        if (maDiff > SIGNAL_THRESHOLDS.MA_STRONG_TREND) {
+          bullishScore += SHORT_TERM_WEIGHTS.MOVING_AVERAGE
           reasons.push(`✅ MA10 > MA30 (${maDiff.toFixed(2)}%) - Xu hướng tăng mạnh`)
         } else {
-          bullishScore += 20
+          bullishScore += SHORT_TERM_WEIGHTS.MOVING_AVERAGE * 0.67
           reasons.push(`✅ MA10 > MA30 (${maDiff.toFixed(2)}%) - Xu hướng tăng nhẹ`)
         }
       } else {
-        if (maDiff < -2) {
-          bearishScore += 30
+        if (maDiff < -SIGNAL_THRESHOLDS.MA_STRONG_TREND) {
+          bearishScore += SHORT_TERM_WEIGHTS.MOVING_AVERAGE
           reasons.push(`❌ MA10 < MA30 (${maDiff.toFixed(2)}%) - Xu hướng giảm mạnh`)
         } else {
-          bearishScore += 20
+          bearishScore += SHORT_TERM_WEIGHTS.MOVING_AVERAGE * 0.67
           reasons.push(`❌ MA10 < MA30 (${maDiff.toFixed(2)}%) - Xu hướng giảm nhẹ`)
         }
       }
-      totalWeight += 30
+      totalWeight += SHORT_TERM_WEIGHTS.MOVING_AVERAGE
     }
 
-    // 2. Bollinger Bands Analysis (Weight: 25%)
-    const bb = calculateBollingerBands(closePrices, 20, 2)
+    // 2. Bollinger Bands Analysis
+    const bb = calculateBollingerBands(closePrices, TECHNICAL_INDICATORS.BB_PERIOD, TECHNICAL_INDICATORS.BB_STD_DEV)
     const currentBBUpper = bb.upper[bb.upper.length - 1]
     const currentBBLower = bb.lower[bb.lower.length - 1]
 
     if (!isNaN(currentBBUpper) && !isNaN(currentBBLower)) {
       const bandPosition = (currentPrice - currentBBLower) / (currentBBUpper - currentBBLower)
 
-      if (bandPosition <= 0.2) {
-        bullishScore += 25
+      if (bandPosition <= SIGNAL_THRESHOLDS.BB_OVERSOLD) {
+        bullishScore += SHORT_TERM_WEIGHTS.BOLLINGER_BANDS
         reasons.push(`✅ Giá gần sát Lower Band (${(bandPosition * 100).toFixed(1)}%) - Vùng mua`)
-      } else if (bandPosition >= 0.8) {
-        bearishScore += 25
+      } else if (bandPosition >= SIGNAL_THRESHOLDS.BB_OVERBOUGHT) {
+        bearishScore += SHORT_TERM_WEIGHTS.BOLLINGER_BANDS
         reasons.push(`❌ Giá gần sát Upper Band (${(bandPosition * 100).toFixed(1)}%) - Vùng bán`)
-      } else if (bandPosition < 0.4) {
-        bullishScore += 15
+      } else if (bandPosition < SIGNAL_THRESHOLDS.BB_SUPPORT) {
+        bullishScore += SHORT_TERM_WEIGHTS.BOLLINGER_BANDS * 0.6
         reasons.push(`✅ Giá ở vùng hỗ trợ (${(bandPosition * 100).toFixed(1)}%)`)
-      } else if (bandPosition > 0.6) {
-        bearishScore += 15
+      } else if (bandPosition > SIGNAL_THRESHOLDS.BB_RESISTANCE) {
+        bearishScore += SHORT_TERM_WEIGHTS.BOLLINGER_BANDS * 0.6
         reasons.push(`❌ Giá ở vùng kháng cự (${(bandPosition * 100).toFixed(1)}%)`)
       }
-      totalWeight += 25
+      totalWeight += SHORT_TERM_WEIGHTS.BOLLINGER_BANDS
     }
 
     // 3. Price Momentum (Weight: 20%)
-    const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
-    const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
+    if (closePrices.length >= 11) {
+      const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
+      const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
 
-    if (priceChange5D > 3 && priceChange10D > 5) {
-      bullishScore += 20
-      reasons.push(`✅ Tăng mạnh 5 ngày (+${priceChange5D.toFixed(2)}%) và 10 ngày (+${priceChange10D.toFixed(2)}%)`)
-    } else if (priceChange5D < -3 && priceChange10D < -5) {
-      bearishScore += 20
-      reasons.push(`❌ Giảm mạnh 5 ngày (${priceChange5D.toFixed(2)}%) và 10 ngày (${priceChange10D.toFixed(2)}%)`)
-    } else if (priceChange5D > 0) {
-      bullishScore += 10
-      reasons.push(`✅ Tăng nhẹ 5 ngày (+${priceChange5D.toFixed(2)}%)`)
-    } else if (priceChange5D < 0) {
-      bearishScore += 10
-      reasons.push(`❌ Giảm nhẹ 5 ngày (${priceChange5D.toFixed(2)}%)`)
+      if (priceChange5D > 3 && priceChange10D > 5) {
+        bullishScore += 20
+        reasons.push(`✅ Tăng mạnh 5 ngày (+${priceChange5D.toFixed(2)}%) và 10 ngày (+${priceChange10D.toFixed(2)}%)`)
+      } else if (priceChange5D < -3 && priceChange10D < -5) {
+        bearishScore += 20
+        reasons.push(`❌ Giảm mạnh 5 ngày (${priceChange5D.toFixed(2)}%) và 10 ngày (${priceChange10D.toFixed(2)}%)`)
+      } else if (priceChange5D > 0) {
+        bullishScore += 10
+        reasons.push(`✅ Tăng nhẹ 5 ngày (+${priceChange5D.toFixed(2)}%)`)
+      } else if (priceChange5D < 0) {
+        bearishScore += 10
+        reasons.push(`❌ Giảm nhẹ 5 ngày (${priceChange5D.toFixed(2)}%)`)
+      }
+      totalWeight += 20
+    } else if (closePrices.length >= 6) {
+      // Only calculate 5-day change if we have enough data
+      const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
+
+      if (priceChange5D > 3) {
+        bullishScore += 10
+        reasons.push(`✅ Tăng mạnh 5 ngày (+${priceChange5D.toFixed(2)}%)`)
+      } else if (priceChange5D < -3) {
+        bearishScore += 10
+        reasons.push(`❌ Giảm mạnh 5 ngày (${priceChange5D.toFixed(2)}%)`)
+      }
+      totalWeight += 10
     }
-    totalWeight += 20
 
     // 4. Volume Analysis (Weight: 15%)
     const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
@@ -211,17 +220,18 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
     totalWeight += 15
 
-    // 5. 52-Week High/Low (Weight: 10%)
-    const high52W = Math.max(...closePrices)
-    const low52W = Math.min(...closePrices)
-    const pricePosition = (currentPrice - low52W) / (high52W - low52W)
+    // 5. Historical High/Low (Weight: 10%)
+    // Note: Using ~6 months of data (150 sessions), not full 52 weeks (250 sessions)
+    const historicalHigh = Math.max(...closePrices)
+    const historicalLow = Math.min(...closePrices)
+    const pricePosition = (currentPrice - historicalLow) / (historicalHigh - historicalLow)
 
     if (pricePosition < 0.3) {
       bullishScore += 10
-      reasons.push(`✅ Giá gần đáy 52 tuần (${(pricePosition * 100).toFixed(0)}%)`)
+      reasons.push(`✅ Giá gần đáy lịch sử (${(pricePosition * 100).toFixed(0)}%)`)
     } else if (pricePosition > 0.7) {
       bearishScore += 10
-      reasons.push(`❌ Giá gần đỉnh 52 tuần (${(pricePosition * 100).toFixed(0)}%)`)
+      reasons.push(`❌ Giá gần đỉnh lịch sử (${(pricePosition * 100).toFixed(0)}%)`)
     }
     totalWeight += 10
 
@@ -261,32 +271,32 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>): Evaluation => {
+  const analyzeLongTerm = (priceData: StockPriceData[], ratios: Record<string, FinancialRatio>): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
     let totalWeight = 0
 
-    // 1. P/E Ratio Analysis (Weight: 25%)
+    // 1. P/E Ratio Analysis
     const pe = ratios['PRICE_TO_EARNINGS']?.value
     if (pe !== undefined && pe !== null) {
-      if (pe > 0 && pe < 10) {
-        bullishScore += 25
+      if (pe > 0 && pe < FUNDAMENTAL_THRESHOLDS.PE_VERY_LOW) {
+        bullishScore += LONG_TERM_WEIGHTS.PE_RATIO
         reasons.push(`✅ P/E thấp (${pe.toFixed(2)}) - Định giá hấp dẫn`)
-      } else if (pe >= 10 && pe <= 20) {
-        bullishScore += 15
+      } else if (pe >= FUNDAMENTAL_THRESHOLDS.PE_VERY_LOW && pe <= FUNDAMENTAL_THRESHOLDS.PE_REASONABLE_MAX) {
+        bullishScore += LONG_TERM_WEIGHTS.PE_RATIO * 0.6
         reasons.push(`✅ P/E hợp lý (${pe.toFixed(2)})`)
-      } else if (pe > 20 && pe <= 30) {
-        bearishScore += 10
+      } else if (pe > FUNDAMENTAL_THRESHOLDS.PE_REASONABLE_MAX && pe <= FUNDAMENTAL_THRESHOLDS.PE_HIGH) {
+        bearishScore += LONG_TERM_WEIGHTS.PE_RATIO * 0.4
         reasons.push(`⚠️ P/E cao (${pe.toFixed(2)}) - Cần thận trọng`)
-      } else if (pe > 30) {
-        bearishScore += 25
+      } else if (pe > FUNDAMENTAL_THRESHOLDS.PE_HIGH) {
+        bearishScore += LONG_TERM_WEIGHTS.PE_RATIO
         reasons.push(`❌ P/E rất cao (${pe.toFixed(2)}) - Định giá cao`)
       } else if (pe < 0) {
-        bearishScore += 20
+        bearishScore += LONG_TERM_WEIGHTS.PE_RATIO * 0.8
         reasons.push(`❌ P/E âm (${pe.toFixed(2)}) - Công ty lỗ`)
       }
-      totalWeight += 25
+      totalWeight += LONG_TERM_WEIGHTS.PE_RATIO
     }
 
     // 2. P/B Ratio Analysis (Weight: 20%)
