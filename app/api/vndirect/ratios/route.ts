@@ -5,33 +5,48 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 // Development mock data fallback
+// NOTE: These values are already normalized (prices in VND, not thousands)
 function generateMockRatios(code: string) {
   return [
     { value: 2.0531871162125E14, ratioCode: 'MARKETCAP' },
     { value: 2.79847917E7, ratioCode: 'NMVOLUME_AVG_CR_10D' },
-    { value: 30350.0, ratioCode: 'PRICE_HIGHEST_CR_52W' },
-    { value: 17749.0, ratioCode: 'PRICE_LOWEST_CR_52W' },
+    { value: 30.35, ratioCode: 'PRICE_HIGHEST_CR_52W' },  // Already normalized: 30350 / 1000 = 30.35
+    { value: 17.749, ratioCode: 'PRICE_LOWEST_CR_52W' },  // Already normalized: 17749 / 1000 = 17.749
     { value: 7.675465855E9, ratioCode: 'OUTSTANDING_SHARES' },
     { value: 0.6077503096390232, ratioCode: 'FREEFLOAT' },
     { value: 1.1390154356678337, ratioCode: 'BETA' },
     { value: 14.260486175627856, ratioCode: 'PRICE_TO_EARNINGS' },
     { value: 1.6368184900074352, ratioCode: 'PRICE_TO_BOOK' },
     { value: 0.0, ratioCode: 'DIVIDEND_YIELD' },
-    { value: 16342.679511079135, ratioCode: 'BVPS_CR' },
+    { value: 16.342679511079135, ratioCode: 'BVPS_CR' },  // Already normalized: 16342 / 1000 = 16.342
     { value: 0.1211320978931443, ratioCode: 'ROAE_TR_AVG5Q' },
     { value: 0.062428745865153325, ratioCode: 'ROAA_TR_AVG5Q' },
-    { value: 1875.812624517499, ratioCode: 'EPS_TR' },
+    { value: 1.875812624517499, ratioCode: 'EPS_TR' },  // Already normalized: 1875 / 1000 = 1.875
   ]
 }
 
 /**
  * Validate and normalize financial ratio data
  * Ensures all required fields are present and have correct types
+ * VNDirect API returns some values in thousands (e.g., prices), need to normalize
  */
 function normalizeFinancialRatio(ratio: any) {
+  const ratioCode = String(ratio.ratioCode || '')
+  let value = Number(ratio.value) || 0
+
+  // VNDirect API returns price values in thousands (similar to targetPrice in recommendations)
+  // Example: 35300 means 35.3 VND, so divide by 1000
+  // This matches the normalization in vndirect-client.ts
+  if (ratioCode === 'PRICE_HIGHEST_CR_52W' ||
+      ratioCode === 'PRICE_LOWEST_CR_52W' ||
+      ratioCode === 'BVPS_CR' ||
+      ratioCode === 'EPS_TR') {
+    value = value / 1000
+  }
+
   return {
-    ratioCode: String(ratio.ratioCode || ''),
-    value: Number(ratio.value) || 0,
+    ratioCode: ratioCode,
+    value: value,
   }
 }
 

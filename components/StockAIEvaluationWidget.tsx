@@ -59,8 +59,9 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         console.log('🤖 Performing AI analysis for:', symbol)
 
         // Fetch both technical and fundamental data
+        // For 52-week analysis, we need at least 270 days (52 weeks * 5 trading days + buffer)
         const [pricesResponse, ratiosResponse] = await Promise.all([
-          fetchStockPrices(symbol, 150),
+          fetchStockPrices(symbol, 270),
           fetchFinancialRatios(symbol)
         ])
 
@@ -245,7 +246,10 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     if (priceData.length >= 2) {
       const prevDay = priceData[priceData.length - 2]
       const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
-      buyPrice = pivots.S2 // Buy T+ is S2 support level
+      // Check if pivots is valid before accessing S2
+      if (pivots) {
+        buyPrice = pivots.S2 // Buy T+ is S2 support level
+      }
     }
 
     // Calculate cut loss price (3.5% below current price)
