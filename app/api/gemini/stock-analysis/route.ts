@@ -137,7 +137,7 @@ function buildStockAnalysisPrompt(
   // Technical Analysis Section
   if (technicalData) {
     prompt += `📊 PHÂN TÍCH KỸ THUẬT:\n`
-    prompt += `Giá hiện tại: ${technicalData.currentPrice?.toFixed(2)} VNĐ\n`
+    prompt += `Giá hiện tại: ${technicalData.currentPrice?.toFixed(2)}\n`
 
     if (technicalData.ma10 && technicalData.ma30) {
       const maDiff = ((technicalData.ma10 - technicalData.ma30) / technicalData.ma30 * 100).toFixed(2)
@@ -166,7 +166,7 @@ function buildStockAnalysisPrompt(
     }
 
     if (technicalData.buyPrice) {
-      prompt += `Giá khuyến nghị mua (Buy T+ S2): ${technicalData.buyPrice.toFixed(2)} VNĐ\n`
+      prompt += `Giá khuyến nghị mua (Buy T+ S2): ${technicalData.buyPrice.toFixed(2)}\n`
     }
 
     prompt += `\n`
@@ -197,7 +197,7 @@ function buildStockAnalysisPrompt(
     }
 
     if (fundamentalData.marketCap !== undefined) {
-      prompt += `Vốn hóa: ${(fundamentalData.marketCap / 1000000000000).toFixed(2)} nghìn tỷ VNĐ\n`
+      prompt += `Vốn hóa: ${(fundamentalData.marketCap / 1000000000000).toFixed(2)} nghìn tỷ\n`
     }
 
     if (fundamentalData.freeFloat !== undefined) {
@@ -205,11 +205,11 @@ function buildStockAnalysisPrompt(
     }
 
     if (fundamentalData.eps !== undefined) {
-      prompt += `EPS: ${fundamentalData.eps.toFixed(2)} VNĐ\n`
+      prompt += `EPS: ${fundamentalData.eps.toFixed(2)}\n`
     }
 
     if (fundamentalData.bvps !== undefined) {
-      prompt += `BVPS: ${fundamentalData.bvps.toFixed(2)} VNĐ\n`
+      prompt += `BVPS: ${fundamentalData.bvps.toFixed(2)}\n`
     }
 
     prompt += `\n`
@@ -237,8 +237,8 @@ function buildStockAnalysisPrompt(
   prompt += `    "confidence": <số từ 0 đến 100>,\n`
   prompt += `    "summary": "<phân tích dài hạn 2-3 câu>"\n`
   prompt += `  },\n`
-  prompt += `  "targetPrice": "<giá mục tiêu VD: 95-100 VNĐ hoặc null nếu không MUA>",\n`
-  prompt += `  "stopLoss": "<mức cắt lỗ VD: 85 VNĐ hoặc null nếu không MUA>",\n`
+  prompt += `  "targetPrice": "<giá mục tiêu VD: 95-100 hoặc null nếu không MUA>",\n`
+  prompt += `  "stopLoss": "<mức cắt lỗ VD: 85 hoặc null nếu không MUA>",\n`
   prompt += `  "risks": ["<rủi ro 1>", "<rủi ro 2>", "<rủi ro 3>"],\n`
   prompt += `  "opportunities": ["<cơ hội 1>", "<cơ hội 2>"]\n`
   prompt += `}\n\n`
@@ -249,6 +249,7 @@ function buildStockAnalysisPrompt(
   prompt += `- Đảm bảo JSON hợp lệ (có thể parse được)\n`
   prompt += `- Các field string phải trong dấu ngoặc kép\n`
   prompt += `- Confidence phải là số nguyên từ 0-100\n`
+  prompt += `- Giá mục tiêu và mức cắt lỗ chỉ ghi số, KHÔNG thêm đơn vị VNĐ\n`
 
   return prompt
 }

@@ -715,7 +715,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                   <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-700/30">
                     <div className="text-xs text-gray-400 mb-1">Giá hiện tại</div>
                     <div className="text-lg font-bold text-white">
-                      {analysis.shortTerm.currentPrice?.toLocaleString('vi-VN')} VNĐ
+                      {analysis.shortTerm.currentPrice?.toLocaleString('vi-VN')}
                     </div>
                   </div>
 
@@ -723,7 +723,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                   <div className="bg-green-900/30 rounded-lg p-3 border border-green-700/30">
                     <div className="text-xs text-gray-400 mb-1">Vùng mua đề xuất (Buy T+)</div>
                     <div className="text-lg font-bold text-green-400">
-                      {analysis.shortTerm.buyPrice.toLocaleString('vi-VN')} VNĐ
+                      {analysis.shortTerm.buyPrice.toLocaleString('vi-VN')}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
                       {analysis.shortTerm.currentPrice && analysis.shortTerm.buyPrice < analysis.shortTerm.currentPrice
@@ -736,7 +736,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                   <div className="bg-red-900/30 rounded-lg p-3 border border-red-700/30">
                     <div className="text-xs text-gray-400 mb-1">Giá cắt lỗ đề xuất (-3.5%)</div>
                     <div className="text-lg font-bold text-red-400">
-                      {analysis.shortTerm.cutLossPrice?.toLocaleString('vi-VN')} VNĐ
+                      {analysis.shortTerm.cutLossPrice?.toLocaleString('vi-VN')}
                     </div>
                     <div className="text-xs text-yellow-400 mt-1">
                       ⚠️ Thoát vị thế nếu giá phá vỡ mức này
