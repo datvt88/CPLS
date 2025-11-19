@@ -3,7 +3,7 @@ import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 export async function POST(request: NextRequest) {
   try {
-    const { symbol, technicalData, fundamentalData, model } = await request.json()
+    const { symbol, technicalData, fundamentalData, recommendations, model } = await request.json()
 
     // Validate input
     if (!symbol || typeof symbol !== 'string') {
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build comprehensive prompt with technical and fundamental data
-    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData)
+    // Build comprehensive prompt with technical, fundamental data and analyst recommendations
+    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations)
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
 
@@ -125,12 +125,13 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Build comprehensive analysis prompt combining technical and fundamental data
+ * Build comprehensive analysis prompt combining technical, fundamental data and analyst recommendations
  */
 function buildStockAnalysisPrompt(
   symbol: string,
   technicalData?: any,
-  fundamentalData?: any
+  fundamentalData?: any,
+  recommendations?: any[]
 ): string {
   let prompt = `Bạn là chuyên gia phân tích chứng khoán. Hãy phân tích cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
 
@@ -215,14 +216,56 @@ function buildStockAnalysisPrompt(
     prompt += `\n`
   }
 
+  // Analyst Recommendations Section
+  if (recommendations && recommendations.length > 0) {
+    prompt += `📋 KHUYẾN NGHỊ TỪ CÁC CÔNG TY CHỨNG KHOÁN:\n`
+
+    // Group recommendations by type
+    const buyRecs = recommendations.filter(r => r.type?.toUpperCase() === 'BUY' || r.type?.toUpperCase() === 'MUA')
+    const holdRecs = recommendations.filter(r => r.type?.toUpperCase() === 'HOLD' || r.type?.toUpperCase() === 'GIỮ')
+    const sellRecs = recommendations.filter(r => r.type?.toUpperCase() === 'SELL' || r.type?.toUpperCase() === 'BÁN')
+
+    prompt += `Tổng số khuyến nghị: ${recommendations.length} (${buyRecs.length} MUA, ${holdRecs.length} GIỮ, ${sellRecs.length} BÁN)\n\n`
+
+    // Show top 5 most recent recommendations
+    const topRecs = recommendations.slice(0, 5)
+    topRecs.forEach((rec, idx) => {
+      prompt += `${idx + 1}. ${rec.firm || 'N/A'} - ${rec.type || 'N/A'} (${rec.reportDate || 'N/A'})\n`
+      if (rec.targetPrice) {
+        prompt += `   Giá mục tiêu: ${rec.targetPrice}\n`
+      }
+      if (rec.reportPrice) {
+        prompt += `   Giá tại thời điểm báo cáo: ${rec.reportPrice}\n`
+      }
+    })
+
+    // Calculate consensus
+    const totalRecs = recommendations.length
+    const buyPercent = ((buyRecs.length / totalRecs) * 100).toFixed(0)
+    const holdPercent = ((holdRecs.length / totalRecs) * 100).toFixed(0)
+    const sellPercent = ((sellRecs.length / totalRecs) * 100).toFixed(0)
+
+    prompt += `\nĐồng thuận thị trường: ${buyPercent}% MUA, ${holdPercent}% GIỮ, ${sellPercent}% BÁN\n`
+
+    // Calculate average target price if available
+    const recsWithTarget = recommendations.filter(r => r.targetPrice && !isNaN(r.targetPrice))
+    if (recsWithTarget.length > 0) {
+      const avgTarget = recsWithTarget.reduce((sum, r) => sum + r.targetPrice, 0) / recsWithTarget.length
+      prompt += `Giá mục tiêu trung bình: ${avgTarget.toFixed(2)} (từ ${recsWithTarget.length} khuyến nghị)\n`
+    }
+
+    prompt += `\n`
+  }
+
   // Analysis Instructions
   prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n`
   prompt += `1. Phân tích tổng hợp các chỉ số kỹ thuật và cơ bản\n`
   prompt += `2. Đánh giá xu hướng ngắn hạn (1-4 tuần) và dài hạn (3-12 tháng)\n`
   prompt += `3. Xác định mức hỗ trợ và kháng cự quan trọng\n`
-  prompt += `4. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
-  prompt += `5. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
-  prompt += `6. Đánh giá rủi ro và cơ hội\n\n`
+  prompt += `4. Tham khảo đồng thuận từ các công ty chứng khoán (nếu có)\n`
+  prompt += `5. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
+  prompt += `6. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
+  prompt += `7. Đánh giá rủi ro và cơ hội\n\n`
 
   prompt += `📋 FORMAT TRẢ VỀ:\n`
   prompt += `BẮT BUỘC trả về ĐÚNG định dạng JSON sau (không thêm markdown, code block, hay text khác):\n\n`

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
 
 interface StockAIEvaluationWidgetProps {
@@ -78,16 +78,23 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       try {
         console.log('🤖 Performing AI analysis for:', symbol)
 
-        // Fetch both technical and fundamental data
+        // Fetch technical, fundamental data and analyst recommendations in parallel
         // For 52-week analysis, we need at least 270 days (52 weeks * 5 trading days + buffer)
-        const [pricesResponse, ratiosResponse] = await Promise.all([
+        // Recommendations from last 12 months for recent analyst views
+        const [pricesResponse, ratiosResponse, recommendationsResponse] = await Promise.all([
           fetchStockPrices(symbol, 270),
-          fetchFinancialRatios(symbol)
+          fetchFinancialRatios(symbol),
+          fetchStockRecommendations(symbol).catch(err => {
+            console.warn('⚠️ Failed to fetch recommendations, continuing without:', err)
+            return { data: [] }
+          })
         ])
 
         if (!pricesResponse.data || pricesResponse.data.length === 0) {
           throw new Error('Không có dữ liệu giá')
         }
+
+        console.log('📊 Recommendations received:', recommendationsResponse.data?.length || 0)
 
         // Process technical data
         const validData = pricesResponse.data.filter(item => isValidTradingDate(item.date))
@@ -129,7 +136,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
         // Call Gemini API for enhanced analysis (don't wait, run in background)
         setGeminiLoading(true)
-        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, aiAnalysis)
+        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, recommendationsResponse.data || [], aiAnalysis)
           .then(geminiResult => {
             if (geminiResult) {
               console.log('✅ Gemini analysis completed for:', symbol)
@@ -157,6 +164,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     symbol: string,
     priceData: any[],
     ratios: Record<string, FinancialRatio>,
+    recommendations: any[],
     baseAnalysis: AIAnalysis
   ): Promise<GeminiAnalysis | null> => {
     try {
@@ -229,6 +237,17 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         bvps: ratios['BVPS_CR']?.value
       }
 
+      // Prepare analyst recommendations data (limit to top 10 most recent)
+      const recentRecommendations = recommendations
+        .slice(0, 10)
+        .map(rec => ({
+          firm: rec.firm,
+          type: rec.type,
+          reportDate: rec.reportDate,
+          targetPrice: rec.targetPrice,
+          reportPrice: rec.reportPrice
+        }))
+
       // Call Gemini API with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -242,7 +261,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           body: JSON.stringify({
             symbol,
             technicalData,
-            fundamentalData
+            fundamentalData,
+            recommendations: recentRecommendations
           }),
           signal: controller.signal
         })
