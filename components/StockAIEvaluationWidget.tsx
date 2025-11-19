@@ -662,7 +662,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     return (
       <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
         <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          🤖 AI Đánh giá - {symbol}
+          🤖 Tổng Hợp Đánh giá - {symbol}
         </h3>
         <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
           {error}
