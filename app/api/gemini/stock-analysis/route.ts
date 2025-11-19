@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { parseGeminiResponse } from '@/lib/geminiClient'
 import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 export async function POST(request: NextRequest) {
@@ -89,14 +88,25 @@ export async function POST(request: NextRequest) {
     const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
     if (!generatedText) {
+      console.error('No content generated from Gemini for', symbol)
       return NextResponse.json(
         { error: 'No content generated from Gemini' },
         { status: 500 }
       )
     }
 
-    // Parse the response
-    const result = parseGeminiResponse(generatedText)
+    console.log('📝 Gemini raw response length:', generatedText.length)
+
+    // Parse and validate the response
+    const result = parseGeminiStockAnalysis(generatedText)
+
+    if (!result) {
+      console.error('Failed to parse Gemini response for', symbol)
+      return NextResponse.json(
+        { error: 'Invalid response format from Gemini AI' },
+        { status: 500 }
+      )
+    }
 
     console.log('✅ Gemini analysis completed for', symbol)
 
@@ -214,25 +224,80 @@ function buildStockAnalysisPrompt(
   prompt += `5. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
   prompt += `6. Đánh giá rủi ro và cơ hội\n\n`
 
-  prompt += `📋 FORMAT TRẢ VỀ (JSON):\n`
+  prompt += `📋 FORMAT TRẢ VỀ:\n`
+  prompt += `BẮT BUỘC trả về ĐÚNG định dạng JSON sau (không thêm markdown, code block, hay text khác):\n\n`
   prompt += `{\n`
   prompt += `  "shortTerm": {\n`
-  prompt += `    "signal": "MUA/BÁN/NẮM GIỮ",\n`
-  prompt += `    "confidence": 0-100,\n`
-  prompt += `    "summary": "Phân tích ngắn hạn chi tiết"\n`
+  prompt += `    "signal": "MUA hoặc BÁN hoặc NẮM GIỮ",\n`
+  prompt += `    "confidence": <số từ 0 đến 100>,\n`
+  prompt += `    "summary": "<phân tích ngắn hạn 2-3 câu>"\n`
   prompt += `  },\n`
   prompt += `  "longTerm": {\n`
-  prompt += `    "signal": "MUA/BÁN/NẮM GIỮ",\n`
-  prompt += `    "confidence": 0-100,\n`
-  prompt += `    "summary": "Phân tích dài hạn chi tiết"\n`
+  prompt += `    "signal": "MUA hoặc BÁN hoặc NẮM GIỮ",\n`
+  prompt += `    "confidence": <số từ 0 đến 100>,\n`
+  prompt += `    "summary": "<phân tích dài hạn 2-3 câu>"\n`
   prompt += `  },\n`
-  prompt += `  "targetPrice": "giá mục tiêu (nếu MUA)",\n`
-  prompt += `  "stopLoss": "mức cắt lỗ (nếu MUA)",\n`
-  prompt += `  "risks": ["rủi ro 1", "rủi ro 2"],\n`
-  prompt += `  "opportunities": ["cơ hội 1", "cơ hội 2"]\n`
+  prompt += `  "targetPrice": "<giá mục tiêu VD: 95-100 VNĐ hoặc null nếu không MUA>",\n`
+  prompt += `  "stopLoss": "<mức cắt lỗ VD: 85 VNĐ hoặc null nếu không MUA>",\n`
+  prompt += `  "risks": ["<rủi ro 1>", "<rủi ro 2>", "<rủi ro 3>"],\n`
+  prompt += `  "opportunities": ["<cơ hội 1>", "<cơ hội 2>"]\n`
   prompt += `}\n\n`
 
-  prompt += `Lưu ý: Trả về ĐÚNG định dạng JSON, không thêm markdown hay text khác.`
+  prompt += `QUAN TRỌNG:\n`
+  prompt += `- Chỉ trả về JSON object, không thêm text giải thích\n`
+  prompt += `- Không dùng markdown code block (\`\`\`json)\n`
+  prompt += `- Đảm bảo JSON hợp lệ (có thể parse được)\n`
+  prompt += `- Các field string phải trong dấu ngoặc kép\n`
+  prompt += `- Confidence phải là số nguyên từ 0-100\n`
 
   return prompt
+}
+
+/**
+ * Parse and validate Gemini response
+ */
+function parseGeminiStockAnalysis(text: string): any {
+  // Remove markdown code blocks if present
+  let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+
+  // Try to find JSON object in the response
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    console.error('No JSON object found in Gemini response')
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0])
+
+    // Validate structure
+    if (!parsed.shortTerm || !parsed.longTerm) {
+      console.error('Invalid structure: missing shortTerm or longTerm')
+      return null
+    }
+
+    // Validate signals
+    const validSignals = ['MUA', 'BÁN', 'NẮM GIỮ', 'HOLD']
+    if (!parsed.shortTerm.signal || !validSignals.some(s => parsed.shortTerm.signal.includes(s))) {
+      console.warn('Invalid shortTerm signal, using default')
+      parsed.shortTerm.signal = 'NẮM GIỮ'
+    }
+    if (!parsed.longTerm.signal || !validSignals.some(s => parsed.longTerm.signal.includes(s))) {
+      console.warn('Invalid longTerm signal, using default')
+      parsed.longTerm.signal = 'NẮM GIỮ'
+    }
+
+    // Ensure confidence is a number between 0-100
+    parsed.shortTerm.confidence = Math.max(0, Math.min(100, Number(parsed.shortTerm.confidence) || 50))
+    parsed.longTerm.confidence = Math.max(0, Math.min(100, Number(parsed.longTerm.confidence) || 50))
+
+    // Ensure arrays
+    parsed.risks = Array.isArray(parsed.risks) ? parsed.risks : []
+    parsed.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities : []
+
+    return parsed
+  } catch (error) {
+    console.error('Failed to parse Gemini JSON:', error)
+    return null
+  }
 }

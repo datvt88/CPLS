@@ -63,6 +63,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [geminiLoading, setGeminiLoading] = useState(false)
 
   useEffect(() => {
     if (!symbol) return
@@ -124,18 +125,23 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         // Perform analysis
         const aiAnalysis = analyzeStock(sortedData, ratiosMap)
         console.log('✅ AI analysis completed for:', symbol)
+        setAnalysis(aiAnalysis)
 
         // Call Gemini API for enhanced analysis (don't wait, run in background)
-        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, aiAnalysis).then(geminiResult => {
-          if (geminiResult) {
-            console.log('✅ Gemini analysis completed for:', symbol)
-            setAnalysis(prev => prev ? { ...prev, gemini: geminiResult } : prev)
-          }
-        }).catch(err => {
-          console.warn('⚠️ Gemini analysis failed, continuing without it:', err)
-        })
-
-        setAnalysis(aiAnalysis)
+        setGeminiLoading(true)
+        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, aiAnalysis)
+          .then(geminiResult => {
+            if (geminiResult) {
+              console.log('✅ Gemini analysis completed for:', symbol)
+              setAnalysis(prev => prev ? { ...prev, gemini: geminiResult } : prev)
+            }
+          })
+          .catch(err => {
+            console.warn('⚠️ Gemini analysis failed, continuing without it:', err)
+          })
+          .finally(() => {
+            setGeminiLoading(false)
+          })
       } catch (err) {
         console.error('❌ Error performing AI analysis:', err)
         setError('Không thể phân tích AI cho mã này')
@@ -154,8 +160,20 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     baseAnalysis: AIAnalysis
   ): Promise<GeminiAnalysis | null> => {
     try {
+      // Validate input data
+      if (!priceData || priceData.length < 30) {
+        console.warn('Insufficient price data for Gemini analysis')
+        return null
+      }
+
       const closePrices = priceData.map(d => d.adClose)
       const currentPrice = closePrices[closePrices.length - 1]
+
+      if (!currentPrice || isNaN(currentPrice)) {
+        console.warn('Invalid current price for Gemini analysis')
+        return null
+      }
+
       const volumes = priceData.map(d => d.nmVolume)
 
       // Prepare technical data
@@ -211,25 +229,48 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         bvps: ratios['BVPS_CR']?.value
       }
 
-      // Call Gemini API
-      const response = await fetch('/api/gemini/stock-analysis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          symbol,
-          technicalData,
-          fundamentalData
+      // Call Gemini API with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
+      try {
+        const response = await fetch('/api/gemini/stock-analysis', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            symbol,
+            technicalData,
+            fundamentalData
+          }),
+          signal: controller.signal
         })
-      })
 
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status}`)
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Gemini API error: ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        // Validate response structure
+        if (!data || (!data.shortTerm && !data.longTerm)) {
+          console.warn('Invalid Gemini response structure')
+          return null
+        }
+
+        return data as GeminiAnalysis
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          console.warn('Gemini API request timed out after 30 seconds')
+          return null
+        }
+        throw fetchError
       }
-
-      const data = await response.json()
-      return data as GeminiAnalysis
     } catch (error) {
       console.error('Error fetching Gemini analysis:', error)
       return null
@@ -753,11 +794,29 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       </div>
 
       {/* Gemini AI Analysis */}
-      {analysis.gemini && (
+      {(geminiLoading || analysis.gemini) && (
         <div className="mt-6 bg-gradient-to-br from-indigo-900/20 to-violet-900/20 rounded-lg p-5 border border-indigo-700/30">
           <h4 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
             🤖 Gemini AI - Phân tích chuyên sâu
+            {geminiLoading && (
+              <span className="text-sm text-gray-400 font-normal flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                Đang phân tích...
+              </span>
+            )}
           </h4>
+
+          {geminiLoading && !analysis.gemini && (
+            <div className="flex items-center justify-center h-32">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                <p className="text-gray-400 text-sm">AI đang phân tích dữ liệu kỹ thuật và cơ bản...</p>
+              </div>
+            </div>
+          )}
+
+          {analysis.gemini && (
+            <>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             {/* Gemini Short-term */}
@@ -853,6 +912,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
       )}
 
