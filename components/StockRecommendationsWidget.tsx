@@ -109,7 +109,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
 
   // Use standardized price formatter
   const formatPrice = (price: number | undefined) => {
-    return formatPriceUtil(price, 0)
+    return formatPriceUtil(price)
   }
 
   const calculatePotential = (reportPrice: number | undefined, targetPrice: number) => {
