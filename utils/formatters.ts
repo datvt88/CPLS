@@ -6,9 +6,9 @@
 /**
  * Format a price value in VND with thousands separators
  * @param value - Price value
- * @param decimals - Number of decimal places (default: 2)
+ * @param decimals - Number of decimal places (default: 3)
  */
-export function formatPrice(value: number | undefined | null, decimals: number = 2): string {
+export function formatPrice(value: number | undefined | null, decimals: number = 3): string {
   if (value === undefined || value === null || isNaN(value)) {
     return 'N/A'
   }
@@ -181,7 +181,7 @@ export function formatFinancialRatio(ratioCode: string, value: number | undefine
     case 'PRICE_LOWEST_CR_52W':
     case 'BVPS_CR':
     case 'EPS_TR':
-      return formatPrice(value, 0)
+      return formatPrice(value)
 
     case 'OUTSTANDING_SHARES':
       return formatShares(value)

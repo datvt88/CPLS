@@ -335,6 +335,19 @@ function parseGeminiStockAnalysis(text: string): any {
     parsed.shortTerm.confidence = Math.max(0, Math.min(100, Number(parsed.shortTerm.confidence) || 50))
     parsed.longTerm.confidence = Math.max(0, Math.min(100, Number(parsed.longTerm.confidence) || 50))
 
+    // Format target price and stop loss with 3 decimal places
+    if (parsed.targetPrice && parsed.targetPrice !== 'null') {
+      parsed.targetPrice = formatGeminiPrice(parsed.targetPrice)
+    } else {
+      parsed.targetPrice = null
+    }
+
+    if (parsed.stopLoss && parsed.stopLoss !== 'null') {
+      parsed.stopLoss = formatGeminiPrice(parsed.stopLoss)
+    } else {
+      parsed.stopLoss = null
+    }
+
     // Ensure arrays
     parsed.risks = Array.isArray(parsed.risks) ? parsed.risks : []
     parsed.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities : []
@@ -344,4 +357,35 @@ function parseGeminiStockAnalysis(text: string): any {
     console.error('Failed to parse Gemini JSON:', error)
     return null
   }
+}
+
+/**
+ * Format price from Gemini response (handles ranges like "95-100" or single values like "85.5")
+ */
+function formatGeminiPrice(price: string | number | null | undefined): string {
+  if (!price) return ''
+
+  const priceStr = String(price).trim()
+
+  // Handle range format like "95-100"
+  if (priceStr.includes('-')) {
+    const parts = priceStr.split('-').map(p => p.trim())
+    const formattedParts = parts.map(p => {
+      const num = parseFloat(p)
+      return isNaN(num) ? p : num.toLocaleString('vi-VN', {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3
+      })
+    })
+    return formattedParts.join(' - ')
+  }
+
+  // Handle single value
+  const num = parseFloat(priceStr)
+  if (isNaN(num)) return priceStr
+
+  return num.toLocaleString('vi-VN', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3
+  })
 }
