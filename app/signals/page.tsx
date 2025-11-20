@@ -145,7 +145,7 @@ function SignalsPageContent() {
                 Nâng cấp lên Premium ngay
               </button>
               <p className="text-[--muted] text-sm mt-4">
-                Chỉ từ 99.000đ/tháng
+                Chỉ từ 999.000đ/tháng
               </p>
             </div>
           </div>
