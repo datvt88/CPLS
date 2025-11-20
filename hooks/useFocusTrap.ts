@@ -9,6 +9,9 @@ import { useEffect, RefObject } from 'react'
  */
 export function useFocusTrap(elementRef: RefObject<HTMLElement>, isActive: boolean) {
   useEffect(() => {
+    // Only run in browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
     if (!isActive || !elementRef.current) return
 
     const element = elementRef.current

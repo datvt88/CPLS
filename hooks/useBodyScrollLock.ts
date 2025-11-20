@@ -8,6 +8,9 @@ import { useEffect } from 'react'
  */
 export function useBodyScrollLock(isLocked: boolean) {
   useEffect(() => {
+    // Only run in browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined') return
+
     if (isLocked) {
       // Store original overflow value
       const originalOverflow = document.body.style.overflow
