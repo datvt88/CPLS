@@ -32,7 +32,7 @@ export default function Home() {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="max-w-md w-full bg-zinc-900 rounded-2xl shadow-lg p-6 border border-zinc-800">
-        <h1 className="text-3xl font-bold text-center mb-6 text-green-400">Auto Trading AI</h1>
+        <h1 className="text-3xl font-bold text-center mb-6 text-green-400">Cổ Phiếu Lướt Sóng</h1>
         <AuthForm />
       </div>
     </main>
