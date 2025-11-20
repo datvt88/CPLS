@@ -20,6 +20,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
 
         if (!session) {
           console.log('❌ No session found, redirecting to login')
+          setLoading(false)
           router.push('/login')
           return
         }
@@ -41,7 +42,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
             console.log('⚠️ Profile not found, waiting for creation...')
 
             // Wait for trigger to create profile
-            await new Promise(resolve => setTimeout(resolve, 2000))
+            await new Promise(resolve => setTimeout(resolve, 1500))
 
             // Try one more time
             const { data: retryProfile, error: retryError } = await supabase
@@ -52,6 +53,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
 
             if (retryError || !retryProfile) {
               console.log('⚠️ Profile still not found, access denied')
+              setLoading(false)
               router.push('/dashboard')
               return
             }
@@ -60,16 +62,21 @@ export default function AdminRoute({ children }: AdminRouteProps) {
             if (retryProfile.role === 'admin' || retryProfile.role === 'mod') {
               console.log('✅ Admin/Mod access granted (after retry):', retryProfile.role)
               setAllowed(true)
+              setLoading(false)
+              return
             } else {
               console.log('❌ Access denied: user role is', retryProfile.role)
+              setLoading(false)
               router.push('/dashboard')
+              return
             }
           } else {
             // Other errors
             console.log('❌ Profile error, redirecting to dashboard')
+            setLoading(false)
             router.push('/dashboard')
+            return
           }
-          return
         }
 
         // Check if user is admin or mod
@@ -78,11 +85,15 @@ export default function AdminRoute({ children }: AdminRouteProps) {
           setAllowed(true)
         } else {
           console.log('❌ Access denied: user role is', profile?.role)
+          setLoading(false)
           router.push('/dashboard')
+          return
         }
       } catch (error) {
         console.error('❌ Admin access check error:', error)
+        setLoading(false)
         router.push('/dashboard')
+        return
       } finally {
         setLoading(false)
       }
