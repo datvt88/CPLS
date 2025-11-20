@@ -34,71 +34,88 @@ export default function ProtectedRoute({
 
         console.log('✅ Session found:', session.user.email)
 
-        // If premium is required, check membership
-        if (needsPremium) {
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('membership, membership_expires_at')
-            .eq('id', session.user.id)
-            .single()
+        // If premium is NOT required, allow access immediately
+        // (Profile will be created by AuthListener + DB trigger for new OAuth users)
+        if (!needsPremium) {
+          console.log('✅ Access allowed (no premium required)')
+          setAllowed(true)
+          setLoading(false)
+          return
+        }
 
-          // Handle case where profile doesn't exist yet (new Google OAuth user)
-          if (error) {
-            console.error('Profile query error:', error)
+        // Premium is required - check membership
+        console.log('🔒 Premium required, checking membership...')
 
-            // If profile doesn't exist, allow access but user will be treated as free
-            // The profile will be created by AuthListener + DB trigger
-            if (error.code === 'PGRST116') {
-              console.log('⚠️ Profile not found yet, waiting for creation...')
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('membership, membership_expires_at')
+          .eq('id', session.user.id)
+          .single()
 
-              // Wait a bit for trigger to create profile
-              await new Promise(resolve => setTimeout(resolve, 1000))
+        // Handle case where profile doesn't exist yet (new Google OAuth user)
+        if (error) {
+          console.error('Profile query error:', error)
 
-              // Try one more time
-              const { data: retryProfile } = await supabase
-                .from('profiles')
-                .select('membership, membership_expires_at')
-                .eq('id', session.user.id)
-                .single()
+          if (error.code === 'PGRST116') {
+            console.log('⚠️ Profile not found yet, waiting for creation...')
 
-              if (!retryProfile || retryProfile.membership !== 'premium') {
-                // No premium, redirect to upgrade
-                router.push('/upgrade')
-                return
-              }
-            } else {
-              // Other errors, redirect to login
-              router.push('/login')
+            // Wait for trigger to create profile
+            await new Promise(resolve => setTimeout(resolve, 2000))
+
+            // Try one more time
+            const { data: retryProfile, error: retryError } = await supabase
+              .from('profiles')
+              .select('membership, membership_expires_at')
+              .eq('id', session.user.id)
+              .single()
+
+            if (retryError || !retryProfile) {
+              console.log('⚠️ Profile still not found, redirecting to upgrade')
+              router.push('/upgrade')
               return
             }
-          }
 
-          // Check if user has premium membership
-          if (profile?.membership === 'premium') {
-            // Check if membership has expired
-            if (profile.membership_expires_at) {
-              const expiresAt = new Date(profile.membership_expires_at)
-              const now = new Date()
-              if (expiresAt > now) {
-                setAllowed(true)
-              } else {
-                // Expired premium membership
-                console.log('⚠️ Premium membership expired')
-                router.push('/upgrade')
-              }
-            } else {
-              // No expiration date means lifetime premium
+            // Check retry profile membership
+            if (retryProfile.membership !== 'premium') {
+              console.log('⚠️ Free user, premium required')
+              router.push('/upgrade')
+              return
+            }
+
+            // Premium user, allow access
+            console.log('✅ Premium user (after retry)')
+            setAllowed(true)
+          } else {
+            // Other errors, redirect to login
+            console.log('❌ Profile error, redirecting to login')
+            router.push('/login')
+          }
+          return
+        }
+
+        // Check if user has premium membership
+        if (profile?.membership === 'premium') {
+          // Check if membership has expired
+          if (profile.membership_expires_at) {
+            const expiresAt = new Date(profile.membership_expires_at)
+            const now = new Date()
+            if (expiresAt > now) {
+              console.log('✅ Premium user (active)')
               setAllowed(true)
+            } else {
+              // Expired premium membership
+              console.log('⚠️ Premium membership expired')
+              router.push('/upgrade')
             }
           } else {
-            // Free user trying to access premium content
-            console.log('⚠️ Free user, premium required')
-            router.push('/upgrade')
+            // No expiration date means lifetime premium
+            console.log('✅ Premium user (lifetime)')
+            setAllowed(true)
           }
         } else {
-          // No premium required, allow access
-          console.log('✅ Access allowed')
-          setAllowed(true)
+          // Free user trying to access premium content
+          console.log('⚠️ Free user, premium required')
+          router.push('/upgrade')
         }
       } catch (error) {
         console.error('❌ Auth check error:', error)
