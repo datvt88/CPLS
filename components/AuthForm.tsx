@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { authService } from '@/services/auth.service';
 import { validatePassword, sanitizeInput } from '@/utils/validation';
-// import ZaloLoginButton from './ZaloLoginButton'; // REMOVED: Using ZNS OTP instead
+import GoogleLoginButton from './GoogleLoginButton';
 import RegisterForm from './RegisterForm';
 
 export function AuthForm() {
@@ -136,7 +136,20 @@ export function AuthForm() {
         </button>
       </form>
 
-      {/* REMOVED: Zalo OAuth - Now using ZNS OTP for registration */}
+      {/* Divider */}
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-700"></div>
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-2 bg-[--panel] text-gray-400">Hoặc</span>
+        </div>
+      </div>
+
+      {/* Google Login */}
+      <GoogleLoginButton
+        onError={(error) => setMessage(error)}
+      />
 
       <p
         onClick={() => {
