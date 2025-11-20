@@ -62,6 +62,27 @@ export const authService = {
   },
 
   /**
+   * Sign in with Google OAuth
+   * Uses Supabase's built-in Google OAuth provider
+   */
+  async signInWithGoogle(options?: { redirectTo?: string }) {
+    const redirectTo = options?.redirectTo || `${window.location.origin}/auth/callback`
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    })
+
+    return { data, error }
+  },
+
+  /**
    * Sign in with Zalo OAuth
    * Requires Zalo OAuth to be configured in Supabase
    */
