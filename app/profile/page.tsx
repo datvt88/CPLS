@@ -150,8 +150,8 @@ function ProfilePageContent() {
 
     const isPremium = profile.membership === 'premium'
     const badgeClass = isPremium
-      ? 'bg-gradient-to-r from-yellow-600 to-orange-600 text-white'
-      : 'bg-gray-700 text-gray-300'
+      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+      : 'bg-green-500/30 text-green-400 border border-green-500/50'
 
     let expiryText = ''
     if (isPremium && profile.membership_expires_at) {
@@ -361,14 +361,14 @@ function ProfilePageContent() {
             </div>
 
             {profile?.membership === 'free' && (
-              <div className="p-4 bg-gradient-to-r from-yellow-600/20 to-orange-600/20 border border-yellow-600/50 rounded-lg">
-                <h3 className="text-[--fg] font-semibold mb-2">Nâng cấp lên Premium</h3>
+              <div className="p-4 bg-green-500/20 border border-green-500/50 rounded-lg">
+                <h3 className="text-green-400 font-semibold mb-2">Nâng cấp lên Premium</h3>
                 <p className="text-[--muted] text-sm mb-3">
                   Truy cập không giới hạn tín hiệu AI, phân tích chuyên sâu và nhiều tính năng độc quyền khác.
                 </p>
                 <button
                   onClick={() => router.push('/upgrade')}
-                  className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
                 >
                   Nâng cấp ngay →
                 </button>
@@ -376,8 +376,8 @@ function ProfilePageContent() {
             )}
 
             {profile?.membership === 'premium' && (
-              <div className="p-4 bg-green-500/20 border border-green-500/50 rounded-lg">
-                <h3 className="text-green-400 font-semibold mb-2">✓ Bạn đang sử dụng Premium</h3>
+              <div className="p-4 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/50 rounded-lg">
+                <h3 className="text-purple-300 font-semibold mb-2">✓ Bạn đang sử dụng Premium</h3>
                 <ul className="text-[--muted] text-sm space-y-1">
                   <li>• Truy cập tín hiệu AI không giới hạn</li>
                   <li>• Phân tích chuyên sâu</li>
