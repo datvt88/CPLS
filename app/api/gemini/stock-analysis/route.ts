@@ -367,12 +367,19 @@ function formatGeminiPrice(price: string | number | null | undefined): string {
 
   const priceStr = String(price).trim()
 
-  // Handle range format like "95-100"
+  // Handle range format like "95-100" or "72-75"
   if (priceStr.includes('-')) {
     const parts = priceStr.split('-').map(p => p.trim())
     const formattedParts = parts.map(p => {
-      const num = parseFloat(p)
-      return isNaN(num) ? p : num.toLocaleString('en-US', {
+      let num = parseFloat(p)
+      if (isNaN(num)) return p
+
+      // If number is too small (< 1000), likely in thousands, multiply by 1000
+      if (num < 1000) {
+        num = num * 1000
+      }
+
+      return num.toLocaleString('en-US', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
       })
@@ -381,8 +388,13 @@ function formatGeminiPrice(price: string | number | null | undefined): string {
   }
 
   // Handle single value
-  const num = parseFloat(priceStr)
+  let num = parseFloat(priceStr)
   if (isNaN(num)) return priceStr
+
+  // If number is too small (< 1000), likely in thousands, multiply by 1000
+  if (num < 1000) {
+    num = num * 1000
+  }
 
   return num.toLocaleString('en-US', {
     minimumFractionDigits: 0,
