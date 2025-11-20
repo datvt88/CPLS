@@ -28,6 +28,8 @@ export default function ProtectedRoute({
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!session) {
+          console.log('❌ No session, redirecting to login')
+          setLoading(false)
           router.push('/login')
           return
         }
@@ -60,7 +62,7 @@ export default function ProtectedRoute({
             console.log('⚠️ Profile not found yet, waiting for creation...')
 
             // Wait for trigger to create profile
-            await new Promise(resolve => setTimeout(resolve, 2000))
+            await new Promise(resolve => setTimeout(resolve, 1500))
 
             // Try one more time
             const { data: retryProfile, error: retryError } = await supabase
@@ -71,6 +73,7 @@ export default function ProtectedRoute({
 
             if (retryError || !retryProfile) {
               console.log('⚠️ Profile still not found, redirecting to upgrade')
+              setLoading(false)
               router.push('/upgrade')
               return
             }
@@ -78,6 +81,7 @@ export default function ProtectedRoute({
             // Check retry profile membership
             if (retryProfile.membership !== 'premium') {
               console.log('⚠️ Free user, premium required')
+              setLoading(false)
               router.push('/upgrade')
               return
             }
@@ -85,12 +89,15 @@ export default function ProtectedRoute({
             // Premium user, allow access
             console.log('✅ Premium user (after retry)')
             setAllowed(true)
+            setLoading(false)
+            return
           } else {
             // Other errors, redirect to login
             console.log('❌ Profile error, redirecting to login')
+            setLoading(false)
             router.push('/login')
+            return
           }
-          return
         }
 
         // Check if user has premium membership
@@ -105,7 +112,9 @@ export default function ProtectedRoute({
             } else {
               // Expired premium membership
               console.log('⚠️ Premium membership expired')
+              setLoading(false)
               router.push('/upgrade')
+              return
             }
           } else {
             // No expiration date means lifetime premium
@@ -115,11 +124,15 @@ export default function ProtectedRoute({
         } else {
           // Free user trying to access premium content
           console.log('⚠️ Free user, premium required')
+          setLoading(false)
           router.push('/upgrade')
+          return
         }
       } catch (error) {
         console.error('❌ Auth check error:', error)
+        setLoading(false)
         router.push('/login')
+        return
       } finally {
         setLoading(false)
       }
