@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
 import { authService } from '@/services/auth.service'
 import { profileService } from '@/services/profile.service'
 
@@ -16,11 +17,170 @@ export default function AuthCallbackPage() {
 
   const handleCallback = async () => {
     try {
-      // Get URL parameters from Zalo OAuth redirect
+      console.log('🔍 Callback page loaded')
+      console.log('URL:', window.location.href)
+      console.log('Hash:', window.location.hash)
+      console.log('Search:', window.location.search)
+
+      // STEP 1: Check if Supabase already has a session (auto-restored from storage)
+      const { data: { session: existingSession } } = await supabase.auth.getSession()
+
+      if (existingSession) {
+        console.log('✅ Found existing session:', existingSession.user.email)
+        setStatus('success')
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 1000)
+        return
+      }
+
+      // STEP 2: Check for Supabase OAuth hash fragments
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+      const errorDescription = hashParams.get('error_description')
+      const hashError = hashParams.get('error')
+
+      // Handle OAuth error in hash
+      if (hashError) {
+        throw new Error(`OAuth error: ${errorDescription || hashError}`)
+      }
+
+      // STEP 3: Check for Zalo OAuth query parameters
       const urlParams = new URLSearchParams(window.location.search)
       const code = urlParams.get('code')
       const state = urlParams.get('state')
-      const error = urlParams.get('error')
+      const queryError = urlParams.get('error')
+
+      console.log('Parameters:', {
+        hasAccessToken: !!accessToken,
+        hasCode: !!code,
+        hasState: !!state,
+        hasError: !!queryError
+      })
+
+      // STEP 4: Route to appropriate handler
+
+      // Handle Supabase OAuth (Google, etc.)
+      if (accessToken) {
+        console.log('🔑 Processing Supabase OAuth (Google)')
+        await handleSupabaseOAuth(accessToken, refreshToken)
+        return
+      }
+
+      // Handle Zalo OAuth - must have both code AND state
+      if (code && state) {
+        console.log('🔑 Processing Zalo OAuth')
+        await handleZaloOAuth(code, queryError, urlParams)
+        return
+      }
+
+      // Handle Zalo OAuth error
+      if (queryError && state) {
+        throw new Error(`Zalo OAuth error: ${queryError}`)
+      }
+
+      // STEP 5: If no valid OAuth parameters, try to get session one more time
+      // (Sometimes Supabase takes a moment to process the callback)
+      console.log('⏳ Waiting for Supabase to process callback...')
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const { data: { session: delayedSession } } = await supabase.auth.getSession()
+
+      if (delayedSession) {
+        console.log('✅ Session established after delay')
+        setStatus('success')
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 500)
+        return
+      }
+
+      // No valid authentication found
+      console.error('❌ No valid authentication parameters found')
+      throw new Error('Không tìm thấy thông tin xác thực. Vui lòng thử lại.')
+
+    } catch (error) {
+      console.error('❌ Auth callback error:', error)
+      setStatus('error')
+      setErrorMessage(error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định')
+
+      // Redirect to login page after error
+      setTimeout(() => {
+        router.push('/login')
+      }, 3000)
+    }
+  }
+
+  /**
+   * Handle Supabase OAuth callback (Google, GitHub, etc.)
+   * Supabase automatically handles the session via hash fragments
+   */
+  const handleSupabaseOAuth = async (accessToken: string | null, refreshToken: string | null) => {
+    try {
+      console.log('🔐 Setting up Supabase session...')
+
+      // Supabase client will automatically pick up the session from URL hash
+      // We need to call setSession explicitly to ensure it's processed
+      if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+
+        if (error) {
+          throw new Error(`Failed to set session: ${error.message}`)
+        }
+
+        console.log('✅ Session set successfully')
+      }
+
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        throw new Error(`OAuth error: ${sessionError.message}`)
+      }
+
+      if (!session) {
+        throw new Error('No session found after OAuth callback')
+      }
+
+      console.log('✅ Google OAuth session established:', {
+        user_id: session.user.id,
+        email: session.user.email,
+        provider: session.user.app_metadata.provider,
+      })
+
+      // Profile will be auto-created/updated by AuthListener component
+      // and database trigger (handle_new_user function)
+
+      setStatus('success')
+
+      // Clean up URL hash
+      window.history.replaceState({}, document.title, window.location.pathname)
+
+      // Redirect to dashboard
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 1500)
+    } catch (error) {
+      console.error('❌ Supabase OAuth error:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Handle Zalo OAuth callback
+   * Uses custom code exchange flow
+   */
+  const handleZaloOAuth = async (
+    code: string | null,
+    error: string | null,
+    urlParams: URLSearchParams
+  ) => {
+    try {
+      console.log('🔐 Processing Zalo OAuth...')
 
       // Check for OAuth errors
       if (error) {
@@ -30,6 +190,8 @@ export default function AuthCallbackPage() {
       if (!code) {
         throw new Error('Không nhận được authorization code từ Zalo')
       }
+
+      const state = urlParams.get('state')
 
       // Verify CSRF state parameter
       const storedState = sessionStorage.getItem('zalo_oauth_state')
@@ -47,13 +209,15 @@ export default function AuthCallbackPage() {
       sessionStorage.removeItem('zalo_oauth_state')
       sessionStorage.removeItem('zalo_code_verifier')
 
+      console.log('📤 Exchanging code for token...')
+
       // Step 1: Exchange authorization code for access token (server-side)
       const tokenResponse = await fetch('/api/auth/zalo/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code,
-          code_verifier: codeVerifier, // PKCE verifier - REQUIRED by Zalo OAuth v4
+          code_verifier: codeVerifier,
         }),
       })
 
@@ -63,6 +227,9 @@ export default function AuthCallbackPage() {
       }
 
       const { access_token } = await tokenResponse.json()
+      console.log('✅ Token received')
+
+      console.log('👤 Fetching user info...')
 
       // Step 2: Get user info from Zalo (server-side)
       const userResponse = await fetch('/api/auth/zalo/user', {
@@ -78,20 +245,18 @@ export default function AuthCallbackPage() {
 
       const zaloUser = await userResponse.json()
 
-      // Log received Zalo user data for debugging
-      console.log('Zalo user data received:', {
+      console.log('✅ Zalo user data received:', {
         id: zaloUser.id,
         name: zaloUser.name,
-        birthday: zaloUser.birthday,
-        gender: zaloUser.gender,
-        has_picture: !!zaloUser.picture
+        has_picture: !!zaloUser.picture,
       })
 
       // Step 3: Create/sign in user with Supabase
-      // Use Zalo ID as pseudo-email since Zalo doesn't provide email
       const pseudoEmail = `zalo_${zaloUser.id}@cpls.app`
 
-      // Try to sign in first (user might already exist)
+      console.log('🔐 Creating/signing in Supabase user...')
+
+      // Try to sign in first
       let session
       const { data: signInData, error: signInError } = await authService.signIn({
         email: pseudoEmail,
@@ -99,6 +264,7 @@ export default function AuthCallbackPage() {
       })
 
       if (signInError) {
+        console.log('User not found, creating new account...')
         // User doesn't exist, create new account
         const { data: signUpData, error: signUpError } = await authService.signUp({
           email: pseudoEmail,
@@ -111,6 +277,7 @@ export default function AuthCallbackPage() {
 
         session = signUpData.session
       } else {
+        console.log('✅ User signed in')
         session = signInData.session
       }
 
@@ -118,26 +285,22 @@ export default function AuthCallbackPage() {
         throw new Error('Failed to create session')
       }
 
+      console.log('💾 Updating profile...')
+
       // Step 4: Create/update profile with Zalo data
       const { profile } = await profileService.getProfile(session.user.id)
 
-      // IMPORTANT: Zalo does NOT provide phone_number through Graph API
-      // Use placeholder phone number that user can update later in their profile
       const placeholderPhone = '0000000000'
 
       if (profile) {
-        // Update existing profile with Zalo data
-        // Only update fields that Zalo provides, keep existing phone if available
         const updateData: any = {
           full_name: zaloUser.name,
           avatar_url: zaloUser.picture,
         }
 
-        // Add birthday and gender if provided by Zalo
         if (zaloUser.birthday) updateData.birthday = zaloUser.birthday
         if (zaloUser.gender) updateData.gender = zaloUser.gender
 
-        // Only update phone to placeholder if profile doesn't have a real phone yet
         if (!profile.phone_number || profile.phone_number === '0000000000') {
           updateData.phone_number = placeholderPhone
         }
@@ -148,36 +311,28 @@ export default function AuthCallbackPage() {
           updateData
         )
       } else {
-        // Create new profile with Zalo data
-        // Note: User will need to update phone_number in their profile settings
         await profileService.upsertProfile({
           id: session.user.id,
           email: pseudoEmail,
-          phone_number: placeholderPhone,  // Placeholder - Zalo doesn't provide phone
+          phone_number: placeholderPhone,
           full_name: zaloUser.name,
           avatar_url: zaloUser.picture,
-          birthday: zaloUser.birthday,  // DD/MM/YYYY from Zalo
-          gender: zaloUser.gender,      // "male" or "female" from Zalo
+          birthday: zaloUser.birthday,
+          gender: zaloUser.gender,
           zalo_id: zaloUser.id,
           membership: 'free',
         })
       }
 
+      console.log('✅ Profile updated')
       setStatus('success')
 
-      // Redirect to dashboard after a short delay
       setTimeout(() => {
         router.push('/dashboard')
       }, 1500)
     } catch (error) {
-      console.error('Auth callback error:', error)
-      setStatus('error')
-      setErrorMessage(error instanceof Error ? error.message : 'Đã xảy ra lỗi')
-
-      // Redirect to login page after error
-      setTimeout(() => {
-        router.push('/login')
-      }, 3000)
+      console.error('❌ Zalo OAuth error:', error)
+      throw error
     }
   }
 
@@ -219,7 +374,7 @@ export default function AuthCallbackPage() {
           <>
             <div className="mb-4">
               <svg
-                className="h-12 w-12 text-[--success] mx-auto"
+                className="h-12 w-12 text-green-500 mx-auto"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -244,7 +399,7 @@ export default function AuthCallbackPage() {
           <>
             <div className="mb-4">
               <svg
-                className="h-12 w-12 text-[--danger] mx-auto"
+                className="h-12 w-12 text-red-500 mx-auto"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
