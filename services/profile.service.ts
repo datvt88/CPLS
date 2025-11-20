@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient'
 
 export type MembershipTier = 'free' | 'premium'
+export type UserRole = 'user' | 'mod' | 'admin'
 
 export interface Profile {
   id: string
@@ -17,6 +18,7 @@ export interface Profile {
   gender?: 'male' | 'female'  // Giới tính từ Zalo
   membership: MembershipTier
   membership_expires_at?: string
+  role: UserRole  // User role: user (default), mod, admin
   tcbs_api_key?: string
   tcbs_connected_at?: string
   created_at: string
@@ -242,5 +244,148 @@ export const profileService = {
    */
   hasTCBSConnected(profile: Profile): boolean {
     return !!profile.tcbs_api_key && !!profile.tcbs_connected_at
+  },
+
+  /**
+   * Admin: Check if user is admin or mod
+   */
+  isAdminOrMod(profile: Profile): boolean {
+    return profile.role === 'admin' || profile.role === 'mod'
+  },
+
+  /**
+   * Admin: Get all users with pagination and filters
+   */
+  async getAllUsers(options?: {
+    page?: number
+    limit?: number
+    role?: UserRole
+    membership?: MembershipTier
+    search?: string
+  }) {
+    const page = options?.page || 1
+    const limit = options?.limit || 20
+    const offset = (page - 1) * limit
+
+    let query = supabase
+      .from('profiles')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    // Apply filters
+    if (options?.role) {
+      query = query.eq('role', options.role)
+    }
+    if (options?.membership) {
+      query = query.eq('membership', options.membership)
+    }
+    if (options?.search) {
+      query = query.or(`email.ilike.%${options.search}%,full_name.ilike.%${options.search}%,nickname.ilike.%${options.search}%`)
+    }
+
+    const { data, error, count } = await query
+
+    return {
+      users: data as Profile[] | null,
+      error,
+      total: count || 0,
+      page,
+      totalPages: count ? Math.ceil(count / limit) : 0
+    }
+  },
+
+  /**
+   * Admin: Update user role
+   */
+  async updateUserRole(userId: string, role: UserRole) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Admin: Update user membership with expiry
+   */
+  async updateUserMembershipByAdmin(
+    userId: string,
+    membership: MembershipTier,
+    expiresAt?: string
+  ) {
+    const updates: any = { membership }
+    if (expiresAt) {
+      updates.membership_expires_at = expiresAt
+    } else {
+      updates.membership_expires_at = null
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Admin: Update user profile (full access)
+   */
+  async updateUserByAdmin(userId: string, updates: Partial<Profile>) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single()
+
+    return { profile: data as Profile | null, error }
+  },
+
+  /**
+   * Admin: Get user statistics
+   */
+  async getUserStats() {
+    // Get total users
+    const { count: totalUsers } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+
+    // Get premium users
+    const { count: premiumUsers } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('membership', 'premium')
+
+    // Get free users
+    const { count: freeUsers } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('membership', 'free')
+
+    // Get admin/mod count
+    const { count: adminCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'admin')
+
+    const { count: modCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'mod')
+
+    return {
+      totalUsers: totalUsers || 0,
+      premiumUsers: premiumUsers || 0,
+      freeUsers: freeUsers || 0,
+      adminCount: adminCount || 0,
+      modCount: modCount || 0
+    }
   }
 }
