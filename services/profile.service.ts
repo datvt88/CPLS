@@ -10,6 +10,8 @@ export interface Profile {
   nickname?: string  // Tên hiển thị tài khoản (user tự đặt)
   stock_account_number?: string  // Số tài khoản chứng khoán (optional)
   avatar_url?: string
+  provider?: string  // OAuth provider (google, zalo, email)
+  provider_id?: string  // OAuth provider user ID
   zalo_id?: string
   birthday?: string  // Ngày sinh từ Zalo (DD/MM/YYYY)
   gender?: 'male' | 'female'  // Giới tính từ Zalo

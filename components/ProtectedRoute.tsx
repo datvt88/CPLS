@@ -32,12 +32,46 @@ export default function ProtectedRoute({
           return
         }
 
+        console.log('✅ Session found:', session.user.email)
+
+        // If premium is required, check membership
         if (needsPremium) {
-          const { data: profile } = await supabase
+          const { data: profile, error } = await supabase
             .from('profiles')
             .select('membership, membership_expires_at')
             .eq('id', session.user.id)
             .single()
+
+          // Handle case where profile doesn't exist yet (new Google OAuth user)
+          if (error) {
+            console.error('Profile query error:', error)
+
+            // If profile doesn't exist, allow access but user will be treated as free
+            // The profile will be created by AuthListener + DB trigger
+            if (error.code === 'PGRST116') {
+              console.log('⚠️ Profile not found yet, waiting for creation...')
+
+              // Wait a bit for trigger to create profile
+              await new Promise(resolve => setTimeout(resolve, 1000))
+
+              // Try one more time
+              const { data: retryProfile } = await supabase
+                .from('profiles')
+                .select('membership, membership_expires_at')
+                .eq('id', session.user.id)
+                .single()
+
+              if (!retryProfile || retryProfile.membership !== 'premium') {
+                // No premium, redirect to upgrade
+                router.push('/upgrade')
+                return
+              }
+            } else {
+              // Other errors, redirect to login
+              router.push('/login')
+              return
+            }
+          }
 
           // Check if user has premium membership
           if (profile?.membership === 'premium') {
@@ -49,6 +83,7 @@ export default function ProtectedRoute({
                 setAllowed(true)
               } else {
                 // Expired premium membership
+                console.log('⚠️ Premium membership expired')
                 router.push('/upgrade')
               }
             } else {
@@ -57,13 +92,16 @@ export default function ProtectedRoute({
             }
           } else {
             // Free user trying to access premium content
+            console.log('⚠️ Free user, premium required')
             router.push('/upgrade')
           }
         } else {
+          // No premium required, allow access
+          console.log('✅ Access allowed')
           setAllowed(true)
         }
       } catch (error) {
-        console.error('Auth check error:', error)
+        console.error('❌ Auth check error:', error)
         router.push('/login')
       } finally {
         setLoading(false)
@@ -75,7 +113,7 @@ export default function ProtectedRoute({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-[--bg]">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Đang kiểm tra quyền truy cập...</p>
