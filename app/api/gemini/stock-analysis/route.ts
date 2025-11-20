@@ -372,7 +372,7 @@ function formatGeminiPrice(price: string | number | null | undefined): string {
     const parts = priceStr.split('-').map(p => p.trim())
     const formattedParts = parts.map(p => {
       const num = parseFloat(p)
-      return isNaN(num) ? p : num.toLocaleString('vi-VN', {
+      return isNaN(num) ? p : num.toLocaleString('en-US', {
         minimumFractionDigits: 3,
         maximumFractionDigits: 3
       })
@@ -384,7 +384,7 @@ function formatGeminiPrice(price: string | number | null | undefined): string {
   const num = parseFloat(priceStr)
   if (isNaN(num)) return priceStr
 
-  return num.toLocaleString('vi-VN', {
+  return num.toLocaleString('en-US', {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3
   })
