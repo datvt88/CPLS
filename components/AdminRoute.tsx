@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -11,15 +11,30 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   const [allowed, setAllowed] = useState(false)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const timeoutRef = useRef<NodeJS.Timeout>()
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
+    isMountedRef.current = true
+
+    // Safety timeout: force stop loading after 5 seconds
+    timeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current && loading) {
+        console.warn('⏱️ Admin check timeout, redirecting to dashboard...')
+        setLoading(false)
+        router.push('/dashboard')
+      }
+    }, 5000)
+
     const checkAdminAccess = async () => {
       try {
-        // Check if user is logged in
+        // Step 1: Check session
         const { data: { session } } = await supabase.auth.getSession()
 
+        if (!isMountedRef.current) return
+
         if (!session) {
-          console.log('❌ No session found, redirecting to login')
+          console.log('❌ No session, redirecting to login')
           setLoading(false)
           router.push('/login')
           return
@@ -27,80 +42,82 @@ export default function AdminRoute({ children }: AdminRouteProps) {
 
         console.log('✅ Session found:', session.user.email)
 
-        // Check user's role
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('role, full_name, email')
-          .eq('id', session.user.id)
-          .single()
+        // Step 2: Check user role with retry logic
+        let profile = null
+        let attempts = 0
+        const maxAttempts = 2
 
-        if (error) {
-          console.error('❌ Profile query error:', error)
+        while (attempts < maxAttempts && !profile) {
+          attempts++
 
-          // If profile doesn't exist yet (new user)
-          if (error.code === 'PGRST116') {
-            console.log('⚠️ Profile not found, waiting for creation...')
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('role, full_name, email')
+            .eq('id', session.user.id)
+            .single()
 
-            // Wait for trigger to create profile
-            await new Promise(resolve => setTimeout(resolve, 1500))
+          if (!isMountedRef.current) return
 
-            // Try one more time
-            const { data: retryProfile, error: retryError } = await supabase
-              .from('profiles')
-              .select('role, full_name, email')
-              .eq('id', session.user.id)
-              .single()
+          if (!error && data) {
+            profile = data
+            break
+          }
 
-            if (retryError || !retryProfile) {
-              console.log('⚠️ Profile still not found, access denied')
-              setLoading(false)
-              router.push('/dashboard')
-              return
-            }
-
-            // Check retry profile role
-            if (retryProfile.role === 'admin' || retryProfile.role === 'mod') {
-              console.log('✅ Admin/Mod access granted (after retry):', retryProfile.role)
-              setAllowed(true)
-              setLoading(false)
-              return
-            } else {
-              console.log('❌ Access denied: user role is', retryProfile.role)
-              setLoading(false)
-              router.push('/dashboard')
-              return
-            }
-          } else {
-            // Other errors
-            console.log('❌ Profile error, redirecting to dashboard')
+          // If profile not found on first attempt, wait and retry
+          if (error?.code === 'PGRST116' && attempts < maxAttempts) {
+            console.log(`⏳ Profile not found (attempt ${attempts}/${maxAttempts}), retrying...`)
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          } else if (error) {
+            console.error('❌ Profile error:', error)
             setLoading(false)
             router.push('/dashboard')
             return
           }
         }
 
-        // Check if user is admin or mod
-        if (profile?.role === 'admin' || profile?.role === 'mod') {
-          console.log('✅ Admin/Mod access granted:', profile.role, '-', profile.full_name || profile.email)
-          setAllowed(true)
-        } else {
-          console.log('❌ Access denied: user role is', profile?.role)
-          setLoading(false)
-          router.push('/dashboard')
+        if (!profile) {
+          console.log('⚠️ Profile not found after retries, access denied')
+          if (isMountedRef.current) {
+            setLoading(false)
+            router.push('/dashboard')
+          }
           return
         }
+
+        // Step 3: Check if user is admin or mod
+        if (profile.role === 'admin' || profile.role === 'mod') {
+          console.log('✅ Admin/Mod access granted:', profile.role, '-', profile.full_name || profile.email)
+          if (isMountedRef.current) {
+            setAllowed(true)
+            setLoading(false)
+          }
+        } else {
+          console.log('❌ Access denied: user role is', profile.role)
+          if (isMountedRef.current) {
+            setLoading(false)
+            router.push('/dashboard')
+          }
+        }
+
       } catch (error) {
         console.error('❌ Admin access check error:', error)
-        setLoading(false)
-        router.push('/dashboard')
-        return
-      } finally {
-        setLoading(false)
+        if (isMountedRef.current) {
+          setLoading(false)
+          router.push('/dashboard')
+        }
       }
     }
 
     checkAdminAccess()
-  }, [router])
+
+    // Cleanup
+    return () => {
+      isMountedRef.current = false
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [router, loading])
 
   if (loading) {
     return (
