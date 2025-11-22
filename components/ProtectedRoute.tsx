@@ -17,6 +17,7 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps){
   const [allowed, setAllowed] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [hasValidSession, setHasValidSession] = useState(false)
   const router = useRouter()
   const timeoutRef = useRef<NodeJS.Timeout>()
   const isMountedRef = useRef(true)
@@ -26,16 +27,25 @@ export default function ProtectedRoute({
   useEffect(() => {
     isMountedRef.current = true
 
-    // Safety timeout: force stop loading after 5 seconds
+    // Safety timeout: force stop loading after 10 seconds
     timeoutRef.current = setTimeout(() => {
       if (isMountedRef.current) {
-        console.warn('⏱️ Auth check timeout after 5 seconds')
-        console.warn('🔍 Debug info:', { needsPremium, allowed, loading })
-        setLoading(false)
-        // If still loading after timeout, redirect to login (safer default)
-        router.push('/login?timeout=true')
+        console.warn('⏱️ Auth check timeout after 10 seconds')
+        console.warn('🔍 Debug info:', { needsPremium, allowed, loading, hasValidSession })
+
+        // If we have a valid session, grant access even on timeout
+        if (hasValidSession) {
+          console.log('✅ Timeout but session is valid - granting access')
+          setAllowed(true)
+          setLoading(false)
+        } else {
+          // Only redirect to login if no valid session was ever detected
+          console.warn('❌ Timeout with no valid session - redirecting to login')
+          setLoading(false)
+          router.push('/login')
+        }
       }
-    }, 5000)
+    }, 10000) // Increased to 10 seconds
 
     const checkAuth = async () => {
       try {
@@ -47,12 +57,16 @@ export default function ProtectedRoute({
         if (!session) {
           console.log('❌ No session, redirecting to login')
           if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          setHasValidSession(false)
           setLoading(false)
           router.push('/login')
           return
         }
 
         console.log('✅ Session found:', session.user.email)
+
+        // Mark that we have a valid session
+        setHasValidSession(true)
 
         // Step 2: If no premium required, grant access immediately
         if (!needsPremium) {

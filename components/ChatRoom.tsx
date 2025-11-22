@@ -333,17 +333,30 @@ export default function ChatRoom() {
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
-    const now = new Date()
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  }
 
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    } else if (diffInHours < 48) {
-      return 'Hôm qua ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    } else {
-      return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' +
-             date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    }
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const isToday = date.toDateString() === today.toDateString()
+    const isYesterday = date.toDateString() === yesterday.toDateString()
+
+    if (isToday) return 'Hôm nay'
+    if (isYesterday) return 'Hôm qua'
+    return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
+
+  const shouldShowDateDivider = (currentMessage: Message, previousMessage: Message | null) => {
+    if (!previousMessage) return true
+
+    const currentDate = new Date(currentMessage.timestamp).toDateString()
+    const previousDate = new Date(previousMessage.timestamp).toDateString()
+
+    return currentDate !== previousDate
   }
 
   const getReactionCounts = (reactions?: { [key: string]: Reaction }) => {
@@ -427,119 +440,126 @@ export default function ChatRoom() {
             <p>Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
           </div>
         ) : (
-          messages.map((message) => {
+          messages.map((message, index) => {
             const isOwnMessage = currentUser?.id === message.userId
             const reactionCounts = getReactionCounts(message.reactions)
             const userReaction = message.reactions?.[currentUser?.id || '']
+            const previousMessage = index > 0 ? messages[index - 1] : null
+            const showDateDivider = shouldShowDateDivider(message, previousMessage)
 
             return (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} group`}
-              >
-                {/* Avatar */}
-                <div className="flex-shrink-0">
-                  <img
-                    src={message.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(message.username)}&background=random`}
-                    alt={message.username}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                </div>
+              <div key={message.id}>
+                {/* Date Divider */}
+                {showDateDivider && (
+                  <div className="flex items-center justify-center my-4">
+                    <div className="bg-gray-800/50 px-3 py-1 rounded-full text-xs text-[--muted]">
+                      {formatDate(message.timestamp)}
+                    </div>
+                  </div>
+                )}
 
-                {/* Message Content */}
-                <div className={`flex flex-col max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-sm font-semibold ${isOwnMessage ? 'text-purple-400' : 'text-blue-400'}`}>
-                      {message.username}
-                    </span>
-                    <span className="text-xs text-[--muted]">
-                      {formatTime(message.timestamp)}
-                    </span>
+                {/* Message Row - All aligned to left */}
+                <div className="flex gap-3 group">
+                  {/* Avatar - Always on left */}
+                  <div className="flex-shrink-0">
+                    <img
+                      src={message.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(message.username)}&background=random`}
+                      alt={message.username}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
                   </div>
 
-                  {/* Reply Reference */}
-                  {message.replyTo && (
-                    <div className={`mb-2 px-3 py-2 rounded-lg bg-gray-800/50 border-l-2 ${isOwnMessage ? 'border-purple-500' : 'border-blue-500'} text-xs`}>
-                      <div className="text-[--muted] mb-1">Trả lời {message.replyTo.username}</div>
-                      <div className="text-gray-400 truncate">{message.replyTo.text}</div>
-                    </div>
-                  )}
-
-                  <div className="relative">
-                    <div
-                      className={`px-4 py-2 rounded-2xl ${
-                        isOwnMessage
-                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                          : 'bg-gray-800 text-[--fg]'
-                      }`}
-                    >
-                      {message.imageUrl && (
-                        <img
-                          src={message.imageUrl}
-                          alt="Shared image"
-                          className="rounded-lg mb-2 max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={() => window.open(message.imageUrl, '_blank')}
-                        />
-                      )}
-                      {message.text && message.text !== '[Hình ảnh]' && (
-                        <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
-                      )}
+                  {/* Message Content */}
+                  <div className="flex flex-col max-w-[70%] items-start flex-1">
+                    {/* Username and Time */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-[--fg]">
+                        {message.username}
+                      </span>
+                      <span className="text-xs text-[--muted]">
+                        {formatTime(message.timestamp)}
+                      </span>
                     </div>
 
-                    {/* Reactions Display */}
-                    {Object.keys(reactionCounts).length > 0 && (
-                      <div className="flex gap-1 mt-1">
-                        {Object.entries(reactionCounts).map(([type, count]) => {
-                          const emoji = REACTION_TYPES.find(r => r.type === type)?.emoji
-                          return (
-                            <div
+                    {/* Reply Reference */}
+                    {message.replyTo && (
+                      <div className="mb-2 px-3 py-2 rounded-lg bg-gray-800/50 border-l-2 border-blue-500 text-xs">
+                        <div className="text-[--muted] mb-1">Trả lời {message.replyTo.username}</div>
+                        <div className="text-gray-400 truncate">{message.replyTo.text}</div>
+                      </div>
+                    )}
+
+                    {/* Message Bubble with reactions */}
+                    <div className="relative">
+                      <div className="px-4 py-2 rounded-2xl bg-gray-800 text-[--fg]">
+                        {message.imageUrl && (
+                          <img
+                            src={message.imageUrl}
+                            alt="Shared image"
+                            className="rounded-lg mb-2 max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => window.open(message.imageUrl, '_blank')}
+                          />
+                        )}
+                        {message.text && message.text !== '[Hình ảnh]' && (
+                          <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                        )}
+                      </div>
+
+                      {/* Reactions Display - Bottom Right Corner */}
+                      {Object.keys(reactionCounts).length > 0 && (
+                        <div className="absolute -bottom-2 right-2 flex gap-1">
+                          {Object.entries(reactionCounts).map(([type, count]) => {
+                            const emoji = REACTION_TYPES.find(r => r.type === type)?.emoji
+                            return (
+                              <div
+                                key={type}
+                                className="bg-gray-700 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs shadow-lg border border-gray-600"
+                              >
+                                <span>{emoji}</span>
+                                <span className="text-gray-300">{count}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Action Buttons (visible on hover) - Always on right */}
+                      <div className="absolute top-0 right-0 translate-x-full opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 px-2">
+                        {/* Reply Button */}
+                        <button
+                          onClick={() => setReplyingTo(message)}
+                          className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
+                          title="Trả lời"
+                        >
+                          ↩️
+                        </button>
+
+                        {/* Reaction Button */}
+                        <button
+                          onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
+                          className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
+                          title="Thả cảm xúc"
+                        >
+                          {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
+                        </button>
+                      </div>
+
+                      {/* Reaction Picker */}
+                      {showReactions === message.id && (
+                        <div className="absolute top-full mt-2 left-0 bg-gray-800 rounded-lg shadow-lg p-2 flex gap-2 z-10 border border-gray-700">
+                          {REACTION_TYPES.map(({ type, emoji, label }) => (
+                            <button
                               key={type}
-                              className="bg-gray-700 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs"
+                              onClick={() => handleReaction(message.id, type)}
+                              className="hover:scale-125 transition-transform text-2xl"
+                              title={label}
                             >
-                              <span>{emoji}</span>
-                              <span className="text-gray-300">{count}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {/* Action Buttons (visible on hover) */}
-                    <div className={`absolute top-0 ${isOwnMessage ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 px-2`}>
-                      {/* Reply Button */}
-                      <button
-                        onClick={() => setReplyingTo(message)}
-                        className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
-                        title="Trả lời"
-                      >
-                        ↩️
-                      </button>
-
-                      {/* Reaction Button */}
-                      <button
-                        onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
-                        className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
-                        title="Thả cảm xúc"
-                      >
-                        {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
-                      </button>
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Reaction Picker */}
-                    {showReactions === message.id && (
-                      <div className={`absolute top-full mt-2 ${isOwnMessage ? 'right-0' : 'left-0'} bg-gray-800 rounded-lg shadow-lg p-2 flex gap-2 z-10 border border-gray-700`}>
-                        {REACTION_TYPES.map(({ type, emoji, label }) => (
-                          <button
-                            key={type}
-                            onClick={() => handleReaction(message.id, type)}
-                            className="hover:scale-125 transition-transform text-2xl"
-                            title={label}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
