@@ -47,25 +47,25 @@ export default function MobileMenu() {
       {/* Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-75 z-40 backdrop-blur-sm"
+          className="fixed inset-0 bg-black bg-opacity-60 z-40 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Menu Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-gray-950 border-l border-gray-700 z-40 transform transition-transform duration-300 ease-in-out shadow-2xl ${
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-gray-900 border-l border-gray-700 z-40 transform transition-transform duration-300 ease-in-out shadow-2xl ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="p-4 sm:p-6 flex flex-col h-full bg-gradient-to-b from-gray-950 to-black">
+        <div className="p-4 sm:p-6 flex flex-col h-full">
           {/* Header */}
           <div className="mb-4 sm:mb-6 flex items-center gap-3 pb-3 sm:pb-4 border-b border-gray-700">
-            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-sm sm:text-base shadow-lg">
+            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold shadow-lg">
               CPLS
             </div>
             <div>
-              <div className="text-white font-bold text-base">CPLS</div>
+              <div className="text-white font-bold">CPLS</div>
               <div className="text-xs text-gray-400">Master Trader</div>
             </div>
           </div>
@@ -77,10 +77,10 @@ export default function MobileMenu() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center py-2.5 px-3 rounded-lg hover:bg-gray-800/80 active:bg-gray-700 text-gray-100 transition-all duration-200 relative group"
+                className="flex items-center py-2.5 px-3 rounded-lg hover:bg-gray-800/80 active:bg-gray-700 text-white transition-all duration-200 relative group"
               >
-                <span className="text-lg sm:text-xl">{item.icon}</span>
-                <span className="ml-3 font-medium group-hover:text-white">{item.label}</span>
+                <span className="text-xl">{item.icon}</span>
+                <span className="ml-3 font-medium">{item.label}</span>
                 {item.href === '/chat' && unreadCount > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center shadow-md">
                     {unreadCount > 99 ? '99+' : unreadCount}
