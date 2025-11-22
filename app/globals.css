@@ -2,8 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Inter', sans-serif;
-  background-color: #000;
-  color: #fff;
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #000;
+    color: #fff;
+    @apply overflow-x-hidden;
+  }
+}
+
+@layer utilities {
+  .container {
+    @apply w-full max-w-full;
+  }
+  /* Responsive text utilities */
+  .text-responsive-xs { @apply text-xs sm:text-sm; }
+  .text-responsive-sm { @apply text-sm sm:text-base; }
+  .text-responsive-base { @apply text-base sm:text-lg; }
+  .text-responsive-lg { @apply text-lg sm:text-xl lg:text-2xl; }
+  .text-responsive-xl { @apply text-xl sm:text-2xl lg:text-3xl; }
+
+  /* Responsive padding utilities */
+  .p-responsive { @apply p-4 sm:p-6 lg:p-8; }
+  .px-responsive { @apply px-4 sm:px-6 lg:px-8; }
+  .py-responsive { @apply py-4 sm:py-6 lg:py-8; }
 }
