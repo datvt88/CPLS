@@ -585,21 +585,21 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 space-y-4">
+    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 space-y-3 sm:space-y-4">
       {/* Search Bar */}
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3">
         <input
           type="text"
           value={inputSymbol}
           onChange={(e) => setInputSymbol(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder="Nhập mã cổ phiếu (VD: FPT, TCB, VNM)"
-          className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg border border-gray-700 focus:outline-none focus:border-purple-500 uppercase"
+          className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 text-white text-sm sm:text-base rounded-lg border border-gray-700 focus:outline-none focus:border-purple-500 uppercase"
         />
         <button
           onClick={handleSearch}
           disabled={loading || isRefreshing}
-          className="px-8 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+          className="px-4 sm:px-8 py-2 sm:py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white text-sm sm:text-base rounded-lg transition-colors font-medium"
         >
           {loading ? 'Đang tải...' : 'Xem'}
         </button>
@@ -608,15 +608,15 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             <button
               onClick={handleRefresh}
               disabled={loading || isRefreshing}
-              className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+              className="hidden sm:flex px-4 md:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium items-center gap-2"
               title="Làm mới dữ liệu (Auto-refresh mỗi 5 phút)"
             >
               <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
-              <span className="hidden sm:inline">{isRefreshing ? 'Đang làm mới...' : 'Làm mới'}</span>
+              <span>{isRefreshing ? 'Đang làm mới...' : 'Làm mới'}</span>
             </button>
             <button
               onClick={toggleWatchlist}
-              className={`px-6 py-3 rounded-lg transition-colors font-medium flex items-center gap-2 ${
+              className={`hidden sm:flex px-4 md:px-6 py-2 sm:py-3 rounded-lg transition-colors font-medium items-center gap-2 ${
                 isInWatchlist
                   ? 'bg-yellow-600 hover:bg-yellow-700'
                   : 'bg-gray-700 hover:bg-gray-600'
@@ -624,7 +624,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               title={isInWatchlist ? 'Bỏ theo dõi' : 'Theo dõi mã này'}
             >
               <span>{isInWatchlist ? '⭐' : '☆'}</span>
-              <span className="hidden sm:inline">{isInWatchlist ? 'Đang theo dõi' : 'Theo dõi'}</span>
+              <span>{isInWatchlist ? 'Đang theo dõi' : 'Theo dõi'}</span>
             </button>
           </>
         )}
@@ -632,12 +632,12 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
       {/* Watchlist Quick Access */}
       {watchlist.length > 0 && (
-        <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+        <div className="bg-gray-800/30 rounded-lg p-2 sm:p-3 border border-gray-700/50">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-yellow-400 text-sm font-semibold">⭐ Danh sách theo dõi:</span>
+            <span className="text-yellow-400 text-xs sm:text-sm font-semibold">⭐ Danh sách theo dõi:</span>
             <span className="text-gray-400 text-xs">({watchlist.length}/10)</span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {watchlist.map((sym) => (
               <button
                 key={sym}
@@ -668,8 +668,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         {latestData && (
           <>
           {/* Data Date Indicator */}
-          <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 mb-2">
-            <div className="flex items-center justify-between mb-2">
+          <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-2 sm:p-3 mb-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-blue-400 font-semibold">📅 Dữ liệu ngày:</span>
                 <span className="text-white font-bold text-lg">
@@ -715,9 +715,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           </div>
 
           {/* Quick Info Panel */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
             {/* 1. Thị giá */}
-            <div className="bg-gray-800/50 rounded-lg p-3">
+            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
               <div className="text-gray-400 text-xs mb-1">Thị giá</div>
               <div className={`text-xl font-bold ${
                 latestData.close > latestData.open ? 'text-green-400' :
@@ -728,59 +728,59 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             </div>
 
             {/* 2. Thay đổi */}
-            <div className="bg-gray-800/50 rounded-lg p-3">
+            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
               <div className="text-gray-400 text-xs mb-1">Thay đổi</div>
-              <div className={`text-xl font-bold ${formatChange(latestData.change).colorClass}`}>
+              <div className={`text-lg sm:text-xl font-bold ${formatChange(latestData.change).colorClass}`}>
                 {formatChange(latestData.change).text}
-                <span className={`text-sm ml-1 ${formatChange(latestData.pctChange).colorClass}`}>
+                <span className={`text-xs sm:text-sm ml-1 ${formatChange(latestData.pctChange).colorClass}`}>
                   ({formatChange(latestData.pctChange).text}%)
                 </span>
               </div>
             </div>
 
             {/* 3. Giá trần */}
-            <div className="bg-purple-900/20 rounded-lg p-3 border border-purple-700/30">
+            <div className="bg-purple-900/20 rounded-lg p-2 sm:p-3 border border-purple-700/30">
               <div className="text-purple-400 text-xs mb-1">Giá trần</div>
-              <div className="text-xl font-bold text-purple-300">
+              <div className="text-lg sm:text-xl font-bold text-purple-300">
                 {formatPrice(latestData.close * 1.07)}
               </div>
             </div>
 
             {/* 4. Giá sàn */}
-            <div className="bg-cyan-900/20 rounded-lg p-3 border border-cyan-700/30">
+            <div className="bg-cyan-900/20 rounded-lg p-2 sm:p-3 border border-cyan-700/30">
               <div className="text-cyan-400 text-xs mb-1">Giá sàn</div>
-              <div className="text-xl font-bold text-cyan-300">
+              <div className="text-lg sm:text-xl font-bold text-cyan-300">
                 {formatPrice(latestData.close * 0.93)}
               </div>
             </div>
 
             {/* 5. Khối lượng */}
-            <div className="bg-gray-800/50 rounded-lg p-3">
+            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
               <div className="text-gray-400 text-xs mb-1">Khối lượng</div>
-              <div className="text-lg font-bold text-white">
+              <div className="text-sm sm:text-lg font-bold text-white">
                 {formatVolume(latestData.nmVolume)}
               </div>
             </div>
 
             {/* 6. Giá trị */}
-            <div className="bg-gray-800/50 rounded-lg p-3">
+            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
               <div className="text-gray-400 text-xs mb-1">Giá trị</div>
-              <div className="text-lg font-bold text-white">
+              <div className="text-sm sm:text-lg font-bold text-white">
                 {formatCurrency(latestData.nmValue)}
               </div>
             </div>
           </div>
 
           {/* Chart Controls */}
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             {/* Timeframe Controls */}
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-sm mr-2">Khung thời gian:</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-gray-400 text-xs sm:text-sm mr-1 sm:mr-2">Khung thời gian:</span>
               {(['1D', '1W', '1M'] as const).map((tf) => (
                 <button
                   key={tf}
                   onClick={() => setTimeframe(tf)}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
+                  className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transition-colors ${
                     timeframe === tf
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -792,11 +792,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             </div>
 
             {/* Chart Type Controls */}
-            <div className="flex items-center gap-2 border-l border-gray-700 pl-4">
-              <span className="text-gray-400 text-sm mr-2">Loại biểu đồ:</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 border-l border-gray-700 pl-2 sm:pl-4">
+              <span className="text-gray-400 text-xs sm:text-sm mr-1 sm:mr-2">Loại biểu đồ:</span>
               <button
                 onClick={() => setChartType('candlestick')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transition-colors ${
                   chartType === 'candlestick'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -806,7 +806,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               </button>
               <button
                 onClick={() => setChartType('line')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
+                className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transition-colors ${
                   chartType === 'line'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -848,11 +848,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           <>
           {/* Short-term Technical Analysis */}
           {(bollingerBands.upper.length > 0 || pivotPoints) && (
-            <div className="bg-gradient-to-r from-cyan-900/20 to-purple-900/20 rounded-lg p-4 border border-cyan-700/30">
-              <h4 className="text-sm font-semibold text-white mb-3">
+            <div className="bg-gradient-to-r from-cyan-900/20 to-purple-900/20 rounded-lg p-2 sm:p-3 md:p-4 border border-cyan-700/30">
+              <h4 className="text-xs sm:text-sm font-semibold text-white mb-2 sm:mb-3">
                 📊 Phân tích kỹ thuật ngắn hạn
               </h4>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm">
                 {/* Current Price - First */}
                 <div>
                   <span className="text-yellow-400 font-semibold">Giá hiện tại:</span>
