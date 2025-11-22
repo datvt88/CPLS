@@ -28,7 +28,7 @@ export default function ProtectedRoute({
 
     // Safety timeout: force stop loading after 5 seconds
     timeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current && loading) {
+      if (isMountedRef.current) {
         console.warn('⏱️ Auth check timeout, redirecting...')
         setLoading(false)
         router.push(needsPremium ? '/upgrade' : '/dashboard')
@@ -44,6 +44,7 @@ export default function ProtectedRoute({
 
         if (!session) {
           console.log('❌ No session, redirecting to login')
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
           setLoading(false)
           router.push('/login')
           return
@@ -55,6 +56,7 @@ export default function ProtectedRoute({
         if (!needsPremium) {
           console.log('✅ Access granted (no premium required)')
           if (isMountedRef.current) {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
             setAllowed(true)
             setLoading(false)
           }
@@ -91,6 +93,7 @@ export default function ProtectedRoute({
             await new Promise(resolve => setTimeout(resolve, 1000))
           } else if (error) {
             console.error('❌ Profile error:', error)
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
             setLoading(false)
             router.push('/login')
             return
@@ -100,6 +103,7 @@ export default function ProtectedRoute({
         if (!profile) {
           console.log('⚠️ Profile not found after retries')
           if (isMountedRef.current) {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
             setLoading(false)
             router.push('/upgrade')
           }
@@ -116,12 +120,14 @@ export default function ProtectedRoute({
             if (expiresAt > now) {
               console.log('✅ Premium user (active until', expiresAt.toLocaleDateString(), ')')
               if (isMountedRef.current) {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current)
                 setAllowed(true)
                 setLoading(false)
               }
             } else {
               console.log('⚠️ Premium expired')
               if (isMountedRef.current) {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current)
                 setLoading(false)
                 router.push('/upgrade')
               }
@@ -130,6 +136,7 @@ export default function ProtectedRoute({
             // Lifetime premium
             console.log('✅ Premium user (lifetime)')
             if (isMountedRef.current) {
+              if (timeoutRef.current) clearTimeout(timeoutRef.current)
               setAllowed(true)
               setLoading(false)
             }
@@ -138,6 +145,7 @@ export default function ProtectedRoute({
           // Free user
           console.log('⚠️ Free user, premium required')
           if (isMountedRef.current) {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
             setLoading(false)
             router.push('/upgrade')
           }
@@ -146,6 +154,7 @@ export default function ProtectedRoute({
       } catch (error) {
         console.error('❌ Auth check error:', error)
         if (isMountedRef.current) {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
           setLoading(false)
           router.push('/login')
         }
@@ -161,7 +170,7 @@ export default function ProtectedRoute({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [needsPremium, router, loading])
+  }, [needsPremium, router])
 
   if (loading) {
     return (
