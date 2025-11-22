@@ -211,6 +211,11 @@ export default function ChatRoom() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  // Helper function to get display name (priority: nickname > full_name > email)
+  const getDisplayName = (profile: Profile): string => {
+    return profile.nickname || profile.full_name || profile.email || 'Anonymous'
+  }
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -261,11 +266,12 @@ export default function ChatRoom() {
       }
 
       const messagesRef = dbRef(database, 'messages')
+      const displayName = getDisplayName(currentUser.profile)
       const messageData: any = {
         text: newMessage.trim() || (imageUrl ? '[Hình ảnh]' : ''),
         userId: currentUser.id,
-        username: currentUser.profile.full_name || currentUser.profile.email || 'Anonymous',
-        avatar: currentUser.profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.profile.full_name || 'A')}&background=random`,
+        username: displayName,
+        avatar: currentUser.profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
         timestamp: Date.now(),
         createdAt: serverTimestamp(),
       }
@@ -312,10 +318,11 @@ export default function ChatRoom() {
       })
     } else {
       // Add or update reaction
+      const displayName = getDisplayName(currentUser.profile)
       await update(dbRef(database, `messages/${messageId}/reactions`), {
         [currentUser.id]: {
           userId: currentUser.id,
-          username: currentUser.profile.full_name || currentUser.profile.email || 'Anonymous',
+          username: displayName,
           type: reactionType
         }
       })
@@ -654,7 +661,7 @@ export default function ChatRoom() {
         </div>
         {currentUser && (
           <p className="text-xs text-[--muted] mt-2">
-            Đang chat với tư cách: {currentUser.profile.full_name || currentUser.profile.email}
+            Đang chat với tư cách: {getDisplayName(currentUser.profile)}
           </p>
         )}
       </form>
