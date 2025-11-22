@@ -54,6 +54,7 @@ export default function ChatRoom() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const messageInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     loadCurrentUser()
@@ -115,6 +116,49 @@ export default function ChatRoom() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showEmoji])
+
+  // Handle paste event for images (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+
+        // Check if the item is an image
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+
+          const file = item.getAsFile()
+          if (file) {
+            // Check file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+              alert('Kích thước ảnh tối đa 5MB!')
+              return
+            }
+
+            setSelectedImage(file)
+            const reader = new FileReader()
+            reader.onloadend = () => {
+              setImagePreview(reader.result as string)
+            }
+            reader.readAsDataURL(file)
+
+            // Focus back on input
+            messageInputRef.current?.focus()
+          }
+          break
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+
+    return () => {
+      document.removeEventListener('paste', handlePaste)
+    }
+  }, [])
 
   const loadCurrentUser = async () => {
     try {
@@ -521,7 +565,7 @@ export default function ChatRoom() {
 
             {/* Emoji Picker */}
             {showEmoji && (
-              <div className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-xl shadow-lg p-3 grid grid-cols-8 gap-2 border border-gray-700 z-10">
+              <div className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-xl shadow-lg p-3 grid grid-cols-8 gap-2 border border-gray-700 z-10 w-80">
                 {EMOJI_LIST.map((emoji) => (
                   <button
                     key={emoji}
@@ -529,8 +573,9 @@ export default function ChatRoom() {
                     onClick={() => {
                       setNewMessage(newMessage + emoji)
                       setShowEmoji(false)
+                      messageInputRef.current?.focus()
                     }}
-                    className="hover:scale-125 transition-transform text-2xl"
+                    className="hover:scale-125 transition-transform text-2xl w-10 h-10 flex items-center justify-center"
                   >
                     {emoji}
                   </button>
@@ -541,10 +586,11 @@ export default function ChatRoom() {
 
           {/* Text Input */}
           <input
+            ref={messageInputRef}
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Nhập tin nhắn..."
+            placeholder="Nhập tin nhắn hoặc Ctrl+V để paste ảnh..."
             className="flex-1 bg-gray-800 text-[--fg] px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-600 placeholder-gray-500"
             maxLength={1000}
             disabled={uploading}
