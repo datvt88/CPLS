@@ -71,16 +71,16 @@ export default function MobileMenu() {
           </div>
 
           {/* Navigation Links */}
-          <nav className="space-y-1.5 flex-1 overflow-y-auto">
+          <nav className="space-y-2 flex-1 overflow-y-auto">
             {menuItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center py-2.5 px-3 rounded-lg hover:bg-gray-700 active:bg-gray-600 text-white transition-all duration-200 relative group"
+                className="flex items-center py-3 px-4 rounded-lg bg-gray-700/50 hover:bg-gray-600 active:bg-gray-500 text-white transition-all duration-200 relative group"
               >
                 <span className="text-xl">{item.icon}</span>
-                <span className="ml-3 font-medium">{item.label}</span>
+                <span className="ml-3 font-semibold text-base">{item.label}</span>
                 {item.href === '/chat' && unreadCount > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center shadow-md">
                     {unreadCount > 99 ? '99+' : unreadCount}
