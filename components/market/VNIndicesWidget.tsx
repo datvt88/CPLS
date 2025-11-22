@@ -123,10 +123,10 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
   // Only show loading skeleton on initial load
   if (!mounted || (loading && indices.length === 0)) {
     return (
-      <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800 w-full max-w-full">
-        <div className="animate-pulse space-y-4">
+      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 w-full max-w-full">
+        <div className="animate-pulse space-y-3 sm:space-y-4">
           <div className="h-6 bg-gray-700 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="h-24 bg-gray-700 rounded"></div>
             ))}
@@ -156,10 +156,10 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
   })
 
   return (
-    <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800 transition-all duration-300 w-full max-w-full overflow-hidden">
-      <h3 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
+    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 transition-all duration-300 w-full max-w-full overflow-hidden">
+      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
         {sortedIndices.map((index) => {
           const info = indexInfo[index.code]
           if (!info) return null
@@ -175,7 +175,7 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
       </div>
 
       {indices.length === 0 && (
-        <div className="text-center text-gray-400 py-8">
+        <div className="text-center text-gray-400 py-6 sm:py-8">
           Không có dữ liệu chỉ số
         </div>
       )}
