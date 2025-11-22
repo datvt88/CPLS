@@ -146,9 +146,9 @@ export default function VNIndexChartWidget() {
 
   if (loading) {
     return (
-      <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800 w-full max-w-full">
+      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 w-full max-w-full">
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
+          <div className="h-6 bg-gray-700 rounded w-1/3 mb-3 sm:mb-4"></div>
           <div className="h-[300px] sm:h-[400px] lg:h-[500px] bg-gray-700 rounded"></div>
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function VNIndexChartWidget() {
 
   if (error) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-red-800">
+      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-red-800">
         <p className="text-red-500">{error}</p>
       </div>
     )
@@ -166,11 +166,11 @@ export default function VNIndexChartWidget() {
   const latestData = data[data.length - 1]
 
   return (
-    <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800 space-y-3 sm:space-y-4 w-full max-w-full overflow-hidden">
+    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 space-y-3 sm:space-y-4 w-full max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3">
         <div className="w-full sm:w-auto">
-          <h3 className="text-lg sm:text-xl font-bold text-white">📈 VN-INDEX</h3>
+          <h3 className="text-base sm:text-lg md:text-xl font-bold text-white">📈 VN-INDEX</h3>
           {latestData && (
             <>
               <div className="flex items-center gap-2 sm:gap-3 mt-2">
