@@ -28,11 +28,11 @@ export default function StocksPage() {
   const [currentSymbol, setCurrentSymbol] = useState('VNM')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-4 md:space-y-5">
       {/* Header */}
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <h1 className="text-3xl font-bold text-white mb-2">📈 Phân tích Cổ phiếu</h1>
-        <p className="text-[--muted]">
+      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1.5 sm:mb-2">📈 Phân tích Cổ phiếu</h1>
+        <p className="text-xs sm:text-sm md:text-base text-[--muted]">
           Công cụ phân tích chuyên sâu với biểu đồ kỹ thuật, chỉ báo Bollinger Bands,
           Pivot Points và các chỉ số tài chính cơ bản
         </p>
