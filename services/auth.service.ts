@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient'
+import { deviceService } from './device.service'
 
 export interface AuthCredentials {
   email: string
@@ -24,6 +25,12 @@ export const authService = {
    */
   async signIn({ email, password }: AuthCredentials) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+    // Track device after successful login
+    if (data.user && !error) {
+      await this.trackUserDevice(data.user.id)
+    }
+
     return { data, error }
   },
 
@@ -51,6 +58,11 @@ export const authService = {
         email: data.email,
         password: password,
       })
+
+      // Track device after successful login
+      if (authData.user && !error) {
+        await this.trackUserDevice(authData.user.id)
+      }
 
       return { data: authData, error }
     } catch (err) {
@@ -122,7 +134,18 @@ export const authService = {
    * Sign out the current user
    */
   async signOut() {
+    // Get current user before signing out
+    const { user } = await this.getUser()
+
     const { error } = await supabase.auth.signOut()
+
+    // Clear device tracking after logout
+    if (user && !error) {
+      const deviceId = deviceService.getOrCreateDeviceId()
+      await deviceService.removeDevice(user.id, deviceId)
+      deviceService.clearDeviceId()
+    }
+
     return { error }
   },
 
@@ -167,5 +190,72 @@ export const authService = {
       },
       error: null,
     }
+  },
+
+  /**
+   * Track user device (max 3 devices)
+   * Automatically removes oldest device if limit is reached
+   */
+  async trackUserDevice(userId: string) {
+    try {
+      const deviceId = deviceService.getOrCreateDeviceId()
+
+      // Enforce device limit (max 3)
+      const { can_add, removed_device, error } = await deviceService.enforceDeviceLimit(userId, 3)
+
+      if (error) {
+        console.error('Error enforcing device limit:', error)
+        return { error }
+      }
+
+      if (removed_device) {
+        console.log('⚠️ Device limit reached. Removed oldest device:', removed_device.device_name)
+      }
+
+      // Register current device
+      const { device, error: registerError } = await deviceService.registerDevice(userId, deviceId)
+
+      if (registerError) {
+        console.error('Error registering device:', registerError)
+        return { error: registerError }
+      }
+
+      console.log('✅ Device tracked:', device?.device_name)
+      return { device, removed_device }
+    } catch (err) {
+      console.error('Error tracking device:', err)
+      return { error: err }
+    }
+  },
+
+  /**
+   * Update device activity (call periodically to keep device active)
+   */
+  async updateDeviceActivity() {
+    const { user } = await this.getUser()
+    if (!user) return
+
+    const deviceId = deviceService.getOrCreateDeviceId()
+    await deviceService.updateDeviceActivity(user.id, deviceId)
+  },
+
+  /**
+   * Get user's active devices
+   */
+  async getUserDevices() {
+    const { user } = await this.getUser()
+    if (!user) return { devices: null, error: new Error('No user logged in') }
+
+    return await deviceService.getUserDevices(user.id)
+  },
+
+  /**
+   * Remove a specific device (logout from another device)
+   */
+  async removeUserDevice(deviceId: string) {
+    const { user } = await this.getUser()
+    if (!user) return { error: new Error('No user logged in') }
+
+    return await deviceService.removeDevice(user.id, deviceId)
   },
 }
