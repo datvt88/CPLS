@@ -2,9 +2,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import ThemeToggle from './ThemeToggle'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 
 export default function MobileMenu() {
   const [isOpen, setIsOpen] = useState(false)
+  const unreadCount = useUnreadMessages()
 
   const menuItems = [
     { href: '/dashboard', label: 'Tổng quan', icon: '📊' },
@@ -75,10 +77,15 @@ export default function MobileMenu() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors"
+                className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors relative"
               >
                 <span className="text-xl">{item.icon}</span>
                 <span className="ml-3">{item.label}</span>
+                {item.href === '/chat' && unreadCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>

@@ -3,9 +3,11 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { authService } from '@/services/auth.service'
 import { profileService } from '@/services/profile.service'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 
 export default function Sidebar(){
   const [isAdmin, setIsAdmin] = useState(false)
+  const unreadCount = useUnreadMessages()
 
   useEffect(() => {
     checkAdminRole()
@@ -48,10 +50,15 @@ export default function Sidebar(){
           <Link
             key={i.href}
             href={i.href}
-            className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors"
+            className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors relative"
           >
             <span className="text-xl">{i.icon}</span>
             <span className="ml-3">{i.label}</span>
+            {i.href === '/chat' && unreadCount > 0 && (
+              <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </Link>
         ))}
 
