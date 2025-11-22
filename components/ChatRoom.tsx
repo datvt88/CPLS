@@ -43,6 +43,7 @@ export default function ChatRoom() {
   const [newMessage, setNewMessage] = useState('')
   const [currentUser, setCurrentUser] = useState<{ id: string; profile: Profile } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
@@ -64,32 +65,47 @@ export default function ChatRoom() {
     const messagesRef = dbRef(database, 'messages')
     const messagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(100))
 
-    const unsubscribe = onValue(messagesQuery, (snapshot) => {
-      const data = snapshot.val()
-      if (data) {
-        const messagesList: Message[] = Object.entries(data).map(([id, msg]: [string, any]) => ({
-          id,
-          text: msg.text,
-          userId: msg.userId,
-          username: msg.username,
-          avatar: msg.avatar,
-          timestamp: msg.timestamp,
-          imageUrl: msg.imageUrl,
-          replyTo: msg.replyTo,
-          reactions: msg.reactions || {},
-          readBy: msg.readBy || {}
-        }))
-        setMessages(messagesList.sort((a, b) => a.timestamp - b.timestamp))
+    const unsubscribe = onValue(
+      messagesQuery,
+      (snapshot) => {
+        try {
+          const data = snapshot.val()
+          if (data) {
+            const messagesList: Message[] = Object.entries(data).map(([id, msg]: [string, any]) => ({
+              id,
+              text: msg.text,
+              userId: msg.userId,
+              username: msg.username,
+              avatar: msg.avatar,
+              timestamp: msg.timestamp,
+              imageUrl: msg.imageUrl,
+              replyTo: msg.replyTo,
+              reactions: msg.reactions || {},
+              readBy: msg.readBy || {}
+            }))
+            setMessages(messagesList.sort((a, b) => a.timestamp - b.timestamp))
 
-        // Mark messages as read
-        if (currentUser) {
-          markMessagesAsRead(messagesList)
+            // Mark messages as read
+            if (currentUser) {
+              markMessagesAsRead(messagesList)
+            }
+          } else {
+            setMessages([])
+          }
+          setLoading(false)
+          setError(null)
+        } catch (err) {
+          console.error('Error processing messages:', err)
+          setError('Có lỗi khi tải tin nhắn')
+          setLoading(false)
         }
-      } else {
-        setMessages([])
+      },
+      (error) => {
+        console.error('Firebase onValue error:', error)
+        setError('Không thể kết nối đến Firebase. Vui lòng kiểm tra cấu hình.')
+        setLoading(false)
       }
-      setLoading(false)
-    })
+    )
 
     return () => {
       off(messagesRef)
@@ -342,6 +358,37 @@ export default function ChatRoom() {
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-400">Đang tải chat...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-[--panel] rounded-xl border border-red-800 p-8">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-red-400 mb-2">Lỗi kết nối</h3>
+          <p className="text-[--muted] mb-4">{error}</p>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-sm text-left">
+            <p className="text-yellow-400 font-semibold mb-2">💡 Hướng dẫn khắc phục:</p>
+            <ol className="text-[--muted] space-y-1 list-decimal list-inside">
+              <li>Kiểm tra Firebase Realtime Database Rules đã được cấu hình chưa</li>
+              <li>Xem file <code className="bg-gray-800 px-1 rounded">FIREBASE_SETUP.md</code> để biết chi tiết</li>
+              <li>Refresh trang (Ctrl+Shift+R)</li>
+              <li>Kiểm tra console (F12) để xem chi tiết lỗi</li>
+            </ol>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Tải lại trang
+          </button>
         </div>
       </div>
     )

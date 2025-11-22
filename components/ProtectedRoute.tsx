@@ -29,9 +29,11 @@ export default function ProtectedRoute({
     // Safety timeout: force stop loading after 5 seconds
     timeoutRef.current = setTimeout(() => {
       if (isMountedRef.current) {
-        console.warn('⏱️ Auth check timeout, redirecting...')
+        console.warn('⏱️ Auth check timeout after 5 seconds')
+        console.warn('🔍 Debug info:', { needsPremium, allowed, loading })
         setLoading(false)
-        router.push(needsPremium ? '/upgrade' : '/dashboard')
+        // If still loading after timeout, redirect to login (safer default)
+        router.push('/login?timeout=true')
       }
     }, 5000)
 
