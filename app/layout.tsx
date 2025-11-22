@@ -19,12 +19,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi">
       <body>
         <Providers>
-          <div className="min-h-screen flex bg-[--bg] text-white">
+          <div className="min-h-screen flex flex-col md:flex-row bg-[--bg] text-white overflow-x-hidden">
             <AuthListener />
             <Sidebar />
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col min-w-0 w-full">
               <Header />
-              <main className="container py-6">{children}</main>
+              <main className="container py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8 max-w-full">{children}</main>
               <Footer />
             </div>
           </div>

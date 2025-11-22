@@ -71,9 +71,14 @@ export default function VNIndexChartWidget() {
   useEffect(() => {
     if (!chartContainerRef.current || data.length === 0) return
 
+    // Responsive chart height
+    const isMobile = window.innerWidth < 640
+    const isTablet = window.innerWidth < 1024
+    const chartHeight = isMobile ? 300 : isTablet ? 400 : 500
+
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: chartHeight,
       layout: {
         background: { type: ColorType.Solid, color: '#1a1a1a' },
         textColor: '#d1d4dc',
@@ -141,10 +146,10 @@ export default function VNIndexChartWidget() {
 
   if (loading) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+      <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800 w-full max-w-full">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
-          <div className="h-[500px] bg-gray-700 rounded"></div>
+          <div className="h-[300px] sm:h-[400px] lg:h-[500px] bg-gray-700 rounded"></div>
         </div>
       </div>
     )
@@ -161,18 +166,18 @@ export default function VNIndexChartWidget() {
   const latestData = data[data.length - 1]
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 space-y-4">
+    <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800 space-y-3 sm:space-y-4 w-full max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-bold text-white">📈 VN-INDEX</h3>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+        <div className="w-full sm:w-auto">
+          <h3 className="text-lg sm:text-xl font-bold text-white">📈 VN-INDEX</h3>
           {latestData && (
             <>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="text-2xl font-bold text-white">
+              <div className="flex items-center gap-2 sm:gap-3 mt-2">
+                <span className="text-xl sm:text-2xl font-bold text-white">
                   {latestData.close.toFixed(2)}
                 </span>
-                <span className={`text-sm font-semibold ${
+                <span className={`text-xs sm:text-sm font-semibold ${
                   latestData.change > 0 ? 'text-green-500' :
                   latestData.change < 0 ? 'text-red-500' : 'text-yellow-500'
                 }`}>
@@ -211,18 +216,18 @@ export default function VNIndexChartWidget() {
             </>
           )}
         </div>
-        <div className="text-right text-sm text-gray-400">
+        <div className="text-right text-xs sm:text-sm text-gray-400 w-full sm:w-auto">
           {latestData && (
             <>
-              <div>KL: {(latestData.accumulatedVol / 1000000).toFixed(2)}M</div>
-              <div>GT: {(latestData.accumulatedVal / 1000000000000).toFixed(2)}T</div>
+              <div className="whitespace-nowrap">KL: {(latestData.accumulatedVol / 1000000).toFixed(2)}M</div>
+              <div className="whitespace-nowrap">GT: {(latestData.accumulatedVal / 1000000000000).toFixed(2)}T</div>
             </>
           )}
         </div>
       </div>
 
       {/* Chart */}
-      <div ref={chartContainerRef} style={{ minHeight: '500px' }} />
+      <div ref={chartContainerRef} className="w-full" style={{ minHeight: '300px' }} />
 
       <div className="text-xs text-gray-500 text-center">
         Dữ liệu 300 phiên gần nhất • Cập nhật mỗi 5 phút
