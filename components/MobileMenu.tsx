@@ -47,20 +47,20 @@ export default function MobileMenu() {
       {/* Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-60 z-40 backdrop-blur-sm"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Menu Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-gray-900 border-l border-gray-700 z-40 transform transition-transform duration-300 ease-in-out shadow-2xl ${
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-gray-800 border-l border-gray-600 z-40 transform transition-transform duration-300 ease-in-out shadow-2xl ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="p-4 sm:p-6 flex flex-col h-full">
           {/* Header */}
-          <div className="mb-4 sm:mb-6 flex items-center gap-3 pb-3 sm:pb-4 border-b border-gray-700">
+          <div className="mb-4 sm:mb-6 flex items-center gap-3 pb-3 sm:pb-4 border-b border-gray-600">
             <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold shadow-lg">
               CPLS
             </div>
@@ -77,7 +77,7 @@ export default function MobileMenu() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center py-2.5 px-3 rounded-lg hover:bg-gray-800/80 active:bg-gray-700 text-white transition-all duration-200 relative group"
+                className="flex items-center py-2.5 px-3 rounded-lg hover:bg-gray-700 active:bg-gray-600 text-white transition-all duration-200 relative group"
               >
                 <span className="text-xl">{item.icon}</span>
                 <span className="ml-3 font-medium">{item.label}</span>
@@ -91,7 +91,7 @@ export default function MobileMenu() {
           </nav>
 
           {/* Actions */}
-          <div className="pt-3 sm:pt-4 border-t border-gray-700 space-y-3">
+          <div className="pt-3 sm:pt-4 border-t border-gray-600 space-y-3">
             <Link
               href="/login"
               onClick={() => setIsOpen(false)}
