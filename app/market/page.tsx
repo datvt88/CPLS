@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import VNIndicesWidget from '@/components/market/VNIndicesWidget'
 import TopStocksWidget from '@/components/market/TopStocksWidget'
 import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
 import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
@@ -62,10 +61,7 @@ export default function MarketPage() {
       {/* Tab Content - Keep all mounted, toggle visibility with CSS */}
       <div className="space-y-6">
         <div className={activeTab === 'securities' ? 'block' : 'hidden'}>
-          <VNIndicesWidget isActive={activeTab === 'securities'} />
-          <div className="mt-6">
-            <TopStocksWidget isActive={activeTab === 'securities'} />
-          </div>
+          <TopStocksWidget isActive={activeTab === 'securities'} />
         </div>
 
         <div className={activeTab === 'world' ? 'block' : 'hidden'}>
