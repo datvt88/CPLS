@@ -1,10 +1,17 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { database } from '@/lib/firebaseClient'
-import { ref, push, onValue, off, serverTimestamp, query, orderByChild, limitToLast } from 'firebase/database'
+import { database, storage } from '@/lib/firebaseClient'
+import { ref as dbRef, push, onValue, off, serverTimestamp, query, orderByChild, limitToLast, update, get } from 'firebase/database'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
+
+interface Reaction {
+  userId: string
+  username: string
+  type: 'like' | 'love' | 'sad'
+}
 
 interface Message {
   id: string
@@ -13,23 +20,47 @@ interface Message {
   username: string
   avatar?: string
   timestamp: number
-  createdAt?: any
+  imageUrl?: string
+  replyTo?: {
+    messageId: string
+    text: string
+    username: string
+  }
+  reactions?: { [key: string]: Reaction }
+  readBy?: { [userId: string]: number }
 }
+
+const EMOJI_LIST = ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '👏', '🎉', '🔥', '💯', '❤️', '🚀', '💪', '🙏', '✅']
+
+const REACTION_TYPES = [
+  { type: 'like', emoji: '👍', label: 'Thích' },
+  { type: 'love', emoji: '❤️', label: 'Yêu thích' },
+  { type: 'sad', emoji: '😢', label: 'Buồn' }
+] as const
 
 export default function ChatRoom() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [currentUser, setCurrentUser] = useState<{ id: string; profile: Profile } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [showReactions, setShowReactions] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadCurrentUser()
   }, [])
 
   useEffect(() => {
-    const messagesRef = ref(database, 'messages')
+    const messagesRef = dbRef(database, 'messages')
     const messagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(100))
 
     const unsubscribe = onValue(messagesQuery, (snapshot) => {
@@ -42,8 +73,17 @@ export default function ChatRoom() {
           username: msg.username,
           avatar: msg.avatar,
           timestamp: msg.timestamp,
+          imageUrl: msg.imageUrl,
+          replyTo: msg.replyTo,
+          reactions: msg.reactions || {},
+          readBy: msg.readBy || {}
         }))
         setMessages(messagesList.sort((a, b) => a.timestamp - b.timestamp))
+
+        // Mark messages as read
+        if (currentUser) {
+          markMessagesAsRead(messagesList)
+        }
       } else {
         setMessages([])
       }
@@ -53,11 +93,28 @@ export default function ChatRoom() {
     return () => {
       off(messagesRef)
     }
-  }, [])
+  }, [currentUser])
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmoji(false)
+      }
+    }
+
+    if (showEmoji) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showEmoji])
 
   const loadCurrentUser = async () => {
     try {
@@ -73,30 +130,138 @@ export default function ChatRoom() {
     }
   }
 
+  const markMessagesAsRead = async (messagesList: Message[]) => {
+    if (!currentUser) return
+
+    const updates: { [key: string]: any } = {}
+
+    messagesList.forEach((msg) => {
+      // Don't mark own messages or already read messages
+      if (msg.userId !== currentUser.id && (!msg.readBy || !msg.readBy[currentUser.id])) {
+        updates[`messages/${msg.id}/readBy/${currentUser.id}`] = Date.now()
+      }
+    })
+
+    if (Object.keys(updates).length > 0) {
+      await update(dbRef(database), updates)
+    }
+  }
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Check if it's an image
+      if (!file.type.startsWith('image/')) {
+        alert('Chỉ được phép gửi hình ảnh!')
+        return
+      }
+
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Kích thước ảnh tối đa 5MB!')
+        return
+      }
+
+      setSelectedImage(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const uploadImage = async (file: File): Promise<string> => {
+    const timestamp = Date.now()
+    const fileName = `chat-images/${currentUser?.id}/${timestamp}_${file.name}`
+    const imageRef = storageRef(storage, fileName)
+
+    await uploadBytes(imageRef, file)
+    const downloadURL = await getDownloadURL(imageRef)
+
+    return downloadURL
   }
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!newMessage.trim() || !currentUser) return
+    if ((!newMessage.trim() && !selectedImage) || !currentUser) return
 
     try {
-      const messagesRef = ref(database, 'messages')
-      await push(messagesRef, {
-        text: newMessage.trim(),
+      setUploading(true)
+
+      let imageUrl: string | undefined = undefined
+
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage)
+      }
+
+      const messagesRef = dbRef(database, 'messages')
+      const messageData: any = {
+        text: newMessage.trim() || (imageUrl ? '[Hình ảnh]' : ''),
         userId: currentUser.id,
         username: currentUser.profile.full_name || currentUser.profile.email || 'Anonymous',
         avatar: currentUser.profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.profile.full_name || 'A')}&background=random`,
         timestamp: Date.now(),
         createdAt: serverTimestamp(),
-      })
+      }
+
+      if (imageUrl) {
+        messageData.imageUrl = imageUrl
+      }
+
+      if (replyingTo) {
+        messageData.replyTo = {
+          messageId: replyingTo.id,
+          text: replyingTo.text,
+          username: replyingTo.username
+        }
+      }
+
+      await push(messagesRef, messageData)
 
       setNewMessage('')
+      setSelectedImage(null)
+      setImagePreview(null)
+      setReplyingTo(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     } catch (error) {
       console.error('Error sending message:', error)
+      alert('Có lỗi xảy ra khi gửi tin nhắn!')
+    } finally {
+      setUploading(false)
     }
+  }
+
+  const handleReaction = async (messageId: string, reactionType: 'like' | 'love' | 'sad') => {
+    if (!currentUser) return
+
+    const messageRef = dbRef(database, `messages/${messageId}/reactions/${currentUser.id}`)
+    const snapshot = await get(messageRef)
+
+    if (snapshot.exists() && snapshot.val().type === reactionType) {
+      // Remove reaction if clicking the same type
+      await update(dbRef(database, `messages/${messageId}/reactions`), {
+        [currentUser.id]: null
+      })
+    } else {
+      // Add or update reaction
+      await update(dbRef(database, `messages/${messageId}/reactions`), {
+        [currentUser.id]: {
+          userId: currentUser.id,
+          username: currentUser.profile.full_name || currentUser.profile.email || 'Anonymous',
+          type: reactionType
+        }
+      })
+    }
+
+    setShowReactions(null)
   }
 
   const formatTime = (timestamp: number) => {
@@ -112,6 +277,19 @@ export default function ChatRoom() {
       return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' +
              date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     }
+  }
+
+  const getReactionCounts = (reactions?: { [key: string]: Reaction }) => {
+    if (!reactions) return {}
+
+    const counts: { [key: string]: number } = {}
+    Object.values(reactions).forEach(reaction => {
+      if (reaction && reaction.type) {
+        counts[reaction.type] = (counts[reaction.type] || 0) + 1
+      }
+    })
+
+    return counts
   }
 
   if (loading) {
@@ -153,11 +331,13 @@ export default function ChatRoom() {
         ) : (
           messages.map((message) => {
             const isOwnMessage = currentUser?.id === message.userId
+            const reactionCounts = getReactionCounts(message.reactions)
+            const userReaction = message.reactions?.[currentUser?.id || '']
 
             return (
               <div
                 key={message.id}
-                className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}
+                className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} group`}
               >
                 {/* Avatar */}
                 <div className="flex-shrink-0">
@@ -179,14 +359,89 @@ export default function ChatRoom() {
                     </span>
                   </div>
 
-                  <div
-                    className={`px-4 py-2 rounded-2xl ${
-                      isOwnMessage
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                        : 'bg-gray-800 text-[--fg]'
-                    }`}
-                  >
-                    <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                  {/* Reply Reference */}
+                  {message.replyTo && (
+                    <div className={`mb-2 px-3 py-2 rounded-lg bg-gray-800/50 border-l-2 ${isOwnMessage ? 'border-purple-500' : 'border-blue-500'} text-xs`}>
+                      <div className="text-[--muted] mb-1">Trả lời {message.replyTo.username}</div>
+                      <div className="text-gray-400 truncate">{message.replyTo.text}</div>
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <div
+                      className={`px-4 py-2 rounded-2xl ${
+                        isOwnMessage
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+                          : 'bg-gray-800 text-[--fg]'
+                      }`}
+                    >
+                      {message.imageUrl && (
+                        <img
+                          src={message.imageUrl}
+                          alt="Shared image"
+                          className="rounded-lg mb-2 max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => window.open(message.imageUrl, '_blank')}
+                        />
+                      )}
+                      {message.text && message.text !== '[Hình ảnh]' && (
+                        <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                      )}
+                    </div>
+
+                    {/* Reactions Display */}
+                    {Object.keys(reactionCounts).length > 0 && (
+                      <div className="flex gap-1 mt-1">
+                        {Object.entries(reactionCounts).map(([type, count]) => {
+                          const emoji = REACTION_TYPES.find(r => r.type === type)?.emoji
+                          return (
+                            <div
+                              key={type}
+                              className="bg-gray-700 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs"
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-gray-300">{count}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Action Buttons (visible on hover) */}
+                    <div className={`absolute top-0 ${isOwnMessage ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 px-2`}>
+                      {/* Reply Button */}
+                      <button
+                        onClick={() => setReplyingTo(message)}
+                        className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
+                        title="Trả lời"
+                      >
+                        ↩️
+                      </button>
+
+                      {/* Reaction Button */}
+                      <button
+                        onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
+                        className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
+                        title="Thả cảm xúc"
+                      >
+                        {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
+                      </button>
+                    </div>
+
+                    {/* Reaction Picker */}
+                    {showReactions === message.id && (
+                      <div className={`absolute top-full mt-2 ${isOwnMessage ? 'right-0' : 'left-0'} bg-gray-800 rounded-lg shadow-lg p-2 flex gap-2 z-10 border border-gray-700`}>
+                        {REACTION_TYPES.map(({ type, emoji, label }) => (
+                          <button
+                            key={type}
+                            onClick={() => handleReaction(message.id, type)}
+                            className="hover:scale-125 transition-transform text-2xl"
+                            title={label}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -196,9 +451,95 @@ export default function ChatRoom() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Replying To Bar */}
+      {replyingTo && (
+        <div className="px-4 py-2 bg-gray-800/50 border-t border-gray-700 flex items-center justify-between">
+          <div className="flex-1">
+            <div className="text-xs text-purple-400 mb-1">Đang trả lời {replyingTo.username}</div>
+            <div className="text-sm text-gray-400 truncate">{replyingTo.text}</div>
+          </div>
+          <button
+            onClick={() => setReplyingTo(null)}
+            className="text-gray-400 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Image Preview */}
+      {imagePreview && (
+        <div className="px-4 py-2 bg-gray-800/50 border-t border-gray-700">
+          <div className="relative inline-block">
+            <img src={imagePreview} alt="Preview" className="max-h-32 rounded-lg" />
+            <button
+              onClick={() => {
+                setImagePreview(null)
+                setSelectedImage(null)
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = ''
+                }
+              }}
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Message Input */}
       <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-800">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-end">
+          {/* Image Upload Button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-xl transition-all"
+            title="Gửi ảnh"
+          >
+            🖼️
+          </button>
+
+          {/* Emoji Button */}
+          <div className="relative" ref={emojiPickerRef}>
+            <button
+              type="button"
+              onClick={() => setShowEmoji(!showEmoji)}
+              className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-xl transition-all"
+              title="Emoji"
+            >
+              😀
+            </button>
+
+            {/* Emoji Picker */}
+            {showEmoji && (
+              <div className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-xl shadow-lg p-3 grid grid-cols-8 gap-2 border border-gray-700 z-10">
+                {EMOJI_LIST.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      setNewMessage(newMessage + emoji)
+                      setShowEmoji(false)
+                    }}
+                    className="hover:scale-125 transition-transform text-2xl"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Text Input */}
           <input
             type="text"
             value={newMessage}
@@ -206,13 +547,16 @@ export default function ChatRoom() {
             placeholder="Nhập tin nhắn..."
             className="flex-1 bg-gray-800 text-[--fg] px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-600 placeholder-gray-500"
             maxLength={1000}
+            disabled={uploading}
           />
+
+          {/* Send Button */}
           <button
             type="submit"
-            disabled={!newMessage.trim()}
+            disabled={(!newMessage.trim() && !selectedImage) || uploading}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-700 disabled:to-gray-700 text-white px-6 py-3 rounded-xl transition-all disabled:cursor-not-allowed font-semibold"
           >
-            Gửi
+            {uploading ? '⏳' : 'Gửi'}
           </button>
         </div>
         {currentUser && (
