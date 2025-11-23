@@ -167,18 +167,17 @@ guerrillamail.com
 mailinator.com
 ```
 
-### 4.3. CAPTCHA (Recommended)
+### 4.3. Additional Protection (Optional)
 
-**Tích hợp Google reCAPTCHA v3:**
+**Note**: Supabase không có built-in CAPTCHA configuration trong Dashboard.
 
-1. Vào **Authentication** → **Settings**
-2. Scroll xuống **CAPTCHA Protection**
-3. Bật **Enable CAPTCHA**
-4. Nhập:
-   - **reCAPTCHA Site Key**: `your_site_key`
-   - **reCAPTCHA Secret Key**: `your_secret_key`
+Với **Email Verification + Rate Limits**, bạn đã có đủ bảo vệ chống spam.
 
-Lấy keys từ: [Google reCAPTCHA Admin](https://www.google.com/recaptcha/admin)
+**Nếu cần thêm Google reCAPTCHA:**
+- Phải tích hợp client-side vào AuthForm component
+- Sử dụng package `react-google-recaptcha-v3`
+- Verify token server-side qua API route
+- Tham khảo: [Google reCAPTCHA](https://www.google.com/recaptcha/admin)
 
 ---
 
@@ -259,10 +258,10 @@ Trước khi deploy production:
 - [ ] Cấu hình **Site URL** đúng production domain
 - [ ] Thêm **Redirect URLs** cho production
 - [ ] Customize **Email Templates** (branding, tiếng Việt)
-- [ ] Bật **Rate Limiting**
-- [ ] Cấu hình **CAPTCHA** (recommend)
+- [ ] Bật **Rate Limiting** (quan trọng!)
 - [ ] Test email verification flow
 - [ ] Setup **Custom SMTP** (optional, cho branded emails)
+- [ ] Monitor authentication logs thường xuyên
 
 ---
 
