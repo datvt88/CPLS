@@ -1,20 +1,35 @@
 'use client';
 import { useState } from 'react';
 import { authService } from '@/services/auth.service';
+import { profileService } from '@/services/profile.service';
 import { validatePassword, sanitizeInput } from '@/utils/validation';
 import GoogleLoginButton from './GoogleLoginButton';
-import RegisterForm from './RegisterForm';
+import { useRouter } from 'next/navigation';
 
 export function AuthForm() {
+  const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'login' | 'register'>('login'); // Changed from isSignUp
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [message, setMessage] = useState('');
-  const [errors, setErrors] = useState<{ phoneNumber?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{
+    phoneNumber?: string;
+    password?: string;
+    confirmPassword?: string;
+    email?: string;
+  }>({});
   const [loading, setLoading] = useState(false);
 
   const validateForm = (): boolean => {
-    const newErrors: { phoneNumber?: string; password?: string } = {};
+    const newErrors: {
+      phoneNumber?: string;
+      password?: string;
+      confirmPassword?: string;
+      email?: string;
+    } = {};
 
     // Validate phone number (Vietnam format)
     const phoneRegex = /^(0|\+84)[3|5|7|8|9][0-9]{8}$/;
@@ -25,6 +40,17 @@ export function AuthForm() {
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.valid) {
       newErrors.password = passwordValidation.error;
+    }
+
+    // Additional validation for register mode
+    if (mode === 'register') {
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        newErrors.email = 'Email không hợp lệ';
+      }
+
+      if (password !== confirmPassword) {
+        newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
+      }
     }
 
     setErrors(newErrors);
@@ -43,23 +69,58 @@ export function AuthForm() {
     setLoading(true);
 
     try {
-      // Sanitize inputs
       const sanitizedPhone = sanitizeInput(phoneNumber);
       const sanitizedPassword = sanitizeInput(password);
 
-      // Login with phone number - registration is in RegisterForm
-      const { error } = await authService.signInWithPhone({
-        phoneNumber: sanitizedPhone,
-        password: sanitizedPassword
-      });
+      if (mode === 'login') {
+        // Login
+        const { error } = await authService.signInWithPhone({
+          phoneNumber: sanitizedPhone,
+          password: sanitizedPassword
+        });
 
-      if (error) {
-        setMessage(error.message);
+        if (error) {
+          setMessage(error.message);
+        } else {
+          setMessage('Đăng nhập thành công!');
+          setTimeout(() => router.push('/dashboard'), 1000);
+        }
       } else {
-        setMessage('Đăng nhập thành công!');
-        // Clear form on success
-        setPhoneNumber('');
-        setPassword('');
+        // Register
+        const sanitizedEmail = sanitizeInput(email);
+
+        const { data: signUpData, error: signUpError } = await authService.signUp({
+          email: sanitizedEmail,
+          password: sanitizedPassword,
+        });
+
+        if (signUpError) {
+          throw new Error(signUpError.message || 'Không thể tạo tài khoản');
+        }
+
+        if (!signUpData.user) {
+          throw new Error('Không thể tạo tài khoản');
+        }
+
+        // Create profile
+        await profileService.upsertProfile({
+          id: signUpData.user.id,
+          email: sanitizedEmail,
+          phone_number: sanitizedPhone,
+          full_name: fullName || 'User',
+          membership: 'free',
+        });
+
+        setMessage('Đăng ký thành công!');
+        setTimeout(() => {
+          setMode('login');
+          setPhoneNumber('');
+          setPassword('');
+          setConfirmPassword('');
+          setEmail('');
+          setFullName('');
+          setMessage('');
+        }, 2000);
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Có lỗi xảy ra');
@@ -68,28 +129,31 @@ export function AuthForm() {
     }
   };
 
-  // Show RegisterForm if in register mode
-  if (mode === 'register') {
-    return (
-      <RegisterForm
-        onSuccess={() => {
-          setMessage('Đăng ký thành công!');
-          setMode('login');
-        }}
-        onSwitchToLogin={() => setMode('login')}
-      />
-    );
-  }
-
-  // Login form
   return (
     <div>
-      <h2 className="text-2xl font-bold text-[--fg] mb-6">Đăng nhập</h2>
+      <h2 className="text-2xl font-bold text-white mb-6">
+        {mode === 'login' ? 'Đăng nhập' : 'Đăng ký'}
+      </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Full Name - Register only */}
+        {mode === 'register' && (
+          <div>
+            <input
+              className="w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white border border-zinc-700 placeholder-gray-500"
+              type="text"
+              placeholder="Họ và tên (tùy chọn)"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={loading}
+            />
+          </div>
+        )}
+
+        {/* Phone Number */}
         <div>
           <input
-            className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white ${
+            className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
               errors.phoneNumber ? 'border-2 border-red-500' : 'border border-zinc-700'
             }`}
             type="tel"
@@ -107,9 +171,33 @@ export function AuthForm() {
           )}
         </div>
 
+        {/* Email - Register only */}
+        {mode === 'register' && (
+          <div>
+            <input
+              className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
+                errors.email ? 'border-2 border-red-500' : 'border border-zinc-700'
+              }`}
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors({ ...errors, email: undefined });
+              }}
+              disabled={loading}
+              autoComplete="email"
+            />
+            {errors.email && (
+              <p className="text-red-400 text-xs mt-1">{errors.email}</p>
+            )}
+          </div>
+        )}
+
+        {/* Password */}
         <div>
           <input
-            className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white ${
+            className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
               errors.password ? 'border-2 border-red-500' : 'border border-zinc-700'
             }`}
             type="password"
@@ -120,19 +208,46 @@ export function AuthForm() {
               if (errors.password) setErrors({ ...errors, password: undefined });
             }}
             disabled={loading}
-            autoComplete="current-password"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
           {errors.password && (
             <p className="text-red-400 text-xs mt-1">{errors.password}</p>
           )}
         </div>
 
+        {/* Confirm Password - Register only */}
+        {mode === 'register' && (
+          <div>
+            <input
+              className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
+                errors.confirmPassword ? 'border-2 border-red-500' : 'border border-zinc-700'
+              }`}
+              type="password"
+              placeholder="Xác nhận mật khẩu"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: undefined });
+              }}
+              disabled={loading}
+              autoComplete="new-password"
+            />
+            {errors.confirmPassword && (
+              <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>
+            )}
+          </div>
+        )}
+
+        {/* Submit Button */}
         <button
           className="w-full bg-green-500 hover:bg-green-600 transition rounded-xl p-3 text-black font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           type="submit"
           disabled={loading}
         >
-          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+          {loading
+            ? (mode === 'login' ? 'Đang đăng nhập...' : 'Đang đăng ký...')
+            : (mode === 'login' ? 'Đăng nhập' : 'Đăng ký')
+          }
         </button>
       </form>
 
@@ -142,7 +257,7 @@ export function AuthForm() {
           <div className="w-full border-t border-gray-700"></div>
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-[--panel] text-gray-400">Hoặc</span>
+          <span className="px-2 bg-zinc-900 text-gray-400">Hoặc</span>
         </div>
       </div>
 
@@ -151,21 +266,29 @@ export function AuthForm() {
         onError={(error) => setMessage(error)}
       />
 
+      {/* Switch Mode */}
       <p
         onClick={() => {
           if (!loading) {
-            setMode('register');
+            setMode(mode === 'login' ? 'register' : 'login');
             setMessage('');
             setErrors({});
+            setConfirmPassword('');
+            setEmail('');
+            setFullName('');
           }
         }}
         className={`text-sm mt-4 text-gray-400 text-center ${
           loading ? 'cursor-not-allowed' : 'cursor-pointer hover:text-gray-300'
         }`}
       >
-        Chưa có tài khoản? Đăng ký ngay
+        {mode === 'login'
+          ? 'Chưa có tài khoản? Đăng ký ngay'
+          : 'Đã có tài khoản? Đăng nhập ngay'
+        }
       </p>
 
+      {/* Message */}
       {message && (
         <p className={`text-center text-sm mt-3 ${
           message.includes('thành công') ? 'text-green-400' : 'text-red-400'
