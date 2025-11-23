@@ -54,9 +54,10 @@ export default function MobileMenu() {
 
       {/* Menu Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-[--panel] border-l border-gray-800 z-40 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-[#0f1720] backdrop-blur-md border-l border-gray-800 rounded-l-2xl z-40 transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
+        style={{ backgroundColor: 'rgba(15, 23, 32, 0.8)' }}
       >
         <div className="p-6 flex flex-col h-full">
           {/* Header */}
