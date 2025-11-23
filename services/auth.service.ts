@@ -14,9 +14,23 @@ export interface ZaloAuthOptions {
 export const authService = {
   /**
    * Sign up a new user with email and password
+   * Includes email verification redirect
    */
   async signUp({ email, password }: AuthCredentials) {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const redirectUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/callback`
+      : 'http://localhost:3000/auth/callback'
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          email_confirmed: false,
+        }
+      }
+    })
     return { data, error }
   },
 

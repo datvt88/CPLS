@@ -111,16 +111,25 @@ export function AuthForm() {
           membership: 'free',
         });
 
-        setMessage('Đăng ký thành công!');
-        setTimeout(() => {
-          setMode('login');
-          setPhoneNumber('');
-          setPassword('');
-          setConfirmPassword('');
-          setEmail('');
-          setFullName('');
-          setMessage('');
-        }, 2000);
+        // Check if email confirmation is required
+        const emailConfirmationRequired = !signUpData.session;
+
+        if (emailConfirmationRequired) {
+          setMessage(`✅ Đăng ký thành công! Vui lòng kiểm tra email ${sanitizedEmail} để xác thực tài khoản.`);
+          // Don't auto-switch to login mode, let user read the message
+        } else {
+          // Auto-confirmed (if Supabase email confirmation is disabled)
+          setMessage('Đăng ký thành công!');
+          setTimeout(() => {
+            setMode('login');
+            setPhoneNumber('');
+            setPassword('');
+            setConfirmPassword('');
+            setEmail('');
+            setFullName('');
+            setMessage('');
+          }, 2000);
+        }
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Có lỗi xảy ra');
