@@ -1,9 +1,17 @@
 import './globals.css'
+import { Roboto } from 'next/font/google'
 import { Providers } from '@/components/Providers'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import AuthListener from '../components/AuthListener'
+
+const roboto = Roboto({
+  weight: ['300', '400', '500', '700'],
+  subsets: ['latin', 'vietnamese'],
+  display: 'swap',
+  variable: '--font-roboto',
+})
 
 export const metadata = {
   title: 'Master Trader',
@@ -17,7 +25,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <body>
+      <body className={roboto.variable}>
         <Providers>
           <div className="min-h-screen flex flex-col md:flex-row bg-[--bg] text-white overflow-x-hidden">
             <AuthListener />
