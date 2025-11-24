@@ -481,11 +481,11 @@ export default function ChatRoom() {
                       </span>
                     </div>
 
-                    {/* Reply Reference */}
+                    {/* Reply Reference - Inside message bubble */}
                     {message.replyTo && (
-                      <div className="mb-2 px-3 py-2 rounded-lg bg-gray-800/30 border-l-3 border-blue-500 text-xs">
-                        <div className="text-gray-400 mb-1 text-xs">Trả lời {message.replyTo.username}</div>
-                        <div className="text-gray-500 truncate text-xs">{message.replyTo.text}</div>
+                      <div className="mb-2 px-3 py-2 rounded-lg bg-[#1a2634] border-l-2 border-[#5dade2] text-xs">
+                        <div className="text-[#5dade2] mb-1 text-xs font-medium">{message.replyTo.username}</div>
+                        <div className="text-gray-400 truncate text-xs">{message.replyTo.text}</div>
                       </div>
                     )}
 
@@ -493,8 +493,8 @@ export default function ChatRoom() {
                     <div className="relative max-w-full">
                       <div className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-md ${
                         isOwnMessage
-                          ? 'bg-gradient-to-br from-blue-600/90 to-blue-700/90 text-white'
-                          : 'bg-[#2a2a2a] text-gray-100'
+                          ? 'bg-[#3d5a6b] text-white'
+                          : 'bg-[#2c3e50] text-gray-100'
                       } max-w-full overflow-hidden`}>
                         {message.imageUrl && (
                           <img
@@ -509,66 +509,57 @@ export default function ChatRoom() {
                         )}
                       </div>
 
-                      {/* Reactions Display - Bottom Right Corner */}
+                      {/* Reactions Display - Below message */}
                       {Object.keys(reactionCounts).length > 0 && (
-                        <div className="absolute -bottom-2 right-2 flex gap-1">
+                        <div className="flex gap-1.5 mt-1">
                           {Object.entries(reactionCounts).map(([type, count]) => {
                             const emoji = REACTION_TYPES.find(r => r.type === type)?.emoji
                             return (
                               <div
                                 key={type}
-                                className="bg-gray-700 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs shadow-lg border border-gray-600"
+                                className="bg-[#1a1a1a]/80 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs shadow-md border border-gray-700/50"
                               >
                                 <span>{emoji}</span>
-                                <span className="text-gray-300">{count}</span>
+                                <span className="text-gray-300 font-medium">{count}</span>
                               </div>
                             )
                           })}
                         </div>
                       )}
 
-                      {/* Action Buttons (visible on hover) - Always on right */}
-                      <div className="hidden sm:flex absolute top-0 right-0 translate-x-full opacity-0 group-hover:opacity-100 transition-all gap-1.5 px-2">
-                        {/* Reply Button */}
+                      {/* Action Buttons - Below message for all screens */}
+                      <div className="flex gap-2 mt-2 opacity-70 hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => setReplyingTo(message)}
-                          className="bg-gray-700/90 hover:bg-gray-600 text-white p-2 rounded-lg text-xs shadow-lg backdrop-blur-sm transition-all hover:scale-105"
+                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
                           title="Trả lời"
                         >
-                          ↩️
-                        </button>
-
-                        {/* Reaction Button */}
-                        <button
-                          onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
-                          className="bg-gray-700/90 hover:bg-gray-600 text-white p-2 rounded-lg text-xs shadow-lg backdrop-blur-sm transition-all hover:scale-105"
-                          title="Thả cảm xúc"
-                        >
-                          {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
-                        </button>
-                      </div>
-
-                      {/* Mobile Action Buttons */}
-                      <div className="flex sm:hidden gap-2 mt-2">
-                        <button
-                          onClick={() => setReplyingTo(message)}
-                          className="bg-gray-700/90 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-xs shadow-lg"
-                          title="Trả lời"
-                        >
-                          ↩️ Trả lời
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
                         </button>
                         <button
                           onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
-                          className="bg-gray-700/90 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-xs shadow-lg"
+                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
                           title="Thả cảm xúc"
                         >
-                          {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                        <button
+                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
+                          title="Thêm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
                         </button>
                       </div>
 
                       {/* Reaction Picker */}
                       {showReactions === message.id && (
-                        <div className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 z-10 border border-gray-700/50 backdrop-blur-md">
+                        <div className="mt-2 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 border border-gray-700/50 backdrop-blur-md">
                           {REACTION_TYPES.map(({ type, emoji, label }) => (
                             <button
                               key={type}
