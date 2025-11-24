@@ -374,10 +374,10 @@ export default function ChatRoom() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex items-center justify-center h-96 bg-[#1a1a1a] rounded-2xl border border-gray-800">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Đang tải chat...</p>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400 text-sm">Đang tải chat...</p>
         </div>
       </div>
     )
@@ -385,7 +385,7 @@ export default function ChatRoom() {
 
   if (error) {
     return (
-      <div className="bg-[--panel] rounded-xl border border-red-800 p-8">
+      <div className="bg-[#1a1a1a] rounded-2xl border border-red-800/50 p-8 shadow-xl">
         <div className="text-center">
           <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -393,19 +393,19 @@ export default function ChatRoom() {
             </svg>
           </div>
           <h3 className="text-xl font-bold text-red-400 mb-2">Lỗi kết nối</h3>
-          <p className="text-[--muted] mb-4">{error}</p>
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-sm text-left">
+          <p className="text-gray-400 mb-4">{error}</p>
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-sm text-left">
             <p className="text-yellow-400 font-semibold mb-2">💡 Hướng dẫn khắc phục:</p>
-            <ol className="text-[--muted] space-y-1 list-decimal list-inside">
+            <ol className="text-gray-400 space-y-1 list-decimal list-inside">
               <li>Kiểm tra Firebase Realtime Database Rules đã được cấu hình chưa</li>
-              <li>Xem file <code className="bg-gray-800 px-1 rounded">FIREBASE_SETUP.md</code> để biết chi tiết</li>
+              <li>Xem file <code className="bg-gray-800 px-2 py-0.5 rounded">FIREBASE_SETUP.md</code> để biết chi tiết</li>
               <li>Refresh trang (Ctrl+Shift+R)</li>
               <li>Kiểm tra console (F12) để xem chi tiết lỗi</li>
             </ol>
           </div>
           <button
             onClick={() => window.location.reload()}
-            className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
+            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-blue-500/30"
           >
             Tải lại trang
           </button>
@@ -415,15 +415,15 @@ export default function ChatRoom() {
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl border border-gray-800 flex flex-col h-[600px]">
+    <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 flex flex-col h-[600px] md:h-[700px] shadow-xl font-[var(--font-roboto,_sans-serif)]">
       {/* Chat Header */}
-      <div className="p-4 border-b border-gray-800 flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+      <div className="p-5 border-b border-gray-800 flex items-center gap-3 bg-[#121212]">
+        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
           💬
         </div>
         <div>
-          <h3 className="text-[--fg] font-semibold">Room Chat</h3>
-          <p className="text-[--muted] text-sm">
+          <h3 className="text-white font-semibold text-base">Room Chat</h3>
+          <p className="text-gray-400 text-sm">
             {messages.length > 0 ? `${messages.length} tin nhắn` : 'Chưa có tin nhắn'}
           </p>
         </div>
@@ -432,12 +432,12 @@ export default function ChatRoom() {
       {/* Messages Container */}
       <div
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#0f0f0f]"
         style={{ scrollBehavior: 'smooth' }}
       >
         {messages.length === 0 ? (
-          <div className="text-center text-[--muted] py-8">
-            <p>Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
+          <div className="text-center text-gray-400 py-12">
+            <p className="text-sm">Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
           </div>
         ) : (
           messages.map((message, index) => {
@@ -451,57 +451,61 @@ export default function ChatRoom() {
               <div key={message.id}>
                 {/* Date Divider */}
                 {showDateDivider && (
-                  <div className="flex items-center justify-center my-4">
-                    <div className="bg-gray-800/50 px-3 py-1 rounded-full text-xs text-[--muted]">
+                  <div className="flex items-center justify-center my-6">
+                    <div className="bg-gray-800/40 px-4 py-1.5 rounded-full text-xs text-gray-400 font-medium">
                       {formatDate(message.timestamp)}
                     </div>
                   </div>
                 )}
 
                 {/* Message Row - All aligned to left */}
-                <div className="flex gap-3 group">
+                <div className="flex gap-3 group hover:bg-[#1a1a1a]/30 -mx-3 px-3 py-1.5 rounded-lg transition-colors">
                   {/* Avatar - Always on left */}
                   <div className="flex-shrink-0">
                     <img
                       src={message.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(message.username)}&background=random`}
                       alt={message.username}
-                      className="w-10 h-10 rounded-full object-cover"
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-700/50"
                     />
                   </div>
 
                   {/* Message Content */}
-                  <div className="flex flex-col max-w-[70%] items-start flex-1">
+                  <div className="flex flex-col max-w-[85%] sm:max-w-[75%] md:max-w-[70%] items-start flex-1">
                     {/* Username and Time */}
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold text-[--fg]">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={`text-sm font-semibold ${isOwnMessage ? 'text-blue-400' : 'text-gray-200'}`}>
                         {message.username}
                       </span>
-                      <span className="text-xs text-[--muted]">
+                      <span className="text-xs text-gray-500">
                         {formatTime(message.timestamp)}
                       </span>
                     </div>
 
                     {/* Reply Reference */}
                     {message.replyTo && (
-                      <div className="mb-2 px-3 py-2 rounded-lg bg-gray-800/50 border-l-2 border-blue-500 text-xs">
-                        <div className="text-[--muted] mb-1">Trả lời {message.replyTo.username}</div>
-                        <div className="text-gray-400 truncate">{message.replyTo.text}</div>
+                      <div className="mb-2 px-3 py-2 rounded-lg bg-gray-800/30 border-l-3 border-blue-500 text-xs">
+                        <div className="text-gray-400 mb-1 text-xs">Trả lời {message.replyTo.username}</div>
+                        <div className="text-gray-500 truncate text-xs">{message.replyTo.text}</div>
                       </div>
                     )}
 
                     {/* Message Bubble with reactions */}
                     <div className="relative">
-                      <div className="px-4 py-2 rounded-2xl bg-gray-800 text-[--fg]">
+                      <div className={`px-4 py-2.5 rounded-2xl shadow-md ${
+                        isOwnMessage
+                          ? 'bg-gradient-to-br from-blue-600/90 to-blue-700/90 text-white'
+                          : 'bg-[#2a2a2a] text-gray-100'
+                      }`}>
                         {message.imageUrl && (
                           <img
                             src={message.imageUrl}
                             alt="Shared image"
-                            className="rounded-lg mb-2 max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            className="rounded-xl mb-2 max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity shadow-lg"
                             onClick={() => window.open(message.imageUrl, '_blank')}
                           />
                         )}
                         {message.text && message.text !== '[Hình ảnh]' && (
-                          <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.text}</p>
                         )}
                       </div>
 
@@ -524,11 +528,11 @@ export default function ChatRoom() {
                       )}
 
                       {/* Action Buttons (visible on hover) - Always on right */}
-                      <div className="absolute top-0 right-0 translate-x-full opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 px-2">
+                      <div className="absolute top-0 right-0 translate-x-full opacity-0 group-hover:opacity-100 transition-all flex gap-1.5 px-2">
                         {/* Reply Button */}
                         <button
                           onClick={() => setReplyingTo(message)}
-                          className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
+                          className="bg-gray-700/90 hover:bg-gray-600 text-white p-2 rounded-lg text-xs shadow-lg backdrop-blur-sm transition-all hover:scale-105"
                           title="Trả lời"
                         >
                           ↩️
@@ -537,7 +541,7 @@ export default function ChatRoom() {
                         {/* Reaction Button */}
                         <button
                           onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
-                          className="bg-gray-700 hover:bg-gray-600 text-white p-1.5 rounded-full text-xs"
+                          className="bg-gray-700/90 hover:bg-gray-600 text-white p-2 rounded-lg text-xs shadow-lg backdrop-blur-sm transition-all hover:scale-105"
                           title="Thả cảm xúc"
                         >
                           {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
@@ -546,12 +550,12 @@ export default function ChatRoom() {
 
                       {/* Reaction Picker */}
                       {showReactions === message.id && (
-                        <div className="absolute top-full mt-2 left-0 bg-gray-800 rounded-lg shadow-lg p-2 flex gap-2 z-10 border border-gray-700">
+                        <div className="absolute top-full mt-2 left-0 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 z-10 border border-gray-700/50 backdrop-blur-md">
                           {REACTION_TYPES.map(({ type, emoji, label }) => (
                             <button
                               key={type}
                               onClick={() => handleReaction(message.id, type)}
-                              className="hover:scale-125 transition-transform text-2xl"
+                              className="hover:scale-125 transition-all text-2xl hover:drop-shadow-lg"
                               title={label}
                             >
                               {emoji}
@@ -571,14 +575,14 @@ export default function ChatRoom() {
 
       {/* Replying To Bar */}
       {replyingTo && (
-        <div className="px-4 py-2 bg-gray-800/50 border-t border-gray-700 flex items-center justify-between">
+        <div className="px-5 py-3 bg-[#1a1a1a] border-t border-gray-800 flex items-center justify-between">
           <div className="flex-1">
-            <div className="text-xs text-purple-400 mb-1">Đang trả lời {replyingTo.username}</div>
+            <div className="text-xs text-blue-400 mb-1 font-medium">Đang trả lời {replyingTo.username}</div>
             <div className="text-sm text-gray-400 truncate">{replyingTo.text}</div>
           </div>
           <button
             onClick={() => setReplyingTo(null)}
-            className="text-gray-400 hover:text-white"
+            className="text-gray-400 hover:text-white transition-colors p-1"
           >
             ✕
           </button>
@@ -587,9 +591,9 @@ export default function ChatRoom() {
 
       {/* Image Preview */}
       {imagePreview && (
-        <div className="px-4 py-2 bg-gray-800/50 border-t border-gray-700">
+        <div className="px-5 py-3 bg-[#1a1a1a] border-t border-gray-800">
           <div className="relative inline-block">
-            <img src={imagePreview} alt="Preview" className="max-h-32 rounded-lg" />
+            <img src={imagePreview} alt="Preview" className="max-h-32 rounded-xl shadow-lg" />
             <button
               onClick={() => {
                 setImagePreview(null)
@@ -598,7 +602,7 @@ export default function ChatRoom() {
                   fileInputRef.current.value = ''
                 }
               }}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-red-600 transition-all shadow-lg"
             >
               ✕
             </button>
@@ -607,8 +611,8 @@ export default function ChatRoom() {
       )}
 
       {/* Message Input */}
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-800">
-        <div className="flex gap-2 items-end">
+      <form onSubmit={handleSendMessage} className="p-4 sm:p-5 border-t border-gray-800 bg-[#121212]">
+        <div className="flex gap-2 sm:gap-3 items-end">
           {/* Image Upload Button */}
           <input
             ref={fileInputRef}
@@ -620,10 +624,12 @@ export default function ChatRoom() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-xl transition-all"
+            className="bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 p-2.5 sm:p-3 rounded-xl transition-all shadow-lg hover:scale-105 hover:shadow-blue-500/20"
             title="Gửi ảnh"
           >
-            🖼️
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
           </button>
 
           {/* Emoji Button */}
@@ -631,15 +637,17 @@ export default function ChatRoom() {
             <button
               type="button"
               onClick={() => setShowEmoji(!showEmoji)}
-              className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-xl transition-all"
+              className="bg-[#2a2a2a] hover:bg-[#3a3a3a] text-gray-300 p-2.5 sm:p-3 rounded-xl transition-all shadow-lg hover:scale-105 hover:shadow-blue-500/20"
               title="Emoji"
             >
-              😀
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </button>
 
             {/* Emoji Picker */}
             {showEmoji && (
-              <div className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-xl shadow-lg p-3 grid grid-cols-8 gap-2 border border-gray-700 z-10 w-80">
+              <div className="absolute bottom-full mb-2 left-0 bg-[#2a2a2a] rounded-2xl shadow-2xl p-3 sm:p-4 grid grid-cols-6 sm:grid-cols-8 gap-1.5 sm:gap-2 border border-gray-700/50 z-10 w-64 sm:w-80 backdrop-blur-md">
                 {EMOJI_LIST.map((emoji) => (
                   <button
                     key={emoji}
@@ -649,7 +657,7 @@ export default function ChatRoom() {
                       setShowEmoji(false)
                       messageInputRef.current?.focus()
                     }}
-                    className="hover:scale-125 transition-transform text-2xl w-10 h-10 flex items-center justify-center"
+                    className="hover:scale-125 transition-all text-2xl w-10 h-10 flex items-center justify-center hover:bg-gray-700/50 rounded-lg"
                   >
                     {emoji}
                   </button>
@@ -664,8 +672,8 @@ export default function ChatRoom() {
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Nhập tin nhắn hoặc Ctrl+V để paste ảnh..."
-            className="flex-1 bg-gray-800 text-[--fg] px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-600 placeholder-gray-500"
+            placeholder="Nhập tin nhắn của bạn..."
+            className="flex-1 bg-[#2a2a2a] text-gray-100 px-3 sm:px-5 py-3 sm:py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-gray-500 shadow-lg transition-all text-sm sm:text-base"
             maxLength={1000}
             disabled={uploading}
           />
@@ -674,14 +682,24 @@ export default function ChatRoom() {
           <button
             type="submit"
             disabled={(!newMessage.trim() && !selectedImage) || uploading}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-700 disabled:to-gray-700 text-white px-6 py-3 rounded-xl transition-all disabled:cursor-not-allowed font-semibold"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-700 disabled:to-gray-700 text-white p-3 sm:p-3.5 rounded-xl transition-all disabled:cursor-not-allowed shadow-lg hover:scale-105 hover:shadow-blue-500/30"
+            title="Gửi tin nhắn"
           >
-            {uploading ? '⏳' : 'Gửi'}
+            {uploading ? (
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+              </svg>
+            )}
           </button>
         </div>
         {currentUser && (
-          <p className="text-xs text-[--muted] mt-2">
-            Đang chat với tư cách: {getDisplayName(currentUser.profile)}
+          <p className="text-xs text-gray-500 mt-3">
+            Đang chat với tư cách: <span className="text-gray-400 font-medium">{getDisplayName(currentUser.profile)}</span>
           </p>
         )}
       </form>
