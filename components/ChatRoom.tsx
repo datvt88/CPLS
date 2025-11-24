@@ -415,15 +415,15 @@ export default function ChatRoom() {
   }
 
   return (
-    <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 flex flex-col h-[600px] md:h-[700px] shadow-xl font-[var(--font-roboto,_sans-serif)]">
+    <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 flex flex-col h-[600px] md:h-[700px] shadow-xl font-[var(--font-roboto,_sans-serif)] max-w-full overflow-hidden">
       {/* Chat Header */}
-      <div className="p-5 border-b border-gray-800 flex items-center gap-3 bg-[#121212]">
-        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-full flex items-center justify-center shadow-lg">
+      <div className="p-4 sm:p-5 border-b border-gray-800 flex items-center gap-3 bg-[#121212] flex-shrink-0">
+        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
           💬
         </div>
-        <div>
-          <h3 className="text-white font-semibold text-base">Room Chat</h3>
-          <p className="text-gray-400 text-sm">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-white font-semibold text-base truncate">Room Chat</h3>
+          <p className="text-gray-400 text-sm truncate">
             {messages.length > 0 ? `${messages.length} tin nhắn` : 'Chưa có tin nhắn'}
           </p>
         </div>
@@ -432,7 +432,7 @@ export default function ChatRoom() {
       {/* Messages Container */}
       <div
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#0f0f0f]"
+        className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4 sm:space-y-5 bg-[#0f0f0f]"
         style={{ scrollBehavior: 'smooth' }}
       >
         {messages.length === 0 ? (
@@ -459,18 +459,18 @@ export default function ChatRoom() {
                 )}
 
                 {/* Message Row - All aligned to left */}
-                <div className="flex gap-3 group hover:bg-[#1a1a1a]/30 -mx-3 px-3 py-1.5 rounded-lg transition-colors">
+                <div className="flex gap-2 sm:gap-3 group hover:bg-[#1a1a1a]/30 -mx-2 sm:-mx-3 px-2 sm:px-3 py-1.5 rounded-lg transition-colors max-w-full">
                   {/* Avatar - Always on left */}
                   <div className="flex-shrink-0">
                     <img
                       src={message.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(message.username)}&background=random`}
                       alt={message.username}
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-700/50"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-gray-700/50"
                     />
                   </div>
 
                   {/* Message Content */}
-                  <div className="flex flex-col max-w-[85%] sm:max-w-[75%] md:max-w-[70%] items-start flex-1">
+                  <div className="flex flex-col max-w-[calc(100%-3rem)] sm:max-w-[85%] md:max-w-[75%] lg:max-w-[70%] items-start flex-1 min-w-0">
                     {/* Username and Time */}
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className={`text-sm font-semibold ${isOwnMessage ? 'text-blue-400' : 'text-gray-200'}`}>
@@ -490,22 +490,22 @@ export default function ChatRoom() {
                     )}
 
                     {/* Message Bubble with reactions */}
-                    <div className="relative">
-                      <div className={`px-4 py-2.5 rounded-2xl shadow-md ${
+                    <div className="relative max-w-full">
+                      <div className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl shadow-md ${
                         isOwnMessage
                           ? 'bg-gradient-to-br from-blue-600/90 to-blue-700/90 text-white'
                           : 'bg-[#2a2a2a] text-gray-100'
-                      }`}>
+                      } max-w-full overflow-hidden`}>
                         {message.imageUrl && (
                           <img
                             src={message.imageUrl}
                             alt="Shared image"
-                            className="rounded-xl mb-2 max-w-sm max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity shadow-lg"
+                            className="rounded-xl mb-2 w-full max-w-full sm:max-w-sm max-h-48 sm:max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity shadow-lg"
                             onClick={() => window.open(message.imageUrl, '_blank')}
                           />
                         )}
                         {message.text && message.text !== '[Hình ảnh]' && (
-                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{message.text}</p>
+                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed overflow-wrap-anywhere">{message.text}</p>
                         )}
                       </div>
 
@@ -528,7 +528,7 @@ export default function ChatRoom() {
                       )}
 
                       {/* Action Buttons (visible on hover) - Always on right */}
-                      <div className="absolute top-0 right-0 translate-x-full opacity-0 group-hover:opacity-100 transition-all flex gap-1.5 px-2">
+                      <div className="hidden sm:flex absolute top-0 right-0 translate-x-full opacity-0 group-hover:opacity-100 transition-all gap-1.5 px-2">
                         {/* Reply Button */}
                         <button
                           onClick={() => setReplyingTo(message)}
@@ -548,14 +548,32 @@ export default function ChatRoom() {
                         </button>
                       </div>
 
+                      {/* Mobile Action Buttons */}
+                      <div className="flex sm:hidden gap-2 mt-2">
+                        <button
+                          onClick={() => setReplyingTo(message)}
+                          className="bg-gray-700/90 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-xs shadow-lg"
+                          title="Trả lời"
+                        >
+                          ↩️ Trả lời
+                        </button>
+                        <button
+                          onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
+                          className="bg-gray-700/90 hover:bg-gray-600 text-white px-3 py-1 rounded-lg text-xs shadow-lg"
+                          title="Thả cảm xúc"
+                        >
+                          {userReaction ? REACTION_TYPES.find(r => r.type === userReaction.type)?.emoji : '❤️'}
+                        </button>
+                      </div>
+
                       {/* Reaction Picker */}
                       {showReactions === message.id && (
-                        <div className="absolute top-full mt-2 left-0 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 z-10 border border-gray-700/50 backdrop-blur-md">
+                        <div className="absolute top-full mt-2 left-0 sm:left-auto sm:right-0 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 z-10 border border-gray-700/50 backdrop-blur-md">
                           {REACTION_TYPES.map(({ type, emoji, label }) => (
                             <button
                               key={type}
                               onClick={() => handleReaction(message.id, type)}
-                              className="hover:scale-125 transition-all text-2xl hover:drop-shadow-lg"
+                              className="hover:scale-125 transition-all text-xl sm:text-2xl hover:drop-shadow-lg"
                               title={label}
                             >
                               {emoji}
@@ -575,14 +593,14 @@ export default function ChatRoom() {
 
       {/* Replying To Bar */}
       {replyingTo && (
-        <div className="px-5 py-3 bg-[#1a1a1a] border-t border-gray-800 flex items-center justify-between">
-          <div className="flex-1">
-            <div className="text-xs text-blue-400 mb-1 font-medium">Đang trả lời {replyingTo.username}</div>
+        <div className="px-4 sm:px-5 py-3 bg-[#1a1a1a] border-t border-gray-800 flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-blue-400 mb-1 font-medium truncate">Đang trả lời {replyingTo.username}</div>
             <div className="text-sm text-gray-400 truncate">{replyingTo.text}</div>
           </div>
           <button
             onClick={() => setReplyingTo(null)}
-            className="text-gray-400 hover:text-white transition-colors p-1"
+            className="text-gray-400 hover:text-white transition-colors p-1 flex-shrink-0"
           >
             ✕
           </button>
@@ -591,9 +609,9 @@ export default function ChatRoom() {
 
       {/* Image Preview */}
       {imagePreview && (
-        <div className="px-5 py-3 bg-[#1a1a1a] border-t border-gray-800">
-          <div className="relative inline-block">
-            <img src={imagePreview} alt="Preview" className="max-h-32 rounded-xl shadow-lg" />
+        <div className="px-4 sm:px-5 py-3 bg-[#1a1a1a] border-t border-gray-800 flex-shrink-0 overflow-hidden">
+          <div className="relative inline-block max-w-full">
+            <img src={imagePreview} alt="Preview" className="max-h-32 max-w-full rounded-xl shadow-lg" />
             <button
               onClick={() => {
                 setImagePreview(null)
@@ -611,8 +629,8 @@ export default function ChatRoom() {
       )}
 
       {/* Message Input */}
-      <form onSubmit={handleSendMessage} className="p-4 sm:p-5 border-t border-gray-800 bg-[#121212]">
-        <div className="flex gap-2 sm:gap-3 items-end">
+      <form onSubmit={handleSendMessage} className="p-3 sm:p-4 md:p-5 border-t border-gray-800 bg-[#121212] flex-shrink-0">
+        <div className="flex gap-2 sm:gap-3 items-end max-w-full">
           {/* Image Upload Button */}
           <input
             ref={fileInputRef}
@@ -647,7 +665,7 @@ export default function ChatRoom() {
 
             {/* Emoji Picker */}
             {showEmoji && (
-              <div className="absolute bottom-full mb-2 left-0 bg-[#2a2a2a] rounded-2xl shadow-2xl p-3 sm:p-4 grid grid-cols-6 sm:grid-cols-8 gap-1.5 sm:gap-2 border border-gray-700/50 z-10 w-64 sm:w-80 backdrop-blur-md">
+              <div className="absolute bottom-full mb-2 left-0 right-0 sm:left-0 sm:right-auto bg-[#2a2a2a] rounded-2xl shadow-2xl p-3 sm:p-4 grid grid-cols-6 sm:grid-cols-8 gap-1.5 sm:gap-2 border border-gray-700/50 z-10 max-w-[calc(100vw-2rem)] sm:w-80 backdrop-blur-md">
                 {EMOJI_LIST.map((emoji) => (
                   <button
                     key={emoji}
@@ -657,7 +675,7 @@ export default function ChatRoom() {
                       setShowEmoji(false)
                       messageInputRef.current?.focus()
                     }}
-                    className="hover:scale-125 transition-all text-2xl w-10 h-10 flex items-center justify-center hover:bg-gray-700/50 rounded-lg"
+                    className="hover:scale-125 transition-all text-xl sm:text-2xl w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-gray-700/50 rounded-lg"
                   >
                     {emoji}
                   </button>
@@ -673,7 +691,7 @@ export default function ChatRoom() {
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Nhập tin nhắn của bạn..."
-            className="flex-1 bg-[#2a2a2a] text-gray-100 px-3 sm:px-5 py-3 sm:py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-gray-500 shadow-lg transition-all text-sm sm:text-base"
+            className="flex-1 min-w-0 bg-[#2a2a2a] text-gray-100 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-gray-500 shadow-lg transition-all text-sm sm:text-base"
             maxLength={1000}
             disabled={uploading}
           />
