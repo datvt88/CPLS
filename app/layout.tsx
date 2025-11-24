@@ -24,10 +24,10 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <body className={roboto.variable}>
         <Providers>
-          <div className="min-h-screen flex flex-col md:flex-row bg-[--bg] text-white overflow-x-hidden">
+          <div className="min-h-screen flex flex-col md:flex-row bg-[--bg] text-[--text] dark:text-white overflow-x-hidden">
             <AuthListener />
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0 w-full">

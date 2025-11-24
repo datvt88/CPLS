@@ -22,22 +22,22 @@ export default function MobileMenu() {
       {/* Hamburger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-md hover:bg-gray-800 transition-colors relative z-50"
+        className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors relative z-50"
         aria-label="Toggle menu"
       >
         <div className="w-6 h-5 flex flex-col justify-between">
           <span
-            className={`block h-0.5 w-6 bg-white transition-all duration-300 ${
+            className={`block h-0.5 w-6 bg-[--text] dark:bg-white transition-all duration-300 ${
               isOpen ? 'rotate-45 translate-y-2' : ''
             }`}
           />
           <span
-            className={`block h-0.5 w-6 bg-white transition-all duration-300 ${
+            className={`block h-0.5 w-6 bg-[--text] dark:bg-white transition-all duration-300 ${
               isOpen ? 'opacity-0' : ''
             }`}
           />
           <span
-            className={`block h-0.5 w-6 bg-white transition-all duration-300 ${
+            className={`block h-0.5 w-6 bg-[--text] dark:bg-white transition-all duration-300 ${
               isOpen ? '-rotate-45 -translate-y-2' : ''
             }`}
           />
@@ -54,20 +54,19 @@ export default function MobileMenu() {
 
       {/* Menu Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-[#0f1720] backdrop-blur-md border-l border-gray-800 rounded-l-2xl z-40 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-white/95 dark:bg-[#0f1720]/80 backdrop-blur-md border-l border-[--border] dark:border-gray-800 rounded-l-2xl z-40 transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{ backgroundColor: 'rgba(15, 23, 32, 0.8)' }}
       >
         <div className="p-6 flex flex-col h-full">
           {/* Header */}
-          <div className="mb-6 flex items-center gap-3 pb-4 border-b border-gray-800">
-            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold">
+          <div className="mb-6 flex items-center gap-3 pb-4 border-b border-[--border] dark:border-gray-800">
+            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-white">
               CPLS
             </div>
             <div>
-              <div className="text-white font-semibold">CPLS</div>
-              <div className="text-sm text-[--muted]">Master Trader</div>
+              <div className="text-[--text] dark:text-white font-semibold">CPLS</div>
+              <div className="text-sm text-[--text-muted] dark:text-[--muted]">Master Trader</div>
             </div>
           </div>
 
@@ -78,7 +77,7 @@ export default function MobileMenu() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors relative"
+                className="flex items-center py-3 px-3 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-[--text] dark:text-gray-200 transition-colors relative"
               >
                 <span className="text-xl">{item.icon}</span>
                 <span className="ml-3">{item.label}</span>
@@ -92,7 +91,7 @@ export default function MobileMenu() {
           </nav>
 
           {/* Actions */}
-          <div className="pt-4 border-t border-gray-800 space-y-3">
+          <div className="pt-4 border-t border-[--border] dark:border-gray-800 space-y-3">
             <Link
               href="/login"
               onClick={() => setIsOpen(false)}
@@ -101,7 +100,7 @@ export default function MobileMenu() {
               Đăng nhập
             </Link>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[--muted]">Giao diện</span>
+              <span className="text-sm text-[--text-muted] dark:text-[--muted]">Giao diện</span>
               <ThemeToggle />
             </div>
           </div>
