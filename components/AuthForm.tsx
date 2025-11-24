@@ -140,7 +140,7 @@ export function AuthForm() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-6">
+      <h2 className="text-2xl font-bold text-[--text] dark:text-white mb-6">
         {mode === 'login' ? 'Đăng nhập' : 'Đăng ký'}
       </h2>
 
@@ -149,7 +149,7 @@ export function AuthForm() {
         {mode === 'register' && (
           <div>
             <input
-              className="w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white border border-zinc-700 placeholder-gray-500"
+              className="w-full p-3 bg-white dark:bg-zinc-800 rounded-xl focus:outline-none text-[--text] dark:text-white border border-[--border] dark:border-zinc-700 placeholder-gray-400 dark:placeholder-gray-500"
               type="text"
               placeholder="Họ và tên (tùy chọn)"
               value={fullName}
@@ -162,8 +162,8 @@ export function AuthForm() {
         {/* Phone Number */}
         <div>
           <input
-            className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
-              errors.phoneNumber ? 'border-2 border-red-500' : 'border border-zinc-700'
+            className={`w-full p-3 bg-white dark:bg-zinc-800 rounded-xl focus:outline-none text-[--text] dark:text-white placeholder-gray-400 dark:placeholder-gray-500 ${
+              errors.phoneNumber ? 'border-2 border-red-500' : 'border border-[--border] dark:border-zinc-700'
             }`}
             type="tel"
             placeholder="Số điện thoại"
@@ -184,8 +184,8 @@ export function AuthForm() {
         {mode === 'register' && (
           <div>
             <input
-              className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
-                errors.email ? 'border-2 border-red-500' : 'border border-zinc-700'
+              className={`w-full p-3 bg-white dark:bg-zinc-800 rounded-xl focus:outline-none text-[--text] dark:text-white placeholder-gray-400 dark:placeholder-gray-500 ${
+                errors.email ? 'border-2 border-red-500' : 'border border-[--border] dark:border-zinc-700'
               }`}
               type="email"
               placeholder="Email"
@@ -206,8 +206,8 @@ export function AuthForm() {
         {/* Password */}
         <div>
           <input
-            className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
-              errors.password ? 'border-2 border-red-500' : 'border border-zinc-700'
+            className={`w-full p-3 bg-white dark:bg-zinc-800 rounded-xl focus:outline-none text-[--text] dark:text-white placeholder-gray-400 dark:placeholder-gray-500 ${
+              errors.password ? 'border-2 border-red-500' : 'border border-[--border] dark:border-zinc-700'
             }`}
             type="password"
             placeholder="Password"
@@ -228,8 +228,8 @@ export function AuthForm() {
         {mode === 'register' && (
           <div>
             <input
-              className={`w-full p-3 bg-zinc-800 rounded-xl focus:outline-none text-white placeholder-gray-500 ${
-                errors.confirmPassword ? 'border-2 border-red-500' : 'border border-zinc-700'
+              className={`w-full p-3 bg-white dark:bg-zinc-800 rounded-xl focus:outline-none text-[--text] dark:text-white placeholder-gray-400 dark:placeholder-gray-500 ${
+                errors.confirmPassword ? 'border-2 border-red-500' : 'border border-[--border] dark:border-zinc-700'
               }`}
               type="password"
               placeholder="Xác nhận mật khẩu"
@@ -263,10 +263,10 @@ export function AuthForm() {
       {/* Divider */}
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-700"></div>
+          <div className="w-full border-t border-[--border] dark:border-gray-700"></div>
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-zinc-900 text-gray-400">Hoặc</span>
+          <span className="px-2 bg-[--panel] dark:bg-zinc-900 text-[--text-muted] dark:text-gray-400">Hoặc</span>
         </div>
       </div>
 
@@ -287,8 +287,8 @@ export function AuthForm() {
             setFullName('');
           }
         }}
-        className={`text-sm mt-4 text-gray-400 text-center ${
-          loading ? 'cursor-not-allowed' : 'cursor-pointer hover:text-gray-300'
+        className={`text-sm mt-4 text-[--text-muted] dark:text-gray-400 text-center ${
+          loading ? 'cursor-not-allowed' : 'cursor-pointer hover:text-[--text] dark:hover:text-gray-300'
         }`}
       >
         {mode === 'login'

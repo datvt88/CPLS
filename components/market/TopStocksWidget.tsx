@@ -62,8 +62,8 @@ const StockRow = memo(({ stock, index, exchange }: { stock: TopStock; index: num
   const colorClass = getPriceColor(stock.priceChgPctCr1D, exchange)
 
   return (
-    <tr className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors duration-300">
-      <td className="py-3 px-2 text-gray-400">#{index + 1}</td>
+    <tr className="border-b border-[--border] dark:border-gray-800 hover:bg-[--table-hover] dark:hover:bg-gray-800/50 transition-colors duration-300">
+      <td className="py-3 px-2 text-[--text-muted] dark:text-gray-400">#{index + 1}</td>
       <td className="py-3 px-2">
         <div className="flex items-center gap-2">
           <span className={`font-bold ${colorClass}`}>
@@ -76,8 +76,8 @@ const StockRow = memo(({ stock, index, exchange }: { stock: TopStock; index: num
           )}
         </div>
       </td>
-      <td className="py-3 px-2 text-center text-gray-300">
-        <span className="text-xs bg-gray-700 px-2 py-1 rounded">
+      <td className="py-3 px-2 text-center text-[--text] dark:text-gray-300">
+        <span className="text-xs bg-gray-200 dark:bg-gray-700 text-[--text] dark:text-gray-300 px-2 py-1 rounded">
           {exchange}
         </span>
       </td>
@@ -90,7 +90,7 @@ const StockRow = memo(({ stock, index, exchange }: { stock: TopStock; index: num
       <td className={`py-3 px-2 text-right font-bold transition-all duration-500 ease-out ${colorClass}`}>
         +{stock.priceChgPctCr1D.toFixed(2)}%
       </td>
-      <td className="py-3 px-2 text-right text-gray-300 transition-all duration-500 ease-out">
+      <td className="py-3 px-2 text-right text-[--text] dark:text-gray-300 transition-all duration-500 ease-out">
         {formatVolume(stock.nmVolumeAvgCr20D)}
       </td>
     </tr>
@@ -160,13 +160,13 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
   // Only show loading skeleton on initial load
   if (!mounted || (loading && stocks.length === 0)) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+      <div className="bg-[--panel] rounded-xl p-6 border border-[--border] dark:border-gray-800">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-700 rounded w-1/3"></div>
-          <div className="h-10 bg-gray-700 rounded w-full"></div>
+          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-12 bg-gray-700 rounded"></div>
+              <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
             ))}
           </div>
         </div>
@@ -175,8 +175,8 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 transition-all duration-300">
-      <h3 className="text-xl font-bold mb-4 text-white">🚀 Top 10 cổ phiếu tăng giá</h3>
+    <div className="bg-[--panel] rounded-xl p-6 border border-[--border] dark:border-gray-800 transition-all duration-300">
+      <h3 className="text-xl font-bold mb-4 text-[--text] dark:text-white">🚀 Top 10 cổ phiếu tăng giá</h3>
 
       {/* Exchange Tabs */}
       <div className="flex gap-2 mb-4">
@@ -189,7 +189,7 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
               ${
                 activeExchange === exchange
                   ? 'bg-purple-600 text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white'
+                  : 'bg-gray-200 dark:bg-gray-800/50 text-[--text-muted] dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-800 hover:text-[--text] dark:hover:text-white'
               }
             `}
           >
@@ -201,19 +201,19 @@ export default function TopStocksWidget({ isActive = true }: TopStocksWidgetProp
       {error && stocks.length === 0 ? (
         <div className="text-center py-8 text-red-500">{error}</div>
       ) : stocks.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">Không có dữ liệu</div>
+        <div className="text-center py-8 text-[--text-muted] dark:text-gray-400">Không có dữ liệu</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-700">
-                <th className="text-left py-3 px-2 text-gray-400 font-semibold">#</th>
-                <th className="text-left py-3 px-2 text-gray-400 font-semibold">Mã</th>
-                <th className="text-center py-3 px-2 text-gray-400 font-semibold">Sàn</th>
-                <th className="text-right py-3 px-2 text-gray-400 font-semibold">Giá</th>
-                <th className="text-right py-3 px-2 text-gray-400 font-semibold">Thay đổi</th>
-                <th className="text-right py-3 px-2 text-gray-400 font-semibold">%</th>
-                <th className="text-right py-3 px-2 text-gray-400 font-semibold">KL TB 20D</th>
+              <tr className="border-b border-[--border] dark:border-gray-700">
+                <th className="text-left py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">#</th>
+                <th className="text-left py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">Mã</th>
+                <th className="text-center py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">Sàn</th>
+                <th className="text-right py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">Giá</th>
+                <th className="text-right py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">Thay đổi</th>
+                <th className="text-right py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">%</th>
+                <th className="text-right py-3 px-2 text-[--text-muted] dark:text-gray-400 font-semibold">KL TB 20D</th>
               </tr>
             </thead>
             <tbody>

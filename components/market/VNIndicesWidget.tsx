@@ -46,14 +46,14 @@ const getPriceIcon = (change: number): string => {
 const IndexCard = memo(({ index, name }: { index: IndexData; name: string }) => {
   return (
     <div
-      className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800/70 transition-colors duration-300 border border-gray-700"
+      className="bg-white dark:bg-gray-800/50 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors duration-300 border border-[--border] dark:border-gray-700"
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="font-semibold text-white">{name}</span>
+        <span className="font-semibold text-[--text] dark:text-white">{name}</span>
       </div>
 
       <div className="space-y-1">
-        <div className="text-2xl font-bold text-white transition-all duration-500 ease-out">
+        <div className="text-2xl font-bold text-[--text] dark:text-white transition-all duration-500 ease-out">
           {index.price.toFixed(2)}
         </div>
         <div className={`text-sm font-semibold transition-all duration-500 ease-out ${getPriceColor(index.change)}`}>
@@ -123,12 +123,12 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
   // Only show loading skeleton on initial load
   if (!mounted || (loading && indices.length === 0)) {
     return (
-      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 w-full max-w-full">
+      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-[--border] dark:border-gray-800 w-full max-w-full">
         <div className="animate-pulse space-y-3 sm:space-y-4">
-          <div className="h-6 bg-gray-700 rounded w-1/3"></div>
+          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-24 bg-gray-700 rounded"></div>
+              <div key={i} className="h-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
             ))}
           </div>
         </div>
@@ -156,8 +156,8 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
   })
 
   return (
-    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 transition-all duration-300 w-full max-w-full overflow-hidden">
-      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
+    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-[--border] dark:border-gray-800 transition-all duration-300 w-full max-w-full overflow-hidden">
+      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-[--text] dark:text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
         {sortedIndices.map((index) => {
@@ -175,7 +175,7 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
       </div>
 
       {indices.length === 0 && (
-        <div className="text-center text-gray-400 py-6 sm:py-8">
+        <div className="text-center text-[--text-muted] dark:text-gray-400 py-6 sm:py-8">
           Không có dữ liệu chỉ số
         </div>
       )}

@@ -141,16 +141,26 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       return
     }
 
+    // Detect current theme
+    const isDarkTheme = document.documentElement.getAttribute('data-theme') !== 'light'
+
+    // Theme-aware colors
+    const chartColors = {
+      background: isDarkTheme ? '#1a1a1a' : '#fafaf8',
+      textColor: isDarkTheme ? '#d1d4dc' : '#1a1a1a',
+      gridColor: isDarkTheme ? '#2a2e39' : '#e5e5e5',
+    }
+
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 500,
       layout: {
-        background: { type: ColorType.Solid, color: '#1a1a1a' },
-        textColor: '#d1d4dc',
+        background: { type: ColorType.Solid, color: chartColors.background },
+        textColor: chartColors.textColor,
       },
       grid: {
-        vertLines: { color: '#2a2e39' },
-        horzLines: { color: '#2a2e39' },
+        vertLines: { color: chartColors.gridColor },
+        horzLines: { color: chartColors.gridColor },
       },
       timeScale: {
         timeVisible: true,
@@ -585,7 +595,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   }
 
   return (
-    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 space-y-3 sm:space-y-4">
+    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-[--border] dark:border-gray-800 space-y-3 sm:space-y-4">
       {/* Search Bar */}
       <div className="flex gap-2 sm:gap-3">
         <input
@@ -594,12 +604,12 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           onChange={(e) => setInputSymbol(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder="Nhập mã cổ phiếu (VD: FPT, TCB, VNM)"
-          className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 text-white text-sm sm:text-base rounded-lg border border-gray-700 focus:outline-none focus:border-purple-500 uppercase"
+          className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-white dark:bg-gray-800 text-[--text] dark:text-white text-sm sm:text-base rounded-lg border border-[--border] dark:border-gray-700 focus:outline-none focus:border-purple-500 uppercase"
         />
         <button
           onClick={handleSearch}
           disabled={loading || isRefreshing}
-          className="px-4 sm:px-8 py-2 sm:py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white text-sm sm:text-base rounded-lg transition-colors font-medium"
+          className="px-4 sm:px-8 py-2 sm:py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white text-sm sm:text-base rounded-lg transition-colors font-medium"
         >
           {loading ? 'Đang tải...' : 'Xem'}
         </button>
@@ -608,7 +618,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             <button
               onClick={handleRefresh}
               disabled={loading || isRefreshing}
-              className="hidden sm:flex px-4 md:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium items-center gap-2"
+              className="hidden sm:flex px-4 md:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium items-center gap-2"
               title="Làm mới dữ liệu (Auto-refresh mỗi 5 phút)"
             >
               <span className={isRefreshing ? 'animate-spin' : ''}>🔄</span>
@@ -618,8 +628,8 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               onClick={toggleWatchlist}
               className={`hidden sm:flex px-4 md:px-6 py-2 sm:py-3 rounded-lg transition-colors font-medium items-center gap-2 ${
                 isInWatchlist
-                  ? 'bg-yellow-600 hover:bg-yellow-700'
-                  : 'bg-gray-700 hover:bg-gray-600'
+                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                  : 'bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-[--text] dark:text-white'
               }`}
               title={isInWatchlist ? 'Bỏ theo dõi' : 'Theo dõi mã này'}
             >
@@ -632,10 +642,10 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
       {/* Watchlist Quick Access */}
       {watchlist.length > 0 && (
-        <div className="bg-gray-800/30 rounded-lg p-2 sm:p-3 border border-gray-700/50">
+        <div className="bg-gray-100 dark:bg-gray-800/30 rounded-lg p-2 sm:p-3 border border-[--border] dark:border-gray-700/50">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-yellow-400 text-xs sm:text-sm font-semibold">⭐ Danh sách theo dõi:</span>
-            <span className="text-gray-400 text-xs">({watchlist.length}/10)</span>
+            <span className="text-yellow-600 dark:text-yellow-400 text-xs sm:text-sm font-semibold">⭐ Danh sách theo dõi:</span>
+            <span className="text-[--text-muted] dark:text-gray-400 text-xs">({watchlist.length}/10)</span>
           </div>
           <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {watchlist.map((sym) => (
@@ -646,7 +656,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   sym === symbol
                     ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                    : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-[--text] dark:text-gray-300'
                 }`}
               >
                 {sym}
@@ -668,11 +678,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         {latestData && (
           <>
           {/* Data Date Indicator */}
-          <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-2 sm:p-3 mb-2">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-2 sm:p-3 mb-2">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
-                <span className="text-blue-400 font-semibold">📅 Dữ liệu ngày:</span>
-                <span className="text-white font-bold text-lg">
+                <span className="text-blue-600 dark:text-blue-400 font-semibold">📅 Dữ liệu ngày:</span>
+                <span className="text-[--text] dark:text-white font-bold text-lg">
                   {new Date(latestData.date).toLocaleDateString('vi-VN', {
                     timeZone: 'Asia/Ho_Chi_Minh',
                     year: 'numeric',
@@ -699,9 +709,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
               })()}
             </div>
             {lastRefreshTime && (
-              <div className="flex items-center gap-2 text-sm border-t border-blue-700/30 pt-2">
-                <span className="text-blue-300">🔄 Cập nhật lần cuối:</span>
-                <span className="text-gray-300">
+              <div className="flex items-center gap-2 text-sm border-t border-blue-200 dark:border-blue-700/30 pt-2">
+                <span className="text-blue-600 dark:text-blue-300">🔄 Cập nhật lần cuối:</span>
+                <span className="text-[--text-muted] dark:text-gray-300">
                   {lastRefreshTime.toLocaleTimeString('vi-VN', {
                     timeZone: 'Asia/Ho_Chi_Minh',
                     hour: '2-digit',
@@ -717,19 +727,19 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           {/* Quick Info Panel */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
             {/* 1. Thị giá */}
-            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
-              <div className="text-gray-400 text-xs mb-1">Thị giá</div>
+            <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-2 sm:p-3">
+              <div className="text-[--text-muted] dark:text-gray-400 text-xs mb-1">Thị giá</div>
               <div className={`text-xl font-bold ${
-                latestData.close > latestData.open ? 'text-green-400' :
-                latestData.close < latestData.open ? 'text-red-400' : 'text-yellow-400'
+                latestData.close > latestData.open ? 'text-green-500 dark:text-green-400' :
+                latestData.close < latestData.open ? 'text-red-500 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
               }`}>
                 {formatPrice(latestData.close)}
               </div>
             </div>
 
             {/* 2. Thay đổi */}
-            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
-              <div className="text-gray-400 text-xs mb-1">Thay đổi</div>
+            <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-2 sm:p-3">
+              <div className="text-[--text-muted] dark:text-gray-400 text-xs mb-1">Thay đổi</div>
               <div className={`text-lg sm:text-xl font-bold ${formatChange(latestData.change).colorClass}`}>
                 {formatChange(latestData.change).text}
                 <span className={`text-xs sm:text-sm ml-1 ${formatChange(latestData.pctChange).colorClass}`}>
@@ -739,33 +749,33 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             </div>
 
             {/* 3. Giá trần */}
-            <div className="bg-purple-900/20 rounded-lg p-2 sm:p-3 border border-purple-700/30">
-              <div className="text-purple-400 text-xs mb-1">Giá trần</div>
-              <div className="text-lg sm:text-xl font-bold text-purple-300">
+            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2 sm:p-3 border border-purple-200 dark:border-purple-700/30">
+              <div className="text-purple-600 dark:text-purple-400 text-xs mb-1">Giá trần</div>
+              <div className="text-lg sm:text-xl font-bold text-purple-700 dark:text-purple-300">
                 {formatPrice(latestData.close * 1.07)}
               </div>
             </div>
 
             {/* 4. Giá sàn */}
-            <div className="bg-cyan-900/20 rounded-lg p-2 sm:p-3 border border-cyan-700/30">
-              <div className="text-cyan-400 text-xs mb-1">Giá sàn</div>
-              <div className="text-lg sm:text-xl font-bold text-cyan-300">
+            <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-2 sm:p-3 border border-cyan-200 dark:border-cyan-700/30">
+              <div className="text-cyan-600 dark:text-cyan-400 text-xs mb-1">Giá sàn</div>
+              <div className="text-lg sm:text-xl font-bold text-cyan-700 dark:text-cyan-300">
                 {formatPrice(latestData.close * 0.93)}
               </div>
             </div>
 
             {/* 5. Khối lượng */}
-            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
-              <div className="text-gray-400 text-xs mb-1">Khối lượng</div>
-              <div className="text-sm sm:text-lg font-bold text-white">
+            <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-2 sm:p-3">
+              <div className="text-[--text-muted] dark:text-gray-400 text-xs mb-1">Khối lượng</div>
+              <div className="text-sm sm:text-lg font-bold text-[--text] dark:text-white">
                 {formatVolume(latestData.nmVolume)}
               </div>
             </div>
 
             {/* 6. Giá trị */}
-            <div className="bg-gray-800/50 rounded-lg p-2 sm:p-3">
-              <div className="text-gray-400 text-xs mb-1">Giá trị</div>
-              <div className="text-sm sm:text-lg font-bold text-white">
+            <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-2 sm:p-3">
+              <div className="text-[--text-muted] dark:text-gray-400 text-xs mb-1">Giá trị</div>
+              <div className="text-sm sm:text-lg font-bold text-[--text] dark:text-white">
                 {formatCurrency(latestData.nmValue)}
               </div>
             </div>
@@ -775,7 +785,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
           <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             {/* Timeframe Controls */}
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-gray-400 text-xs sm:text-sm mr-1 sm:mr-2">Khung thời gian:</span>
+              <span className="text-[--text-muted] dark:text-gray-400 text-xs sm:text-sm mr-1 sm:mr-2">Khung thời gian:</span>
               {(['1D', '1W', '1M'] as const).map((tf) => (
                 <button
                   key={tf}
@@ -783,7 +793,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                   className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transition-colors ${
                     timeframe === tf
                       ? 'bg-purple-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      : 'bg-gray-200 dark:bg-gray-800 text-[--text-muted] dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                   }`}
                 >
                   {tf}
@@ -792,14 +802,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             </div>
 
             {/* Chart Type Controls */}
-            <div className="flex items-center gap-1.5 sm:gap-2 border-l border-gray-700 pl-2 sm:pl-4">
-              <span className="text-gray-400 text-xs sm:text-sm mr-1 sm:mr-2">Loại biểu đồ:</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 border-l border-[--border] dark:border-gray-700 pl-2 sm:pl-4">
+              <span className="text-[--text-muted] dark:text-gray-400 text-xs sm:text-sm mr-1 sm:mr-2">Loại biểu đồ:</span>
               <button
                 onClick={() => setChartType('candlestick')}
                 className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transition-colors ${
                   chartType === 'candlestick'
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    : 'bg-gray-200 dark:bg-gray-800 text-[--text-muted] dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                 }`}
               >
                 🕯️ Nến
@@ -809,7 +819,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 className={`px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transition-colors ${
                   chartType === 'line'
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    : 'bg-gray-200 dark:bg-gray-800 text-[--text-muted] dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                 }`}
               >
                 📈 Đường
