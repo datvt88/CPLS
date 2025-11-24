@@ -528,7 +528,7 @@ export default function ChatRoom() {
                       )}
 
                       {/* Action Buttons - Below message for all screens */}
-                      <div className="flex gap-2 mt-2 opacity-70 hover:opacity-100 transition-opacity">
+                      <div className="flex gap-3 mt-2 opacity-70 hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => setReplyingTo(message)}
                           className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
@@ -545,14 +545,6 @@ export default function ChatRoom() {
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                        <button
-                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
-                          title="Thêm"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                           </svg>
                         </button>
                       </div>
