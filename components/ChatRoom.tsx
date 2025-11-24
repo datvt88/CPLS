@@ -509,15 +509,15 @@ export default function ChatRoom() {
                         )}
                       </div>
 
-                      {/* Reactions Display - Below message */}
+                      {/* Reactions Display - Bottom left */}
                       {Object.keys(reactionCounts).length > 0 && (
-                        <div className="flex gap-1.5 mt-1">
+                        <div className="absolute -bottom-2 left-2 flex gap-1.5">
                           {Object.entries(reactionCounts).map(([type, count]) => {
                             const emoji = REACTION_TYPES.find(r => r.type === type)?.emoji
                             return (
                               <div
                                 key={type}
-                                className="bg-[#1a1a1a]/80 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs shadow-md border border-gray-700/50"
+                                className="bg-[#1a1a1a]/90 rounded-full px-2 py-0.5 flex items-center gap-1 text-xs shadow-md border border-gray-700/50"
                               >
                                 <span>{emoji}</span>
                                 <span className="text-gray-300 font-medium">{count}</span>
@@ -527,11 +527,11 @@ export default function ChatRoom() {
                         </div>
                       )}
 
-                      {/* Action Buttons - Below message for all screens */}
-                      <div className="flex gap-3 mt-2 opacity-70 hover:opacity-100 transition-opacity">
+                      {/* Action Buttons - Bottom right corner */}
+                      <div className="absolute -bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => setReplyingTo(message)}
-                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
+                          className="bg-[#1a1a1a]/90 hover:bg-[#2a2a2a] text-gray-300 hover:text-white p-1.5 rounded-full transition-colors shadow-md border border-gray-700/50"
                           title="Trả lời"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -540,7 +540,7 @@ export default function ChatRoom() {
                         </button>
                         <button
                           onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
-                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
+                          className="bg-[#1a1a1a]/90 hover:bg-[#2a2a2a] text-gray-300 hover:text-white p-1.5 rounded-full transition-colors shadow-md border border-gray-700/50"
                           title="Thả cảm xúc"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -551,7 +551,7 @@ export default function ChatRoom() {
 
                       {/* Reaction Picker */}
                       {showReactions === message.id && (
-                        <div className="mt-2 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 border border-gray-700/50 backdrop-blur-md">
+                        <div className="absolute top-full mt-2 right-0 bg-[#2a2a2a] rounded-xl shadow-2xl p-3 flex gap-3 border border-gray-700/50 backdrop-blur-md z-10">
                           {REACTION_TYPES.map(({ type, emoji, label }) => (
                             <button
                               key={type}
