@@ -57,7 +57,7 @@ function SignalsPageContent() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-[--fg] mb-2">Tín hiệu AI</h1>
-            <p className="text-[--muted]">Phân tích chuyên sâu với AI cho các cổ phiếu tiềm năng</p>
+            <p className="text-[--muted]">Tính năng dành riêng cho nhà đầu tư cùng đồng hành (Invest Partner)</p>
           </div>
 
           {/* Premium Required Message */}
@@ -68,9 +68,9 @@ function SignalsPageContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-[--fg] mb-3">Tính năng dành cho Premium</h2>
+              <h2 className="text-2xl font-bold text-[--fg] mb-3">Tính năng dành cho nhà đầu tư Premium</h2>
               <p className="text-[--muted] text-lg mb-8">
-                Nâng cấp lên Premium để truy cập tín hiệu AI và phân tích chuyên sâu
+                Vui lòng liên hệ Admin để nâng cấp lên Premium và trở thành nhà đầu tư cùng đồng hành
               </p>
             </div>
 
@@ -140,12 +140,12 @@ function SignalsPageContent() {
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-600/50 text-lg inline-flex items-center gap-2"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                Nâng cấp lên Premium ngay
+                Liên hệ Admin để nâng cấp
               </button>
               <p className="text-[--muted] text-sm mt-4">
-                Chỉ từ 999.000đ/tháng
+                Trở thành nhà đầu tư cùng đồng hành với gói Premium
               </p>
             </div>
           </div>
@@ -193,7 +193,7 @@ function SignalsPageContent() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-[--fg] mb-2">Tín hiệu AI</h1>
-            <p className="text-[--muted]">Phân tích chuyên sâu với AI cho các cổ phiếu tiềm năng</p>
+            <p className="text-[--muted]">Dành riêng cho nhà đầu tư cùng đồng hành (Invest Partner)</p>
           </div>
           <span className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm font-semibold">
             ⭐ Premium
