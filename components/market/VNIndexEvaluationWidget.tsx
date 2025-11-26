@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, memo } from 'react'
+import AssessmentIcon from '@mui/icons-material/Assessment'
 
 interface RatioData {
   code: string
@@ -165,8 +166,9 @@ export default function VNIndexEvaluationWidget({ isActive = true }: VNIndexEval
 
   return (
     <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 transition-all duration-300 w-full max-w-full overflow-hidden">
-      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-white">
-        📈 Đánh giá VNINDEX
+      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-white flex items-center gap-2">
+        <AssessmentIcon sx={{ fontSize: { xs: 18, sm: 22, md: 26 } }} />
+        Đánh giá VNINDEX
       </h3>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 md:gap-4">
