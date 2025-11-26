@@ -9,7 +9,7 @@ function ChatPageContent() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-[--fg] mb-2">Room Chat</h1>
+          <h1 className="text-3xl font-bold text-[--fg] mb-2">Kiếm tiền đi chợ</h1>
           <p className="text-[--muted]">Trò chuyện với cộng đồng trader</p>
         </div>
 
