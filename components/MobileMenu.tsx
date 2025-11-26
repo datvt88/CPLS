@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import ThemeToggle from './ThemeToggle'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 
 export default function MobileMenu() {
@@ -100,10 +99,6 @@ export default function MobileMenu() {
             >
               Đăng nhập
             </Link>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-[--muted]">Giao diện</span>
-              <ThemeToggle />
-            </div>
           </div>
         </div>
       </div>
