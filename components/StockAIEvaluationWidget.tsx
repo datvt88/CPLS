@@ -469,8 +469,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       }
     }
 
-    // Calculate cut loss price (3.5% below current price)
-    cutLossPrice = Number((currentPrice * 0.965).toFixed(2))
+    // Calculate cut loss price (3.5% below buy price, or current price if no buy price)
+    cutLossPrice = buyPrice ? Number((buyPrice * 0.965).toFixed(2)) : Number((currentPrice * 0.965).toFixed(2))
 
     return {
       signal,
@@ -755,7 +755,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
 
                   {/* Cut Loss Price */}
                   <div className="bg-red-900/30 rounded-lg p-3 border border-red-700/30">
-                    <div className="text-xs text-gray-400 mb-1">Giá cắt lỗ đề xuất (-3.5%)</div>
+                    <div className="text-xs text-gray-400 mb-1">Giá cắt lỗ đề xuất (-3.5% từ giá mua)</div>
                     <div className="text-lg font-bold text-red-400">
                       {formatPrice(analysis.shortTerm.cutLossPrice)}
                     </div>
