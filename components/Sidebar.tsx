@@ -32,7 +32,7 @@ export default function Sidebar(){
     {href:'/market',label:'Thị trường',icon:'🌐'},
     {href:'/stocks',label:'Cổ phiếu',icon:'💹'},
     {href:'/signals',label:'Tín hiệu',icon:'⚡'},
-    {href:'/chat',label:'Room Chat',icon:'💬'},
+    {href:'/chat',label:'Kiếm tiền đi chợ',icon:'💬'},
     {href:'/profile',label:'Cá nhân',icon:'👤'}
   ]
 

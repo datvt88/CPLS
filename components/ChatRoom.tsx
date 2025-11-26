@@ -422,7 +422,7 @@ export default function ChatRoom() {
           💬
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-white font-semibold text-base truncate">Room Chat</h3>
+          <h3 className="text-white font-semibold text-base truncate">Kiếm tiền đi chợ</h3>
           <p className="text-gray-400 text-sm truncate">
             {messages.length > 0 ? `${messages.length} tin nhắn` : 'Chưa có tin nhắn'}
           </p>
