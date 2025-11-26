@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react'
 import { authService } from '@/services/auth.service'
 import { profileService } from '@/services/profile.service'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import DashboardIcon from '@mui/icons-material/Dashboard'
+import PublicIcon from '@mui/icons-material/Public'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import BoltIcon from '@mui/icons-material/Bolt'
+import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
+import PersonIcon from '@mui/icons-material/Person'
+import SecurityIcon from '@mui/icons-material/Security'
 
 export default function Sidebar(){
   const [isAdmin, setIsAdmin] = useState(false)
@@ -28,12 +35,12 @@ export default function Sidebar(){
   }
 
   const items = [
-    {href:'/dashboard',label:'Tổng quan',icon:'📊'},
-    {href:'/market',label:'Thị trường',icon:'🌐'},
-    {href:'/stocks',label:'Cổ phiếu',icon:'💹'},
-    {href:'/signals',label:'Tín hiệu',icon:'⚡'},
-    {href:'/chat',label:'Kiếm tiền đi chợ',icon:'💬'},
-    {href:'/profile',label:'Cá nhân',icon:'👤'}
+    {href:'/dashboard',label:'Tổng quan',Icon:DashboardIcon},
+    {href:'/market',label:'Thị trường',Icon:PublicIcon},
+    {href:'/stocks',label:'Cổ phiếu',Icon:TrendingUpIcon},
+    {href:'/signals',label:'Tín hiệu',Icon:BoltIcon},
+    {href:'/chat',label:'Kiếm tiền đi chợ',Icon:ChatBubbleIcon},
+    {href:'/profile',label:'Cá nhân',Icon:PersonIcon}
   ]
 
   return (
@@ -52,7 +59,7 @@ export default function Sidebar(){
             href={i.href}
             className="flex items-center py-2 lg:py-3 px-2 lg:px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors relative text-sm lg:text-base"
           >
-            <span className="text-lg lg:text-xl">{i.icon}</span>
+            <i.Icon sx={{ fontSize: { xs: 20, lg: 24 } }} />
             <span className="ml-2 lg:ml-3">{i.label}</span>
             {i.href === '/chat' && unreadCount > 0 && (
               <span className="ml-auto bg-red-500 text-white text-xs font-bold px-1.5 lg:px-2 py-0.5 rounded-full min-w-[18px] lg:min-w-[20px] text-center">
@@ -70,7 +77,7 @@ export default function Sidebar(){
               href="/management"
               className="flex items-center py-2 lg:py-3 px-2 lg:px-3 rounded bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 transition-colors text-sm lg:text-base"
             >
-              <span className="text-lg lg:text-xl">🛡️</span>
+              <SecurityIcon sx={{ fontSize: { xs: 20, lg: 24 } }} />
               <span className="ml-2 lg:ml-3 font-semibold">Quản lý</span>
             </Link>
           </>

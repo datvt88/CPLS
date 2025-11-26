@@ -5,14 +5,19 @@ import TopStocksWidget from '@/components/market/TopStocksWidget'
 import SimpleWorldIndicesWidget from '@/components/market/SimpleWorldIndicesWidget'
 import SimpleCommoditiesWidget from '@/components/market/SimpleCommoditiesWidget'
 import ExchangeRateWidget from '@/components/market/ExchangeRateWidget'
+import ShowChartIcon from '@mui/icons-material/ShowChart'
+import LanguageIcon from '@mui/icons-material/Language'
+import LocalGasStationIcon from '@mui/icons-material/LocalGasStation'
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
+import PublicIcon from '@mui/icons-material/Public'
 
 type TabType = 'securities' | 'world' | 'commodities' | 'exchange'
 
-const tabs: { id: TabType; label: string; icon: string }[] = [
-  { id: 'securities', label: 'Chứng khoán', icon: '📊' },
-  { id: 'world', label: 'Thế giới', icon: '🌍' },
-  { id: 'commodities', label: 'Hàng hóa', icon: '🛢️' },
-  { id: 'exchange', label: 'Tỷ giá', icon: '💱' },
+const tabs: { id: TabType; label: string; Icon: any }[] = [
+  { id: 'securities', label: 'Chứng khoán', Icon: ShowChartIcon },
+  { id: 'world', label: 'Thế giới', Icon: LanguageIcon },
+  { id: 'commodities', label: 'Hàng hóa', Icon: LocalGasStationIcon },
+  { id: 'exchange', label: 'Tỷ giá', Icon: CurrencyExchangeIcon },
 ]
 
 export default function MarketPage() {
@@ -22,7 +27,10 @@ export default function MarketPage() {
     <div className="space-y-3 sm:space-y-4 md:space-y-5 w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1.5 sm:mb-2">🌐 Thị trường</h1>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1.5 sm:mb-2 flex items-center gap-2">
+          <PublicIcon sx={{ fontSize: { xs: 24, sm: 32, md: 40 } }} />
+          Thị trường
+        </h1>
         <p className="text-xs sm:text-sm md:text-base text-[--muted]">
           Theo dõi thị trường chứng khoán và tài chính
         </p>
@@ -45,7 +53,7 @@ export default function MarketPage() {
                   }
                 `}
               >
-                <span className="text-sm sm:text-base md:text-xl">{tab.icon}</span>
+                <tab.Icon sx={{ fontSize: { xs: 16, sm: 20, md: 24 } }} />
                 <span>{tab.label}</span>
               </button>
             ))}

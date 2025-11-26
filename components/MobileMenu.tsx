@@ -2,18 +2,24 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import DashboardIcon from '@mui/icons-material/Dashboard'
+import PublicIcon from '@mui/icons-material/Public'
+import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import BoltIcon from '@mui/icons-material/Bolt'
+import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
+import PersonIcon from '@mui/icons-material/Person'
 
 export default function MobileMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const unreadCount = useUnreadMessages()
 
   const menuItems = [
-    { href: '/dashboard', label: 'Tổng quan', icon: '📊' },
-    { href: '/market', label: 'Thị trường', icon: '🌐' },
-    { href: '/stocks', label: 'Cổ phiếu', icon: '💹' },
-    { href: '/signals', label: 'Tín hiệu', icon: '⚡' },
-    { href: '/chat', label: 'Kiếm tiền đi chợ', icon: '💬' },
-    { href: '/profile', label: 'Cá nhân', icon: '👤' },
+    { href: '/dashboard', label: 'Tổng quan', Icon: DashboardIcon },
+    { href: '/market', label: 'Thị trường', Icon: PublicIcon },
+    { href: '/stocks', label: 'Cổ phiếu', Icon: TrendingUpIcon },
+    { href: '/signals', label: 'Tín hiệu', Icon: BoltIcon },
+    { href: '/chat', label: 'Kiếm tiền đi chợ', Icon: ChatBubbleIcon },
+    { href: '/profile', label: 'Cá nhân', Icon: PersonIcon },
   ]
 
   return (
@@ -79,7 +85,7 @@ export default function MobileMenu() {
                 onClick={() => setIsOpen(false)}
                 className="flex items-center py-3 px-3 rounded hover:bg-gray-800 text-gray-200 transition-colors relative"
               >
-                <span className="text-xl">{item.icon}</span>
+                <item.Icon sx={{ fontSize: 24 }} />
                 <span className="ml-3">{item.label}</span>
                 {item.href === '/chat' && unreadCount > 0 && (
                   <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">

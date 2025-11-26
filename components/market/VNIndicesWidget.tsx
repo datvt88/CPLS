@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, memo } from 'react'
+import ShowChartIcon from '@mui/icons-material/ShowChart'
 
 interface IndexData {
   code: string
@@ -157,7 +158,10 @@ export default function VNIndicesWidget({ isActive = true }: VNIndicesWidgetProp
 
   return (
     <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800 transition-all duration-300 w-full max-w-full overflow-hidden">
-      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-white">📊 Chỉ số chứng khoán Việt Nam</h3>
+      <h3 className="text-base sm:text-lg md:text-xl font-bold mb-3 sm:mb-4 md:mb-5 text-white flex items-center gap-2">
+        <ShowChartIcon sx={{ fontSize: { xs: 18, sm: 22, md: 26 } }} />
+        Chỉ số chứng khoán Việt Nam
+      </h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
         {sortedIndices.map((index) => {

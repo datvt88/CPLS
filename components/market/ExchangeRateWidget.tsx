@@ -2,6 +2,7 @@
 
 import { useEffect, useState, memo } from 'react'
 import type { ExchangeRateData, VNDirectResponse } from '@/types/market'
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
 
 const currencyInfo: Record<string, { name: string; flag: string; isVND: boolean }> = {
   'USD_VND': { name: 'Đô la Mỹ', flag: '🇺🇸', isVND: true },
@@ -188,7 +189,8 @@ export default function ExchangeRateWidget({ isActive = true }: ExchangeRateWidg
   return (
     <div className="bg-[--panel] rounded-xl p-6 border border-gray-800 transition-all duration-300">
       <h3 className="text-xl font-bold mb-6 text-white flex items-center gap-2">
-        💱 Tỷ giá ngoại tệ
+        <CurrencyExchangeIcon sx={{ fontSize: 28 }} />
+        Tỷ giá ngoại tệ
         <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full animate-pulse">
           LIVE
         </span>
