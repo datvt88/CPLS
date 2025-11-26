@@ -36,33 +36,34 @@ export default function MarketPage() {
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4 border border-gray-800">
-        <div className="overflow-x-auto -mx-2.5 sm:mx-0 px-2.5 sm:px-0">
-          <div className="flex gap-2 min-w-max">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 rounded-lg font-semibold transition-all whitespace-nowrap text-xs sm:text-sm md:text-base
-                  ${
-                    activeTab === tab.id
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white'
-                  }
-                `}
-              >
-                <tab.Icon sx={{ fontSize: { xs: 16, sm: 20, md: 24 } }} />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
+      {/* Tabs - Vertical Layout */}
+      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800">
+        <div className="flex flex-col gap-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-lg font-semibold transition-all text-sm sm:text-base
+                ${
+                  activeTab === tab.id
+                    ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-white border-l-4 border-purple-500 shadow-lg'
+                    : 'bg-gray-800/30 text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 border-l-4 border-transparent'
+                }
+              `}
+            >
+              <tab.Icon sx={{ fontSize: 24 }} />
+              <span className="flex-1 text-left">{tab.label}</span>
+              {activeTab === tab.id && (
+                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Info */}
-        <div className="mt-2.5 sm:mt-3 text-xs sm:text-sm text-gray-400">
-          Chọn tab để xem các chỉ số khác nhau
+        <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-gray-500 text-center">
+          Chọn danh mục để xem chi tiết
         </div>
       </div>
 
