@@ -59,10 +59,14 @@ export default function MobileMenu() {
 
       {/* Menu Panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-[#0f1720] backdrop-blur-md border-l border-gray-800 rounded-l-2xl z-40 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] backdrop-blur-xl border-l border-gray-700/50 rounded-l-2xl z-40 transform transition-transform duration-300 ease-in-out shadow-2xl ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{ backgroundColor: 'rgba(15, 23, 32, 0.3)' }}
+        style={{
+          background: 'linear-gradient(to bottom, rgba(15, 23, 32, 0.95), rgba(10, 15, 25, 0.98))',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)'
+        }}
       >
         <div className="p-6 flex flex-col h-full">
           {/* Header */}
