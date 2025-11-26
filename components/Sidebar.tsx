@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { authService } from '@/services/auth.service'
 import { profileService } from '@/services/profile.service'
@@ -45,13 +46,17 @@ export default function Sidebar(){
 
   return (
     <aside className="w-60 lg:w-72 hidden md:block bg-[--panel] border-r border-gray-800 min-h-screen p-4 lg:p-6 flex-shrink-0">
-      <div className="mb-4 lg:mb-6 flex items-center gap-2 lg:gap-3">
-        <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-sm lg:text-base">CPLS</div>
-        <div>
-          <div className="text-white font-semibold text-sm lg:text-base">CPLS</div>
-          <div className="text-xs lg:text-sm text-[--muted]">Master Trader</div>
+      <Link href="/dashboard" className="mb-4 lg:mb-6 flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity">
+        <div className="relative w-32 h-8 lg:w-40 lg:h-10">
+          <Image
+            src="/logo.svg"
+            alt="Cổ Phiếu Lướt Sóng"
+            fill
+            className="object-contain"
+            priority
+          />
         </div>
-      </div>
+      </Link>
       <nav className="space-y-1 lg:space-y-2">
         {items.map(i => (
           <Link

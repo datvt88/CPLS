@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import PublicIcon from '@mui/icons-material/Public'
@@ -66,15 +67,21 @@ export default function MobileMenu() {
       >
         <div className="p-6 flex flex-col h-full">
           {/* Header */}
-          <div className="mb-6 flex items-center gap-3 pb-4 border-b border-gray-800">
-            <div className="w-10 h-10 rounded-md bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center font-bold">
-              CPLS
+          <Link
+            href="/dashboard"
+            onClick={() => setIsOpen(false)}
+            className="mb-6 flex items-center justify-center pb-4 border-b border-gray-800 hover:opacity-80 transition-opacity"
+          >
+            <div className="relative w-36 h-10">
+              <Image
+                src="/logo.svg"
+                alt="Cổ Phiếu Lướt Sóng"
+                fill
+                className="object-contain"
+                priority
+              />
             </div>
-            <div>
-              <div className="text-white font-semibold">CPLS</div>
-              <div className="text-sm text-[--muted]">Master Trader</div>
-            </div>
-          </div>
+          </Link>
 
           {/* Navigation Links */}
           <nav className="space-y-2 flex-1">
