@@ -54,14 +54,15 @@ export interface CommodityData {
 // Exchange Rates
 export interface ExchangeRateData {
   code: string
-  name: string
-  type: string
-  period: string
-  price: number
-  bopPrice: number
+  codeName: string
+  tradingDate: string
+  openPrice: number
+  highPrice: number
+  lowPrice: number
+  closePrice: number
   change: number
   changePct: number
-  lastUpdated: string
+  locale: string
 }
 
 // API Response wrappers

@@ -3,8 +3,7 @@ import type { ExchangeRateData, VNDirectResponse } from '@/types/market'
 
 export async function GET() {
   try {
-    const codes = 'USD_VND,EUR_VND,JPY_VND,CNY_VND'
-    const url = `https://api-finfo.vndirect.com.vn/v4/change_prices?q=period:1D~code:${codes}`
+    const url = 'https://api-finfo.vndirect.com.vn/v4/currencies/latest?order=tradingDate&where=locale:VN&filter=code:USD_VND,EUR_VND,CNY_VND,JPY_VND,EUR_USD,USD_JPY,USD_CNY'
 
     const response = await fetch(url, {
       headers: {
@@ -29,25 +28,27 @@ export async function GET() {
       data: [
         {
           code: 'USD_VND',
-          name: 'USD/VND',
-          type: 'CURRENCY',
-          period: '1D',
-          price: 25577.0,
-          bopPrice: 25577.0,
-          change: 0.0,
-          changePct: 0.0,
-          lastUpdated: new Date().toISOString(),
+          codeName: 'Tỷ giá USD/VND',
+          tradingDate: new Date().toISOString().split('T')[0],
+          openPrice: 26366.0,
+          highPrice: 26383.0,
+          lowPrice: 26366.0,
+          closePrice: 26371.0,
+          change: 5.0,
+          changePct: 0.019,
+          locale: 'VN',
         },
         {
           code: 'EUR_VND',
-          name: 'EUR/VND',
-          type: 'CURRENCY',
-          period: '1D',
-          price: 27704.0,
-          bopPrice: 27788.0,
-          change: -84.0,
-          changePct: -0.3,
-          lastUpdated: new Date().toISOString(),
+          codeName: 'Tỷ giá EUR/VND',
+          tradingDate: new Date().toISOString().split('T')[0],
+          openPrice: 30378.0,
+          highPrice: 30553.0,
+          lowPrice: 30367.0,
+          closePrice: 30512.0,
+          change: 134.0,
+          changePct: 0.4411,
+          locale: 'VN',
         },
       ],
     })
