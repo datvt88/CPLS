@@ -1,34 +1,86 @@
-<svg width="400" height="100" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg">
+<svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+    <!-- Green wave gradient -->
+    <radialGradient id="waveGradient" cx="50%" cy="50%">
+      <stop offset="0%" style="stop-color:#6ee7b7;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#34d399;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
-    </linearGradient>
+    </radialGradient>
+
+    <!-- Purple arrow gradient -->
     <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#9333ea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
     </linearGradient>
+
+    <!-- Glow effect for wave -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <!-- Wave Circle -->
-  <circle cx="40" cy="50" r="25" fill="none" stroke="url(#waveGradient)" stroke-width="4"/>
-  <path d="M 25 50 Q 32 40, 40 50 T 55 50" stroke="url(#waveGradient)" stroke-width="3" fill="none"/>
+  <!-- Wave circle design -->
+  <g filter="url(#glow)">
+    <!-- Outer circle -->
+    <circle cx="60" cy="60" r="35" fill="none" stroke="url(#waveGradient)" stroke-width="6" opacity="0.6"/>
 
-  <!-- Arrow -->
-  <g transform="translate(50, 30)">
-    <path d="M 5 30 L 5 5 L 20 5" stroke="url(#arrowGradient)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-    <polygon points="20,0 25,8 15,8" fill="url(#arrowGradient)"/>
+    <!-- Inner wave circles -->
+    <circle cx="60" cy="60" r="25" fill="none" stroke="url(#waveGradient)" stroke-width="5" opacity="0.8"/>
+    <circle cx="60" cy="60" r="15" fill="none" stroke="url(#waveGradient)" stroke-width="4"/>
+
+    <!-- Wave curve -->
+    <path d="M 30 60 Q 45 45, 60 60 T 90 60"
+          stroke="url(#waveGradient)"
+          stroke-width="5"
+          fill="none"
+          stroke-linecap="round"
+          opacity="0.9"/>
+  </g>
+
+  <!-- Purple arrow with glow -->
+  <g filter="url(#glow)">
+    <!-- Arrow shaft -->
+    <path d="M 115 75 Q 125 65, 140 45 L 170 15"
+          stroke="url(#arrowGradient)"
+          stroke-width="12"
+          fill="none"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- Arrow head -->
+    <path d="M 155 8 L 177 8 L 170 15 L 177 30 L 155 30 L 162 19 Z"
+          fill="url(#arrowGradient)"/>
+
+    <!-- Arrow tip triangle -->
+    <polygon points="170,15 177,8 177,22" fill="url(#arrowGradient)" opacity="0.8"/>
   </g>
 
   <!-- Stars -->
-  <polygon points="75,20 77,26 83,26 78,30 80,36 75,32 70,36 72,30 67,26 73,26" fill="url(#arrowGradient)" opacity="0.8"/>
-  <polygon points="68,15 69,18 72,18 70,20 71,23 68,21 65,23 66,20 64,18 67,18" fill="url(#arrowGradient)" opacity="0.6"/>
+  <g fill="url(#arrowGradient)" opacity="0.9">
+    <!-- Large star -->
+    <path d="M 185 15 L 188 22 L 196 22 L 190 27 L 192 35 L 185 30 L 178 35 L 180 27 L 174 22 L 182 22 Z"/>
+    <!-- Small star -->
+    <path d="M 170 8 L 172 12 L 176 12 L 173 15 L 174 19 L 170 16 L 166 19 L 167 15 L 164 12 L 168 12 Z" opacity="0.7"/>
+  </g>
 
-  <!-- Text -->
-  <text x="95" y="45" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="white">
-    CỔ PHIẾU
-  </text>
-  <text x="260" y="45" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#10b981">
-    LƯỚT SÓNG
-  </text>
+  <!-- Text: CỔ PHIẾU -->
+  <text x="220" y="72"
+        font-family="'Arial Black', 'Arial Bold', sans-serif"
+        font-size="52"
+        font-weight="900"
+        fill="#ffffff"
+        letter-spacing="2">CỔ PHIẾU</text>
+
+  <!-- Text: LƯỚT SÓNG -->
+  <text x="440" y="72"
+        font-family="'Arial Black', 'Arial Bold', sans-serif"
+        font-size="52"
+        font-weight="900"
+        fill="#34d399"
+        letter-spacing="2">LƯỚT SÓNG</text>
 </svg>
