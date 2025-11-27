@@ -125,7 +125,7 @@ export default function MobileMenu() {
       <div
         className={`fixed inset-0 z-40 transition-all duration-300 ${
           isOpen
-            ? 'bg-black opacity-100 pointer-events-auto'
+            ? 'bg-black/70 backdrop-blur-md opacity-100 pointer-events-auto'
             : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setIsOpen(false)}
