@@ -55,10 +55,7 @@ export default function Sidebar(){
           className="w-8 h-8 lg:w-10 lg:h-10"
           priority
         />
-        <div>
-          <div className="text-white font-semibold text-sm lg:text-base">CPLS</div>
-          <div className="text-xs lg:text-sm text-[--muted]">Master Trader</div>
-        </div>
+        <div className="text-white font-semibold text-sm lg:text-base">CPLS</div>
       </div>
       <nav className="space-y-1 lg:space-y-2">
         {items.map(i => (
