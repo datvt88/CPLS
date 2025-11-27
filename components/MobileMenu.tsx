@@ -48,16 +48,16 @@ export default function MobileMenu() {
       {/* Hamburger Button - Minimal Design */}
       <button
         onClick={() => setIsOpen(true)}
-        className="relative z-50 p-2.5 rounded-xl bg-white/5 hover:bg-white/10
-                   backdrop-blur-sm border border-white/10 transition-all duration-200
+        className="relative z-50 p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700
+                   border border-gray-700 transition-all duration-200
                    active:scale-95"
         aria-label="Mở menu"
         aria-expanded={isOpen}
       >
         <div className="w-5 h-4 flex flex-col justify-between">
-          <span className="block h-[2px] w-5 bg-white/90 rounded-full" />
-          <span className="block h-[2px] w-3.5 bg-white/90 rounded-full" />
-          <span className="block h-[2px] w-5 bg-white/90 rounded-full" />
+          <span className="block h-[2px] w-5 bg-white rounded-full" />
+          <span className="block h-[2px] w-3.5 bg-white rounded-full" />
+          <span className="block h-[2px] w-5 bg-white rounded-full" />
         </div>
       </button>
 
@@ -65,7 +65,7 @@ export default function MobileMenu() {
       <div
         className={`fixed inset-0 z-40 transition-all duration-300 ${
           isOpen
-            ? 'bg-black/70 opacity-100 pointer-events-auto'
+            ? 'bg-black opacity-100 pointer-events-auto'
             : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setIsOpen(false)}
@@ -94,7 +94,7 @@ export default function MobileMenu() {
               className="flex items-center gap-3 group"
             >
               <div className="relative w-10 h-10 rounded-xl overflow-hidden
-                            ring-2 ring-white/10 group-hover:ring-purple-500/50
+                            ring-2 ring-gray-700 group-hover:ring-purple-500
                             transition-all duration-300">
                 <Image
                   src="/logo.png"
@@ -106,7 +106,7 @@ export default function MobileMenu() {
               </div>
               <div>
                 <div className="text-white font-semibold text-lg tracking-tight">CPLS</div>
-                <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">
+                <div className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">
                   MENU
                 </div>
               </div>
@@ -114,12 +114,12 @@ export default function MobileMenu() {
 
             <button
               onClick={() => setIsOpen(false)}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10
-                        border border-white/10 transition-all duration-200
+              className="p-2 rounded-xl bg-gray-800 hover:bg-gray-700
+                        border border-gray-700 transition-all duration-200
                         active:scale-95"
               aria-label="Đóng menu"
             >
-              <CloseIcon sx={{ fontSize: 20 }} className="text-white/70" />
+              <CloseIcon sx={{ fontSize: 20 }} className="text-gray-400" />
             </button>
           </div>
 
@@ -138,8 +138,8 @@ export default function MobileMenu() {
                     className={`group flex items-center gap-3 px-4 py-3.5 rounded-xl
                               transition-all duration-200 relative overflow-hidden
                               ${isActive
-                                ? 'bg-gradient-to-r from-purple-500/20 to-transparent text-white'
-                                : 'text-white/60 hover:text-white hover:bg-white/5'
+                                ? 'bg-purple-900 text-white'
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
                               }`}
                     style={{
                       animationDelay: `${index * 50}ms`
@@ -153,8 +153,8 @@ export default function MobileMenu() {
 
                     <div className={`p-2 rounded-lg transition-colors duration-200
                                   ${isActive
-                                    ? 'bg-purple-500/20 text-purple-400'
-                                    : 'bg-white/5 text-white/50 group-hover:bg-white/10 group-hover:text-white/70'
+                                    ? 'bg-purple-800 text-purple-400'
+                                    : 'bg-gray-800 text-gray-500 group-hover:bg-gray-700 group-hover:text-gray-300'
                                   }`}>
                       <item.Icon sx={{ fontSize: 20 }} />
                     </div>
@@ -166,7 +166,6 @@ export default function MobileMenu() {
                                      min-w-[22px] h-[22px] px-1.5
                                      bg-gradient-to-r from-red-500 to-rose-500
                                      text-white text-[11px] font-bold rounded-full
-                                     shadow-lg shadow-red-500/30
                                      animate-pulse">
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
@@ -178,16 +177,16 @@ export default function MobileMenu() {
           </nav>
 
           {/* Bottom Section */}
-          <div className="pt-6 mt-auto border-t border-white/[0.06] space-y-3">
+          <div className="pt-6 mt-auto border-t border-gray-800 space-y-3">
             {/* User greeting - có thể thay bằng user info thật */}
             <div className="flex items-center gap-3 px-2 py-2 mb-2">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500/30 to-indigo-500/30
-                            flex items-center justify-center border border-white/10">
-                <PersonIcon sx={{ fontSize: 18 }} className="text-white/60" />
+              <div className="w-9 h-9 rounded-full bg-purple-900
+                            flex items-center justify-center border border-gray-700">
+                <PersonIcon sx={{ fontSize: 18 }} className="text-gray-400" />
               </div>
               <div className="flex-1">
-                <div className="text-white/40 text-xs">Xin chào!</div>
-                <div className="text-white/80 text-sm font-medium">Khách</div>
+                <div className="text-gray-500 text-xs">Xin chào!</div>
+                <div className="text-gray-300 text-sm font-medium">Khách</div>
               </div>
             </div>
 
@@ -198,7 +197,7 @@ export default function MobileMenu() {
                         rounded-xl font-semibold text-[15px]
                         bg-gradient-to-r from-purple-600 to-indigo-600
                         hover:from-purple-500 hover:to-indigo-500
-                        text-white shadow-lg shadow-purple-500/25
+                        text-white
                         transition-all duration-200 active:scale-[0.98]"
             >
               Đăng nhập
@@ -209,9 +208,9 @@ export default function MobileMenu() {
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-center w-full py-3.5 px-4
                         rounded-xl font-medium text-[15px]
-                        bg-white/5 hover:bg-white/10
-                        text-white/80 hover:text-white
-                        border border-white/10 hover:border-white/20
+                        bg-gray-800 hover:bg-gray-700
+                        text-gray-300 hover:text-white
+                        border border-gray-700 hover:border-gray-600
                         transition-all duration-200 active:scale-[0.98]"
             >
               Tạo tài khoản
