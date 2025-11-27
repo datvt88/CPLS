@@ -14,7 +14,12 @@ const roboto = Roboto({
 })
 
 export const metadata = {
-  title: 'Master Trader',
+  title: 'Cổ Phiếu Lướt Sóng',
+  description: 'Master Trader - Nền tảng giao dịch chứng khoán thông minh',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
   verification: {
     other: {
       'zalo-platform-site-verification': 'FyJcAj-pL2y9k-C7oerBNZgdwddMqJmlDZWp',
