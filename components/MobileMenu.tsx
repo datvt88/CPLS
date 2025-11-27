@@ -77,7 +77,7 @@ export default function MobileMenu() {
         role="dialog"
         aria-modal="true"
         aria-label="Menu điều hướng"
-        className={`fixed top-0 right-0 h-full w-[75vw] max-w-[240px] z-50
+        className={`fixed top-0 right-0 h-screen max-h-[100dvh] w-[75vw] max-w-[240px] z-50
                     bg-[#0f1117]
                     border-l border-gray-800
                     shadow-[-20px_0_60px_rgba(0,0,0,0.5)]
@@ -85,9 +85,9 @@ export default function MobileMenu() {
                     ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
 
-        <div className="relative h-full flex flex-col p-5">
+        <div className="relative h-full flex flex-col p-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6 flex-shrink-0">
             <Link
               href="/"
               onClick={() => setIsOpen(false)}
@@ -124,7 +124,7 @@ export default function MobileMenu() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 -mx-2">
+          <nav className="flex-1 -mx-2 overflow-y-auto overflow-x-hidden min-h-0">
             <div className="space-y-1">
               {menuItems.map((item, index) => {
                 const isActive = pathname === item.href
@@ -177,7 +177,7 @@ export default function MobileMenu() {
           </nav>
 
           {/* Bottom Section */}
-          <div className="pt-6 mt-auto border-t border-gray-800 space-y-3">
+          <div className="pt-6 mt-auto border-t border-gray-800 space-y-3 flex-shrink-0">
             {/* User greeting - có thể thay bằng user info thật */}
             <div className="flex items-center gap-3 px-2 py-2 mb-2">
               <div className="w-9 h-9 rounded-full bg-purple-900
