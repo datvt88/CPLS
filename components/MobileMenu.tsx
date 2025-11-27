@@ -61,11 +61,11 @@ export default function MobileMenu() {
         </div>
       </button>
 
-      {/* Overlay với blur effect */}
+      {/* Overlay */}
       <div
         className={`fixed inset-0 z-40 transition-all duration-300 ${
           isOpen
-            ? 'bg-black/60 backdrop-blur-sm opacity-100 pointer-events-auto'
+            ? 'bg-black/70 opacity-100 pointer-events-auto'
             : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setIsOpen(false)}
@@ -77,15 +77,13 @@ export default function MobileMenu() {
         role="dialog"
         aria-modal="true"
         aria-label="Menu điều hướng"
-        className={`fixed top-0 right-0 h-full w-[85vw] max-w-[320px] z-50
-                    bg-gradient-to-b from-[#0a0f16] to-[#0d1420]
-                    border-l border-white/[0.08]
+        className={`fixed top-0 right-0 h-full w-[75vw] max-w-[240px] z-50
+                    bg-[#0f1117]
+                    border-l border-gray-800
                     shadow-[-20px_0_60px_rgba(0,0,0,0.5)]
                     transform transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]
                     ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        {/* Glass effect top */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-purple-500/5 to-transparent pointer-events-none" />
 
         <div className="relative h-full flex flex-col p-5">
           {/* Header */}
@@ -109,7 +107,7 @@ export default function MobileMenu() {
               <div>
                 <div className="text-white font-semibold text-lg tracking-tight">CPLS</div>
                 <div className="text-[11px] text-white/40 font-medium uppercase tracking-wider">
-                  Trading Platform
+                  MENU
                 </div>
               </div>
             </Link>
@@ -220,11 +218,6 @@ export default function MobileMenu() {
             </Link>
           </div>
         </div>
-
-        {/* Decorative elements */}
-        <div className="absolute bottom-0 left-0 right-0 h-40
-                      bg-gradient-to-t from-purple-500/5 to-transparent
-                      pointer-events-none" />
       </div>
     </>
   )
