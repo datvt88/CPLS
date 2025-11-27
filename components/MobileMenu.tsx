@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
+import { supabase } from '@/lib/supabaseClient'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import PublicIcon from '@mui/icons-material/Public'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
@@ -14,8 +15,57 @@ import CloseIcon from '@mui/icons-material/Close'
 
 export default function MobileMenu() {
   const [isOpen, setIsOpen] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
   const unreadCount = useUnreadMessages()
   const pathname = usePathname()
+
+  // Check auth state
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        setUser(session.user)
+
+        // Fetch profile data
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', session.user.id)
+          .single()
+
+        if (profileData) {
+          setProfile(profileData)
+        }
+      }
+    }
+
+    checkAuth()
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name, email')
+          .eq('id', session.user.id)
+          .single()
+
+        if (profileData) {
+          setProfile(profileData)
+        }
+      } else {
+        setUser(null)
+        setProfile(null)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
 
   // Đóng menu khi route thay đổi
   useEffect(() => {
@@ -42,6 +92,16 @@ export default function MobileMenu() {
     { href: '/chat', label: 'Kiếm tiền đi chợ', Icon: ChatBubbleIcon },
     { href: '/profile', label: 'Cá nhân', Icon: PersonIcon },
   ]
+
+  // Get display name
+  const getDisplayName = () => {
+    if (profile?.full_name) return profile.full_name
+    if (user?.user_metadata?.full_name) return user.user_metadata.full_name
+    if (user?.user_metadata?.name) return user.user_metadata.name
+    if (profile?.email) return profile.email.split('@')[0]
+    if (user?.email) return user.email.split('@')[0]
+    return 'Người dùng'
+  }
 
   return (
     <>
@@ -178,43 +238,48 @@ export default function MobileMenu() {
 
           {/* Bottom Section */}
           <div className="pt-6 mt-auto border-t border-gray-800 space-y-3 flex-shrink-0">
-            {/* User greeting - có thể thay bằng user info thật */}
-            <div className="flex items-center gap-3 px-2 py-2 mb-2">
-              <div className="w-9 h-9 rounded-full bg-purple-900
-                            flex items-center justify-center border border-gray-700">
-                <PersonIcon sx={{ fontSize: 18 }} className="text-gray-400" />
+            {user ? (
+              // User is logged in - show user info only
+              <div className="flex items-center gap-3 px-2 py-2">
+                <div className="w-9 h-9 rounded-full bg-purple-900
+                              flex items-center justify-center border border-gray-700">
+                  <PersonIcon sx={{ fontSize: 18 }} className="text-purple-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-500 text-xs">Xin chào!</div>
+                  <div className="text-white text-sm font-medium truncate">
+                    {getDisplayName()}
+                  </div>
+                </div>
               </div>
-              <div className="flex-1">
-                <div className="text-gray-500 text-xs">Xin chào!</div>
-                <div className="text-gray-300 text-sm font-medium">Khách</div>
-              </div>
-            </div>
+            ) : (
+              // User not logged in - show login button only
+              <>
+                <div className="flex items-center gap-3 px-2 py-2 mb-2">
+                  <div className="w-9 h-9 rounded-full bg-purple-900
+                                flex items-center justify-center border border-gray-700">
+                    <PersonIcon sx={{ fontSize: 18 }} className="text-gray-400" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-gray-500 text-xs">Xin chào!</div>
+                    <div className="text-gray-300 text-sm font-medium">Khách</div>
+                  </div>
+                </div>
 
-            <Link
-              href="/login"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center justify-center w-full py-3.5 px-4
-                        rounded-xl font-semibold text-[15px]
-                        bg-gradient-to-r from-purple-600 to-indigo-600
-                        hover:from-purple-500 hover:to-indigo-500
-                        text-white
-                        transition-all duration-200 active:scale-[0.98]"
-            >
-              Đăng nhập
-            </Link>
-
-            <Link
-              href="/login"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center justify-center w-full py-3.5 px-4
-                        rounded-xl font-medium text-[15px]
-                        bg-gray-800 hover:bg-gray-700
-                        text-gray-300 hover:text-white
-                        border border-gray-700 hover:border-gray-600
-                        transition-all duration-200 active:scale-[0.98]"
-            >
-              Tạo tài khoản
-            </Link>
+                <Link
+                  href="/login"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center justify-center w-full py-3.5 px-4
+                            rounded-xl font-semibold text-[15px]
+                            bg-gradient-to-r from-purple-600 to-indigo-600
+                            hover:from-purple-500 hover:to-indigo-500
+                            text-white
+                            transition-all duration-200 active:scale-[0.98]"
+                >
+                  Đăng nhập
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
