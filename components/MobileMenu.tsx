@@ -204,7 +204,7 @@ export default function MobileMenu() {
             </Link>
 
             <Link
-              href="/register"
+              href="/login"
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-center w-full py-3.5 px-4
                         rounded-xl font-medium text-[15px]
