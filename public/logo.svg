@@ -1,21 +1,37 @@
-<svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
+<svg width="700" height="140" viewBox="0 0 700 140" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Green wave gradient -->
-    <radialGradient id="waveGradient" cx="50%" cy="50%">
+    <!-- Green to Purple gradient for wave -->
+    <radialGradient id="waveGradient" cx="40%" cy="40%">
       <stop offset="0%" style="stop-color:#6ee7b7;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#34d399;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#34d399;stop-opacity:1" />
+      <stop offset="60%" style="stop-color:#5b21b6;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
     </radialGradient>
 
-    <!-- Purple arrow gradient -->
-    <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:1" />
+    <!-- Purple gradient for arrow -->
+    <linearGradient id="arrowGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
       <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:1" />
     </linearGradient>
 
-    <!-- Glow effect for wave -->
+    <!-- Green gradient for circle -->
+    <radialGradient id="circleGreen" cx="50%" cy="50%">
+      <stop offset="0%" style="stop-color:#6ee7b7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+    </radialGradient>
+
+    <!-- Glow effect -->
     <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Strong glow for stars -->
+    <filter id="starGlow">
       <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
@@ -24,63 +40,57 @@
     </filter>
   </defs>
 
-  <!-- Wave circle design -->
-  <g filter="url(#glow)">
-    <!-- Outer circle -->
-    <circle cx="60" cy="60" r="35" fill="none" stroke="url(#waveGradient)" stroke-width="6" opacity="0.6"/>
+  <!-- Main wave circle icon -->
+  <g transform="translate(20, 20)">
+    <!-- Outer green circle -->
+    <circle cx="50" cy="50" r="45" fill="url(#circleGreen)" opacity="0.3" filter="url(#glow)"/>
 
-    <!-- Inner wave circles -->
-    <circle cx="60" cy="60" r="25" fill="none" stroke="url(#waveGradient)" stroke-width="5" opacity="0.8"/>
-    <circle cx="60" cy="60" r="15" fill="none" stroke="url(#waveGradient)" stroke-width="4"/>
-
-    <!-- Wave curve -->
-    <path d="M 30 60 Q 45 45, 60 60 T 90 60"
+    <!-- Wave spiral shape -->
+    <path d="M 50 5 A 45 45 0 0 1 95 50 A 35 35 0 0 1 50 85 A 25 25 0 0 1 25 50 A 15 15 0 0 1 50 35"
+          fill="none"
           stroke="url(#waveGradient)"
-          stroke-width="5"
-          fill="none"
+          stroke-width="14"
           stroke-linecap="round"
-          opacity="0.9"/>
+          filter="url(#glow)"/>
+
+    <!-- Purple arrow pointing up -->
+    <g transform="translate(35, 25) rotate(-45, 15, 25)">
+      <!-- Arrow shaft -->
+      <rect x="10" y="10" width="10" height="35" fill="url(#arrowGradient)" rx="5" filter="url(#glow)"/>
+
+      <!-- Arrow head -->
+      <path d="M 0 10 L 15 0 L 30 10 L 20 15 L 20 15 L 10 15 Z"
+            fill="url(#arrowGradient)"
+            filter="url(#glow)"/>
+    </g>
+
+    <!-- White star (large) -->
+    <g transform="translate(75, 10)" filter="url(#starGlow)">
+      <path d="M 0 -8 L 2 -2 L 8 0 L 2 2 L 0 8 L -2 2 L -8 0 L -2 -2 Z"
+            fill="white"/>
+    </g>
+
+    <!-- White star (small) -->
+    <g transform="translate(70, 75)" filter="url(#starGlow)">
+      <path d="M 0 -4 L 1 -1 L 4 0 L 1 1 L 0 4 L -1 1 L -4 0 L -1 -1 Z"
+            fill="white"
+            opacity="0.8"/>
+    </g>
   </g>
 
-  <!-- Purple arrow with glow -->
-  <g filter="url(#glow)">
-    <!-- Arrow shaft -->
-    <path d="M 115 75 Q 125 65, 140 45 L 170 15"
-          stroke="url(#arrowGradient)"
-          stroke-width="12"
-          fill="none"
-          stroke-linecap="round"
-          stroke-linejoin="round"/>
-
-    <!-- Arrow head -->
-    <path d="M 155 8 L 177 8 L 170 15 L 177 30 L 155 30 L 162 19 Z"
-          fill="url(#arrowGradient)"/>
-
-    <!-- Arrow tip triangle -->
-    <polygon points="170,15 177,8 177,22" fill="url(#arrowGradient)" opacity="0.8"/>
-  </g>
-
-  <!-- Stars -->
-  <g fill="url(#arrowGradient)" opacity="0.9">
-    <!-- Large star -->
-    <path d="M 185 15 L 188 22 L 196 22 L 190 27 L 192 35 L 185 30 L 178 35 L 180 27 L 174 22 L 182 22 Z"/>
-    <!-- Small star -->
-    <path d="M 170 8 L 172 12 L 176 12 L 173 15 L 174 19 L 170 16 L 166 19 L 167 15 L 164 12 L 168 12 Z" opacity="0.7"/>
-  </g>
-
-  <!-- Text: CỔ PHIẾU -->
-  <text x="220" y="72"
+  <!-- Text: CỔ PHIẾU (Green) -->
+  <text x="150" y="75"
         font-family="'Arial Black', 'Arial Bold', sans-serif"
-        font-size="52"
+        font-size="58"
         font-weight="900"
-        fill="#ffffff"
-        letter-spacing="2">CỔ PHIẾU</text>
+        fill="#10b981"
+        letter-spacing="3">CỔ PHIẾU</text>
 
-  <!-- Text: LƯỚT SÓNG -->
-  <text x="440" y="72"
+  <!-- Text: LƯỚT SÓNG (Purple) -->
+  <text x="430" y="75"
         font-family="'Arial Black', 'Arial Bold', sans-serif"
-        font-size="52"
+        font-size="58"
         font-weight="900"
-        fill="#34d399"
-        letter-spacing="2">LƯỚT SÓNG</text>
+        fill="#8b5cf6"
+        letter-spacing="3">LƯỚT SÓNG</text>
 </svg>
