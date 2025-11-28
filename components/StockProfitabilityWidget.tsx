@@ -39,8 +39,9 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
       try {
         console.log('📊 Loading profitability data for:', symbol)
 
+        // Use proxy API route to avoid CORS issues
         const response = await fetch(
-          `https://api-bo.dnse.com.vn/senses-api/business-result?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`
+          `/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`
         )
 
         if (!response.ok) {
