@@ -12,27 +12,71 @@ export default function AuthCallbackPage() {
   const [errorMessage, setErrorMessage] = useState<string>('')
 
   useEffect(() => {
-    handleCallback()
+    let mounted = true
+    let timeoutId: NodeJS.Timeout
+
+    const runCallback = async () => {
+      try {
+        await handleCallback()
+      } catch (error) {
+        if (!mounted) return
+        console.error('❌ Unhandled error in handleCallback:', error)
+        setStatus('error')
+        setErrorMessage(error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định')
+        setTimeout(() => {
+          if (mounted) router.push('/login')
+        }, 3000)
+      }
+    }
+
+    // Set a timeout to prevent hanging indefinitely
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        console.error('❌ Auth callback timeout (15s) - redirecting to login')
+        setStatus('error')
+        setErrorMessage('Xác thực hết thời gian chờ. Vui lòng kiểm tra:\n- Supabase đã được cấu hình đúng chưa?\n- Redirect URL có trong danh sách cho phép không?')
+        setTimeout(() => {
+          if (mounted) router.push('/login')
+        }, 3000)
+      }
+    }, 15000) // 15 second timeout
+
+    runCallback()
+
+    return () => {
+      mounted = false
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   const handleCallback = async () => {
     try {
-      console.log('🔍 Callback page loaded')
+      console.log('🔍 Callback page loaded at', new Date().toISOString())
       console.log('URL:', window.location.href)
       console.log('Hash:', window.location.hash)
       console.log('Search:', window.location.search)
 
       // STEP 1: Check if Supabase already has a session (auto-restored from storage)
-      const { data: { session: existingSession } } = await supabase.auth.getSession()
+      console.log('⏳ Checking for existing session...')
+      const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.error('❌ Error getting session:', sessionError)
+        throw new Error(`Session error: ${sessionError.message}`)
+      }
 
       if (existingSession) {
         console.log('✅ Found existing session:', existingSession.user.email)
+        console.log('Session expires at:', new Date(existingSession.expires_at || 0).toISOString())
         setStatus('success')
         setTimeout(() => {
+          console.log('🚀 Redirecting to dashboard...')
           router.push('/dashboard')
         }, 1000)
         return
       }
+
+      console.log('ℹ️ No existing session found, checking OAuth parameters...')
 
       // STEP 2: Check for Supabase OAuth hash fragments
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
@@ -119,53 +163,68 @@ export default function AuthCallbackPage() {
   const handleSupabaseOAuth = async (accessToken: string | null, refreshToken: string | null) => {
     try {
       console.log('🔐 Setting up Supabase session...')
+      console.log('Has access token:', !!accessToken)
+      console.log('Has refresh token:', !!refreshToken)
 
       // Supabase client will automatically pick up the session from URL hash
       // We need to call setSession explicitly to ensure it's processed
       if (accessToken && refreshToken) {
+        console.log('⏳ Calling setSession with tokens...')
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         })
 
         if (error) {
-          throw new Error(`Failed to set session: ${error.message}`)
+          console.error('❌ setSession error:', error)
+          throw new Error(`Không thể tạo phiên đăng nhập: ${error.message}`)
         }
 
-        console.log('✅ Session set successfully')
+        console.log('✅ Session set successfully:', data.session?.user.email)
+      } else {
+        console.warn('⚠️ Missing tokens - attempting to get existing session')
       }
 
       // Get the current session
+      console.log('⏳ Getting current session...')
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
       if (sessionError) {
-        throw new Error(`OAuth error: ${sessionError.message}`)
+        console.error('❌ getSession error:', sessionError)
+        throw new Error(`Lỗi OAuth: ${sessionError.message}`)
       }
 
       if (!session) {
-        throw new Error('No session found after OAuth callback')
+        console.error('❌ No session found after OAuth callback')
+        throw new Error('Không thể tạo phiên đăng nhập. Vui lòng kiểm tra cấu hình Supabase.')
       }
 
       console.log('✅ Google OAuth session established:', {
         user_id: session.user.id,
         email: session.user.email,
         provider: session.user.app_metadata.provider,
+        expires_at: new Date(session.expires_at || 0).toISOString(),
       })
 
       // Profile will be auto-created/updated by AuthListener component
       // and database trigger (handle_new_user function)
 
+      console.log('✅ Setting status to success')
       setStatus('success')
 
       // Clean up URL hash
+      console.log('🧹 Cleaning up URL hash...')
       window.history.replaceState({}, document.title, window.location.pathname)
 
       // Redirect to dashboard
+      console.log('🚀 Redirecting to dashboard in 1.5s...')
       setTimeout(() => {
+        console.log('🔄 Executing redirect now...')
         router.push('/dashboard')
       }, 1500)
     } catch (error) {
       console.error('❌ Supabase OAuth error:', error)
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
       throw error
     }
   }
