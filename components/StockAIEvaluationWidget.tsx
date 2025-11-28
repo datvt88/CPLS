@@ -79,16 +79,23 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       try {
         console.log('🤖 Performing AI analysis for:', symbol)
 
-        // Fetch technical, fundamental data and analyst recommendations in parallel
+        // Fetch technical, fundamental data, profitability data and analyst recommendations in parallel
         // For 52-week analysis, we need at least 270 days (52 weeks * 5 trading days + buffer)
         // Recommendations from last 12 months for recent analyst views
-        const [pricesResponse, ratiosResponse, recommendationsResponse] = await Promise.all([
+        // Profitability data for ROE/ROA trend analysis
+        const [pricesResponse, ratiosResponse, recommendationsResponse, profitabilityResponse] = await Promise.all([
           fetchStockPrices(symbol, 270),
           fetchFinancialRatios(symbol),
           fetchStockRecommendations(symbol).catch(err => {
             console.warn('⚠️ Failed to fetch recommendations, continuing without:', err)
             return { data: [] }
-          })
+          }),
+          fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`)
+            .then(res => res.json())
+            .catch(err => {
+              console.warn('⚠️ Failed to fetch profitability data, continuing without:', err)
+              return null
+            })
         ])
 
         if (!pricesResponse.data || pricesResponse.data.length === 0) {
@@ -130,14 +137,14 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           ratiosMap[ratio.ratioCode] = ratio
         })
 
-        // Perform analysis
-        const aiAnalysis = analyzeStock(sortedData, ratiosMap)
+        // Perform analysis with profitability data
+        const aiAnalysis = analyzeStock(sortedData, ratiosMap, profitabilityResponse)
         console.log('✅ AI analysis completed for:', symbol)
         setAnalysis(aiAnalysis)
 
         // Call Gemini API for enhanced analysis (don't wait, run in background)
         setGeminiLoading(true)
-        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, recommendationsResponse.data || [], aiAnalysis)
+        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, recommendationsResponse.data || [], aiAnalysis, profitabilityResponse)
           .then(geminiResult => {
             if (geminiResult) {
               console.log('✅ Gemini analysis completed for:', symbol)
@@ -166,7 +173,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     priceData: any[],
     ratios: Record<string, FinancialRatio>,
     recommendations: any[],
-    baseAnalysis: AIAnalysis
+    baseAnalysis: AIAnalysis,
+    profitabilityData: any
   ): Promise<GeminiAnalysis | null> => {
     try {
       // Validate input data
@@ -225,7 +233,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         buyPrice: baseAnalysis.shortTerm.buyPrice
       }
 
-      // Prepare fundamental data
+      // Prepare fundamental data with detailed ROE/ROA quarterly data
       const fundamentalData = {
         pe: ratios['PRICE_TO_EARNINGS']?.value,
         pb: ratios['PRICE_TO_BOOK']?.value,
@@ -235,7 +243,12 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         marketCap: ratios['MARKETCAP']?.value,
         freeFloat: ratios['FREEFLOAT']?.value,
         eps: ratios['EPS_TR']?.value,
-        bvps: ratios['BVPS_CR']?.value
+        bvps: ratios['BVPS_CR']?.value,
+        // Add detailed ROE/ROA quarterly data
+        profitability: profitabilityData ? {
+          quarters: profitabilityData.x || [],
+          metrics: profitabilityData.data || []
+        } : null
       }
 
       // Prepare analyst recommendations data (limit to top 10 most recent)
@@ -298,12 +311,12 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>): AIAnalysis => {
+  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any): AIAnalysis => {
     // Technical Analysis for Short-term
     const shortTerm = analyzeShortTerm(priceData)
 
-    // Fundamental Analysis for Long-term
-    const longTerm = analyzeLongTerm(priceData, ratios)
+    // Fundamental Analysis for Long-term with profitability trends
+    const longTerm = analyzeLongTerm(priceData, ratios, profitabilityData)
 
     return { shortTerm, longTerm }
   }
@@ -482,7 +495,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>): Evaluation => {
+  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
@@ -529,27 +542,110 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       totalWeight += 20
     }
 
-    // 3. ROE Analysis (Weight: 25%)
-    const roe = ratios['ROAE_TR_AVG5Q']?.value
-    if (roe !== undefined && roe !== null) {
-      const roePercent = roe * 100
-      if (roePercent > 20) {
-        bullishScore += 25
-        reasons.push(`✅ ROE cao (${roePercent.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
-      } else if (roePercent >= 15 && roePercent <= 20) {
-        bullishScore += 15
-        reasons.push(`✅ ROE tốt (${roePercent.toFixed(2)}%)`)
-      } else if (roePercent >= 10 && roePercent < 15) {
-        bullishScore += 5
-        reasons.push(`⚠️ ROE trung bình (${roePercent.toFixed(2)}%)`)
-      } else if (roePercent < 10 && roePercent > 0) {
-        bearishScore += 10
-        reasons.push(`❌ ROE thấp (${roePercent.toFixed(2)}%)`)
-      } else {
-        bearishScore += 25
-        reasons.push(`❌ ROE âm (${roePercent.toFixed(2)}%) - Công ty lỗ`)
+    // 3. ROE/ROA Analysis with Trend (Weight: 30%)
+    // Use detailed quarterly data if available, otherwise fall back to average
+    let roeAnalyzed = false
+    let roaAnalyzed = false
+
+    if (profitabilityData && profitabilityData.data && profitabilityData.data.length > 0) {
+      const roeData = profitabilityData.data.find((m: any) => m.label === 'ROE')
+      const roaData = profitabilityData.data.find((m: any) => m.label === 'ROA')
+
+      if (roeData && roeData.y && roeData.y.length >= 2) {
+        const roeValues = roeData.y
+        const latestROE = roeValues[roeValues.length - 1]
+        const previousROE = roeValues[roeValues.length - 2]
+        const oldestROE = roeValues[0]
+
+        // Analyze ROE value
+        if (latestROE > 20) {
+          bullishScore += 20
+          reasons.push(`✅ ROE cao (${latestROE.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
+        } else if (latestROE >= 15) {
+          bullishScore += 12
+          reasons.push(`✅ ROE tốt (${latestROE.toFixed(2)}%)`)
+        } else if (latestROE >= 10) {
+          bullishScore += 5
+          reasons.push(`⚠️ ROE trung bình (${latestROE.toFixed(2)}%)`)
+        } else if (latestROE > 0) {
+          bearishScore += 5
+          reasons.push(`❌ ROE thấp (${latestROE.toFixed(2)}%)`)
+        } else {
+          bearishScore += 20
+          reasons.push(`❌ ROE âm (${latestROE.toFixed(2)}%) - Công ty lỗ`)
+        }
+
+        // Analyze ROE trend
+        const roeTrend = latestROE - oldestROE
+        const roeQoQ = latestROE - previousROE
+
+        if (roeTrend > 3 && roeQoQ > 0) {
+          bullishScore += 10
+          reasons.push(`✅ ROE xu hướng tăng (+${roeTrend.toFixed(2)}% từ ${profitabilityData.x[0]})`)
+        } else if (roeTrend < -3 && roeQoQ < 0) {
+          bearishScore += 10
+          reasons.push(`❌ ROE xu hướng giảm (${roeTrend.toFixed(2)}% từ ${profitabilityData.x[0]})`)
+        } else if (roeQoQ > 1) {
+          bullishScore += 5
+          reasons.push(`✅ ROE cải thiện quý gần nhất (+${roeQoQ.toFixed(2)}%)`)
+        } else if (roeQoQ < -1) {
+          bearishScore += 5
+          reasons.push(`⚠️ ROE giảm quý gần nhất (${roeQoQ.toFixed(2)}%)`)
+        }
+
+        roeAnalyzed = true
+        totalWeight += 30
       }
-      totalWeight += 25
+
+      // Analyze ROA if available (Additional 10%)
+      if (roaData && roaData.y && roaData.y.length >= 2) {
+        const roaValues = roaData.y
+        const latestROA = roaValues[roaValues.length - 1]
+        const previousROA = roaValues[roaValues.length - 2]
+
+        if (latestROA > 15) {
+          bullishScore += 5
+          reasons.push(`✅ ROA cao (${latestROA.toFixed(2)}%) - Hiệu quả sử dụng tài sản tốt`)
+        } else if (latestROA >= 10) {
+          bullishScore += 3
+          reasons.push(`✅ ROA tốt (${latestROA.toFixed(2)}%)`)
+        }
+
+        const roaQoQ = latestROA - previousROA
+        if (roaQoQ > 1) {
+          bullishScore += 2
+        } else if (roaQoQ < -1) {
+          bearishScore += 2
+        }
+
+        roaAnalyzed = true
+        totalWeight += 10
+      }
+    }
+
+    // Fallback to average ROE if quarterly data not available
+    if (!roeAnalyzed) {
+      const roe = ratios['ROAE_TR_AVG5Q']?.value
+      if (roe !== undefined && roe !== null) {
+        const roePercent = roe * 100
+        if (roePercent > 20) {
+          bullishScore += 25
+          reasons.push(`✅ ROE TB cao (${roePercent.toFixed(2)}%) - Hiệu quả sử dụng vốn tốt`)
+        } else if (roePercent >= 15 && roePercent <= 20) {
+          bullishScore += 15
+          reasons.push(`✅ ROE TB tốt (${roePercent.toFixed(2)}%)`)
+        } else if (roePercent >= 10 && roePercent < 15) {
+          bullishScore += 5
+          reasons.push(`⚠️ ROE TB trung bình (${roePercent.toFixed(2)}%)`)
+        } else if (roePercent < 10 && roePercent > 0) {
+          bearishScore += 10
+          reasons.push(`❌ ROE TB thấp (${roePercent.toFixed(2)}%)`)
+        } else {
+          bearishScore += 25
+          reasons.push(`❌ ROE TB âm (${roePercent.toFixed(2)}%) - Công ty lỗ`)
+        }
+        totalWeight += 25
+      }
     }
 
     // 4. Dividend Yield (Weight: 15%)
