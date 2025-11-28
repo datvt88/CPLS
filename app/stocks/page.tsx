@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import StockFinancialsWidget from '@/components/StockFinancialsWidget'
+import StockProfitabilityWidget from '@/components/StockProfitabilityWidget'
 import StockAIEvaluationWidget from '@/components/StockAIEvaluationWidget'
 import StockRecommendationsWidget from '@/components/StockRecommendationsWidget'
 
@@ -46,6 +47,9 @@ export default function StocksPage() {
 
       {/* Stock Financials Widget */}
       <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
+
+      {/* Stock Profitability Widget (ROE/ROA) */}
+      <StockProfitabilityWidget key={`profitability-${currentSymbol}`} symbol={currentSymbol} />
 
       {/* Stock Recommendations Widget */}
       <StockRecommendationsWidget key={`rec-${currentSymbol}`} symbol={currentSymbol} />

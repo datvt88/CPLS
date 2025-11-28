@@ -112,12 +112,12 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-      <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+    <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
+      <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
         📊 Chỉ số Tài chính - {symbol}
       </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
         {financialMetrics.map(metric => {
           const ratio = ratios[metric.key]
           const value = formatValue(metric.key, ratio?.value)
@@ -125,13 +125,13 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
           return (
             <div
               key={metric.key}
-              className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 hover:border-purple-500/50 transition-colors"
+              className="bg-gray-800/50 rounded-lg p-2 border border-gray-700/50 hover:border-purple-500/50 transition-colors"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-2xl">{metric.icon}</span>
-                <span className="text-gray-400 text-sm">{metric.label}</span>
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-sm">{metric.icon}</span>
+                <span className="text-gray-400 text-xs">{metric.label}</span>
               </div>
-              <div className="text-xl font-bold text-white">
+              <div className="text-sm font-bold text-white">
                 {value}
               </div>
             </div>
