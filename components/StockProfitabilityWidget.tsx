@@ -128,7 +128,7 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
                 <thead>
                   <tr className="border-b border-gray-700">
                     <th className="text-left py-2 px-2 text-gray-400 font-medium text-xs">Quý</th>
-                    {data.x.map((quarter, idx) => (
+                    {data.x.slice().reverse().map((quarter, idx) => (
                       <th key={idx} className="text-right py-2 px-2 text-gray-400 font-medium text-xs">
                         {quarter}
                       </th>
@@ -138,7 +138,7 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
                 <tbody>
                   <tr>
                     <td className="py-2 px-2 text-gray-300 text-xs">{data.unit}</td>
-                    {metric.y.map((value, idx) => (
+                    {metric.y.slice().reverse().map((value, idx) => (
                       <td
                         key={idx}
                         className={`py-2 px-2 text-right font-semibold ${
@@ -155,24 +155,27 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
 
             {/* Visual bar chart */}
             <div className="mt-3 space-y-1">
-              {metric.y.map((value, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-16">{data.x[idx]}</span>
-                  <div className="flex-1 bg-gray-700 rounded-full h-4 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        value >= 20 ? 'bg-green-500' : value >= 10 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${Math.min((value / 30) * 100, 100)}%` }}
-                    ></div>
+              {metric.y.slice().reverse().map((value, idx) => {
+                const reversedIdx = metric.y.length - 1 - idx
+                return (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-16">{data.x[reversedIdx]}</span>
+                    <div className="flex-1 bg-gray-700 rounded-full h-4 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          value >= 20 ? 'bg-green-500' : value >= 10 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.min((value / 30) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                    <span className={`text-xs font-semibold w-12 text-right ${
+                      value >= 20 ? 'text-green-400' : value >= 10 ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {value.toFixed(2)}%
+                    </span>
                   </div>
-                  <span className={`text-xs font-semibold w-12 text-right ${
-                    value >= 20 ? 'text-green-400' : value >= 10 ? 'text-yellow-400' : 'text-red-400'
-                  }`}>
-                    {value.toFixed(2)}%
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         ))}
