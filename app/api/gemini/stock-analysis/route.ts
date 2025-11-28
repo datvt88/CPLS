@@ -213,6 +213,41 @@ function buildStockAnalysisPrompt(
       prompt += `BVPS: ${fundamentalData.bvps.toFixed(2)}\n`
     }
 
+    // Add detailed profitability data if available
+    if (fundamentalData.profitability && fundamentalData.profitability.metrics && fundamentalData.profitability.metrics.length > 0) {
+      prompt += `\n📈 HIỆU QUẢ HOẠT ĐỘNG (5 QUÝ GẦN NHẤT):\n`
+
+      const { quarters, metrics } = fundamentalData.profitability
+      metrics.forEach((metric: any) => {
+        if (metric.label && metric.y && metric.y.length > 0) {
+          prompt += `\n${metric.label} (%): `
+          const reversedQuarters = [...quarters].reverse()
+          const reversedValues = [...metric.y].reverse()
+          reversedQuarters.forEach((q: string, i: number) => {
+            prompt += `${q}: ${reversedValues[i].toFixed(2)}%${i < reversedQuarters.length - 1 ? ', ' : ''}`
+          })
+
+          // Calculate trend
+          const latest = metric.y[metric.y.length - 1]
+          const oldest = metric.y[0]
+          const trend = latest - oldest
+          const trendPercent = ((trend / oldest) * 100).toFixed(1)
+
+          if (trend > 0) {
+            prompt += ` (📈 Xu hướng tăng +${trend.toFixed(2)}%, ${trendPercent}%)\n`
+          } else if (trend < 0) {
+            prompt += ` (📉 Xu hướng giảm ${trend.toFixed(2)}%, ${trendPercent}%)\n`
+          } else {
+            prompt += ` (➡️ Ổn định)\n`
+          }
+
+          if (metric.tooltip) {
+            prompt += `   ${metric.tooltip}\n`
+          }
+        }
+      })
+    }
+
     prompt += `\n`
   }
 
@@ -261,11 +296,12 @@ function buildStockAnalysisPrompt(
   prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n`
   prompt += `1. Phân tích tổng hợp các chỉ số kỹ thuật và cơ bản\n`
   prompt += `2. Đánh giá xu hướng ngắn hạn (1-4 tuần) và dài hạn (3-12 tháng)\n`
-  prompt += `3. Xác định mức hỗ trợ và kháng cự quan trọng\n`
-  prompt += `4. Tham khảo đồng thuận từ các công ty chứng khoán (nếu có)\n`
-  prompt += `5. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
-  prompt += `6. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
-  prompt += `7. Đánh giá rủi ro và cơ hội\n\n`
+  prompt += `3. Phân tích xu hướng ROE/ROA qua các quý (nếu có dữ liệu chi tiết)\n`
+  prompt += `4. Xác định mức hỗ trợ và kháng cự quan trọng\n`
+  prompt += `5. Tham khảo đồng thuận từ các công ty chứng khoán (nếu có)\n`
+  prompt += `6. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
+  prompt += `7. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
+  prompt += `8. Đánh giá rủi ro và cơ hội, đặc biệt chú ý đến xu hướng hiệu quả hoạt động\n\n`
 
   prompt += `📋 FORMAT TRẢ VỀ:\n`
   prompt += `BẮT BUỘC trả về ĐÚNG định dạng JSON sau (không thêm markdown, code block, hay text khác):\n\n`
