@@ -172,7 +172,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
         </div>
 
         {/* Combined bar chart by quarter */}
-        <div className="space-y-2">
+        <div className="space-y-1">
           {[...data.x].reverse().map((quarter, qIdx) => {
             const originalIdx = data.x.length - 1 - qIdx
 
@@ -182,52 +182,30 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
             }, 0)
 
             return (
-              <div key={qIdx}>
-                {/* Quarter row with stacked bars */}
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-gray-400 w-16">{quarter}</span>
-                  <div className="flex-1 flex gap-0.5">
-                    {data.data.map(metric => {
-                      const value = metric.y[originalIdx] || 0
-                      const isNegative = value < 0
-                      const absValue = Math.abs(value)
-                      const percentage = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
-
-                      if (percentage < 0.5) return null // Skip very small values
-
-                      return (
-                        <div
-                          key={metric.id}
-                          className={`h-4 ${getMetricColor(metric.id, isNegative)} transition-all`}
-                          style={{ width: `${percentage}%` }}
-                          title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ`}
-                        ></div>
-                      )
-                    })}
-                  </div>
-                  <span className="text-xs font-semibold w-20 text-right text-white">
-                    {formatBillion(quarterTotal)}
-                  </span>
-                </div>
-
-                {/* Detailed values for this quarter */}
-                <div className="ml-20 space-y-0.5 mb-2">
+              <div key={qIdx} className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-16">{quarter}</span>
+                <div className="flex-1 flex gap-0.5">
                   {data.data.map(metric => {
                     const value = metric.y[originalIdx] || 0
                     const isNegative = value < 0
                     const absValue = Math.abs(value)
+                    const percentage = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
+
+                    if (percentage < 0.5) return null // Skip very small values
 
                     return (
-                      <div key={metric.id} className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${getMetricColor(metric.id, isNegative)}`}></div>
-                        <span className="text-xs text-gray-400 flex-1">{metric.label}</span>
-                        <span className={`text-xs font-medium ${getMetricTextColor(metric.id, isNegative)}`}>
-                          {isNegative ? '-' : ''}{formatBillion(absValue)}
-                        </span>
-                      </div>
+                      <div
+                        key={metric.id}
+                        className={`h-4 ${getMetricColor(metric.id, isNegative)} transition-all`}
+                        style={{ width: `${percentage}%` }}
+                        title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ`}
+                      ></div>
                     )
                   })}
                 </div>
+                <span className="text-xs font-semibold w-20 text-right text-white">
+                  {formatBillion(quarterTotal)}
+                </span>
               </div>
             )
           })}
