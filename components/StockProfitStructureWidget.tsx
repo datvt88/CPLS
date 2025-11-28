@@ -111,10 +111,41 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     )
   }
 
-  // Find max value for scaling bars
-  const maxValue = Math.max(
-    ...data.data.flatMap(metric => metric.y.map(v => Math.abs(v)))
-  )
+  // Find max total value across all quarters for scaling
+  const quarterTotals = data.x.map((_, qIdx) => {
+    return data.data.reduce((sum, metric) => {
+      const value = metric.y[qIdx] || 0
+      return sum + Math.abs(value)
+    }, 0)
+  })
+  const maxTotal = Math.max(...quarterTotals)
+
+  // Get metric colors
+  const getMetricColor = (metricId: number, isNegative: boolean) => {
+    if (isNegative) return 'bg-red-500'
+
+    switch (metricId) {
+      case 0: return 'bg-purple-500'  // LN trước thuế
+      case 1: return 'bg-blue-500'    // LN kinh doanh
+      case 2: return 'bg-green-500'   // LN tài chính
+      case 3: return 'bg-yellow-500'  // LN liên doanh
+      case 4: return 'bg-gray-500'    // LN khác
+      default: return 'bg-gray-400'
+    }
+  }
+
+  const getMetricTextColor = (metricId: number, isNegative: boolean) => {
+    if (isNegative) return 'text-red-400'
+
+    switch (metricId) {
+      case 0: return 'text-purple-400'
+      case 1: return 'text-blue-400'
+      case 2: return 'text-green-400'
+      case 3: return 'text-yellow-400'
+      case 4: return 'text-gray-400'
+      default: return 'text-white'
+    }
+  }
 
   return (
     <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
@@ -122,63 +153,85 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
         💰 Cơ cấu lợi nhuận - {symbol}
       </h3>
 
-      <div className="space-y-4">
-        {data.data.map(metric => (
-          <div key={metric.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-white font-semibold text-sm">{metric.label}</h4>
-                <p className="text-gray-400 text-xs mt-1">{metric.tooltip}</p>
-              </div>
+      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+        {/* Legend */}
+        <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
+          {data.data.map(metric => (
+            <div key={metric.id} className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded ${getMetricColor(metric.id, false)}`}></div>
+              <span className="text-xs text-gray-300">{metric.label}</span>
             </div>
+          ))}
+        </div>
 
-            {/* Header row */}
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
-              <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
-              <div className="flex-1"></div>
-              <span className="text-xs text-gray-400 w-20 text-right font-medium">Nghìn tỷ</span>
-            </div>
+        {/* Header row */}
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
+          <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
+          <div className="flex-1"></div>
+          <span className="text-xs text-gray-400 w-20 text-right font-medium">Nghìn tỷ</span>
+        </div>
 
-            {/* Visual bar chart */}
-            <div className="space-y-1">
-              {metric.y.slice().reverse().map((value, idx) => {
-                const reversedIdx = metric.y.length - 1 - idx
-                const isNegative = value < 0
-                const absValue = Math.abs(value)
-                const percentage = (absValue / maxValue) * 100
+        {/* Combined bar chart by quarter */}
+        <div className="space-y-2">
+          {[...data.x].reverse().map((quarter, qIdx) => {
+            const originalIdx = data.x.length - 1 - qIdx
 
-                return (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 w-16">{data.x[reversedIdx]}</span>
-                    <div className="flex-1 bg-gray-700 rounded-full h-4 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          isNegative
-                            ? 'bg-red-500'
-                            : metric.id === 0
-                              ? 'bg-purple-500'
-                              : metric.id === 1
-                                ? 'bg-blue-500'
-                                : metric.id === 2
-                                  ? 'bg-green-500'
-                                  : metric.id === 3
-                                    ? 'bg-yellow-500'
-                                    : 'bg-gray-500'
-                        }`}
-                        style={{ width: `${Math.min(percentage, 100)}%` }}
-                      ></div>
-                    </div>
-                    <span className={`text-xs font-semibold w-20 text-right ${
-                      isNegative ? 'text-red-400' : 'text-white'
-                    }`}>
-                      {isNegative ? '-' : ''}{formatBillion(absValue)}
-                    </span>
+            // Calculate total for this quarter
+            const quarterTotal = data.data.reduce((sum, metric) => {
+              return sum + Math.abs(metric.y[originalIdx] || 0)
+            }, 0)
+
+            return (
+              <div key={qIdx}>
+                {/* Quarter row with stacked bars */}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-gray-400 w-16">{quarter}</span>
+                  <div className="flex-1 flex gap-0.5">
+                    {data.data.map(metric => {
+                      const value = metric.y[originalIdx] || 0
+                      const isNegative = value < 0
+                      const absValue = Math.abs(value)
+                      const percentage = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
+
+                      if (percentage < 0.5) return null // Skip very small values
+
+                      return (
+                        <div
+                          key={metric.id}
+                          className={`h-4 ${getMetricColor(metric.id, isNegative)} transition-all`}
+                          style={{ width: `${percentage}%` }}
+                          title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ`}
+                        ></div>
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+                  <span className="text-xs font-semibold w-20 text-right text-white">
+                    {formatBillion(quarterTotal)}
+                  </span>
+                </div>
+
+                {/* Detailed values for this quarter */}
+                <div className="ml-20 space-y-0.5 mb-2">
+                  {data.data.map(metric => {
+                    const value = metric.y[originalIdx] || 0
+                    const isNegative = value < 0
+                    const absValue = Math.abs(value)
+
+                    return (
+                      <div key={metric.id} className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${getMetricColor(metric.id, isNegative)}`}></div>
+                        <span className="text-xs text-gray-400 flex-1">{metric.label}</span>
+                        <span className={`text-xs font-medium ${getMetricTextColor(metric.id, isNegative)}`}>
+                          {isNegative ? '-' : ''}{formatBillion(absValue)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
