@@ -50,6 +50,7 @@ export default function ChatRoom() {
   const [showReactions, setShowReactions] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [pinnedMessageId, setPinnedMessageId] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -59,7 +60,16 @@ export default function ChatRoom() {
 
   useEffect(() => {
     loadCurrentUser()
+    loadPinnedMessage()
   }, [])
+
+  const loadPinnedMessage = () => {
+    const pinnedRef = dbRef(database, 'chatRoomSettings/pinnedMessageId')
+    onValue(pinnedRef, (snapshot) => {
+      const pinnedId = snapshot.val()
+      setPinnedMessageId(pinnedId)
+    })
+  }
 
   useEffect(() => {
     const messagesRef = dbRef(database, 'messages')
@@ -331,6 +341,30 @@ export default function ChatRoom() {
     setShowReactions(null)
   }
 
+  const handlePinMessage = async (messageId: string) => {
+    if (!currentUser) return
+
+    // Check if user is admin or mod
+    if (currentUser.profile.role !== 'admin' && currentUser.profile.role !== 'mod') {
+      alert('Chỉ admin/mod mới có thể ghim tin nhắn!')
+      return
+    }
+
+    const pinnedRef = dbRef(database, 'chatRoomSettings/pinnedMessageId')
+
+    // If already pinned, unpin it
+    if (pinnedMessageId === messageId) {
+      await update(dbRef(database, 'chatRoomSettings'), { pinnedMessageId: null })
+    } else {
+      // Pin the message
+      await update(dbRef(database, 'chatRoomSettings'), { pinnedMessageId: messageId })
+    }
+  }
+
+  const isAdminOrMod = () => {
+    return currentUser?.profile.role === 'admin' || currentUser?.profile.role === 'mod'
+  }
+
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
     return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -435,6 +469,54 @@ export default function ChatRoom() {
         className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4 sm:space-y-5 bg-[#0f0f0f]"
         style={{ scrollBehavior: 'smooth' }}
       >
+        {/* Pinned Message */}
+        {pinnedMessageId && messages.find(m => m.id === pinnedMessageId) && (
+          <div className="sticky top-0 z-10 mb-4 bg-gradient-to-r from-amber-900/50 to-amber-800/50 border border-amber-600/50 rounded-xl p-3 sm:p-4 shadow-lg backdrop-blur-sm">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="text-xl flex-shrink-0">📌</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-amber-300 mb-1 font-semibold">TIN NHẮN ĐƯỢC GHIM</div>
+                {(() => {
+                  const pinnedMsg = messages.find(m => m.id === pinnedMessageId)!
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <img
+                          src={pinnedMsg.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(pinnedMsg.username)}&background=random`}
+                          alt={pinnedMsg.username}
+                          className="w-6 h-6 rounded-full object-cover"
+                        />
+                        <span className="text-sm font-semibold text-amber-100">{pinnedMsg.username}</span>
+                        <span className="text-xs text-amber-300">{formatTime(pinnedMsg.timestamp)}</span>
+                      </div>
+                      {pinnedMsg.imageUrl && (
+                        <img
+                          src={pinnedMsg.imageUrl}
+                          alt="Pinned image"
+                          className="rounded-lg mb-2 max-w-full sm:max-w-xs max-h-32 object-cover cursor-pointer"
+                          onClick={() => window.open(pinnedMsg.imageUrl, '_blank')}
+                        />
+                      )}
+                      {pinnedMsg.text && pinnedMsg.text !== '[Hình ảnh]' && (
+                        <p className="text-sm text-gray-200 break-words">{pinnedMsg.text}</p>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+              {isAdminOrMod() && (
+                <button
+                  onClick={() => handlePinMessage(pinnedMessageId)}
+                  className="text-amber-300 hover:text-white transition-colors p-1 flex-shrink-0"
+                  title="Bỏ ghim"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className="text-center text-gray-400 py-12">
             <p className="text-sm">Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p>
@@ -547,6 +629,19 @@ export default function ChatRoom() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </button>
+                        {isAdminOrMod() && (
+                          <button
+                            onClick={() => handlePinMessage(message.id)}
+                            className={`text-xs flex items-center gap-1 transition-colors ${
+                              pinnedMessageId === message.id
+                                ? 'text-amber-400 hover:text-amber-300'
+                                : 'text-gray-400 hover:text-white'
+                            }`}
+                            title={pinnedMessageId === message.id ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'}
+                          >
+                            {pinnedMessageId === message.id ? '📌' : '📍'}
+                          </button>
+                        )}
                       </div>
 
                       {/* Reaction Picker */}
