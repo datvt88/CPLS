@@ -115,46 +115,22 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
       <div className="space-y-4">
         {data.data.map(metric => (
           <div key={metric.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <h4 className="text-white font-semibold text-sm">{metric.label}</h4>
                 <p className="text-gray-400 text-xs mt-1">{metric.tooltip}</p>
               </div>
             </div>
 
-            {/* Table view for quarters */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-2 px-2 text-gray-400 font-medium text-xs">Quý</th>
-                    {data.x.slice().reverse().map((quarter, idx) => (
-                      <th key={idx} className="text-right py-2 px-2 text-gray-400 font-medium text-xs">
-                        {quarter}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="py-2 px-2 text-gray-300 text-xs">{data.unit}</td>
-                    {metric.y.slice().reverse().map((value, idx) => (
-                      <td
-                        key={idx}
-                        className={`py-2 px-2 text-right font-semibold ${
-                          value >= 20 ? 'text-green-400' : value >= 10 ? 'text-yellow-400' : 'text-red-400'
-                        }`}
-                      >
-                        {value.toFixed(2)}
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
+            {/* Header row */}
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
+              <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
+              <div className="flex-1"></div>
+              <span className="text-xs text-gray-400 w-12 text-right font-medium">%</span>
             </div>
 
             {/* Visual bar chart */}
-            <div className="mt-3 space-y-1">
+            <div className="space-y-1">
               {metric.y.slice().reverse().map((value, idx) => {
                 const reversedIdx = metric.y.length - 1 - idx
                 return (
