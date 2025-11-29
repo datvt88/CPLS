@@ -17,24 +17,20 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 export default function Home() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in and redirect
+    // Check if user is already logged in
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        router.push('/dashboard');
-      } else {
-        setIsLoading(false);
-      }
+      setIsLoggedIn(!!session?.user);
+      setIsLoading(false);
     };
     checkUser();
 
-    // Listen for auth changes and redirect
+    // Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        router.push('/dashboard');
-      }
+      setIsLoggedIn(!!session?.user);
     });
 
     return () => {
@@ -43,7 +39,11 @@ export default function Home() {
   }, [router]);
 
   const handleGetStarted = () => {
-    router.push('/login');
+    if (isLoggedIn) {
+      router.push('/dashboard');
+    } else {
+      router.push('/login');
+    }
   };
 
   const handleOpenAccount = (broker: string) => {
@@ -106,14 +106,16 @@ export default function Home() {
                 onClick={handleGetStarted}
                 className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-black font-bold rounded-xl transition-all duration-300 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-105"
               >
-                Bắt đầu ngay
+                {isLoggedIn ? 'Vào Dashboard' : 'Bắt đầu ngay'}
               </button>
-              <button
-                onClick={() => router.push('/login')}
-                className="w-full sm:w-auto px-8 py-4 bg-transparent border-2 border-purple-500 hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 font-semibold rounded-xl transition-all duration-300"
-              >
-                Đăng nhập
-              </button>
+              {!isLoggedIn && (
+                <button
+                  onClick={() => router.push('/login')}
+                  className="w-full sm:w-auto px-8 py-4 bg-transparent border-2 border-purple-500 hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 font-semibold rounded-xl transition-all duration-300"
+                >
+                  Đăng nhập
+                </button>
+              )}
             </div>
           </div>
         </div>
