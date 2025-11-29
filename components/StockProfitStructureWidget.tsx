@@ -19,8 +19,22 @@ interface ProfitStructureData {
   }>
 }
 
+interface EquityStructureData {
+  x: string[]
+  type: string
+  data: Array<{
+    id: number
+    label: string
+    tooltip: string
+    type: string
+    y: number[]
+    yAxisPosition: string
+  }>
+}
+
 export default function StockProfitStructureWidget({ symbol }: StockProfitStructureWidgetProps) {
   const [data, setData] = useState<ProfitStructureData | null>(null)
+  const [equityData, setEquityData] = useState<EquityStructureData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,31 +43,44 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
 
     // Reset all states when symbol changes
     setData(null)
+    setEquityData(null)
     setError(null)
     setLoading(false)
 
-    const loadProfitStructureData = async () => {
+    const loadFinancialStructureData = async () => {
       setLoading(true)
 
       try {
-        console.log('📊 Loading profit structure data for:', symbol)
+        console.log('📊 Loading profit & equity structure data for:', symbol)
 
-        // Use proxy API route to avoid CORS issues
-        const response = await fetch(
-          `/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`
-        )
+        // Fetch both profit structure and equity structure in parallel
+        const [profitResponse, equityResponse] = await Promise.all([
+          fetch(`/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`),
+          fetch(`/api/dnse/equity-structure?symbol=${symbol}&code=OWNERS_EQUITY&cycleType=quy&cycleNumber=5`)
+        ])
 
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`)
+        if (!profitResponse.ok) {
+          throw new Error(`Profit API error: ${profitResponse.status}`)
         }
 
-        const result = await response.json()
-        console.log('✅ Profit structure data loaded:', result)
-        setData(result)
-      } catch (err) {
-        console.error('❌ Error loading profit structure data:', err)
+        if (!equityResponse.ok) {
+          console.warn('⚠️ Equity data not available, continuing with profit data only')
+        }
 
-        let errorMessage = 'Không tải được dữ liệu cơ cấu lợi nhuận'
+        const profitResult = await profitResponse.json()
+        const equityResult = equityResponse.ok ? await equityResponse.json() : null
+
+        console.log('✅ Profit structure data loaded:', profitResult)
+        if (equityResult) {
+          console.log('✅ Equity structure data loaded:', equityResult)
+        }
+
+        setData(profitResult)
+        setEquityData(equityResult)
+      } catch (err) {
+        console.error('❌ Error loading financial structure data:', err)
+
+        let errorMessage = 'Không tải được dữ liệu cơ cấu lợi nhuận & vốn chủ'
         if (err instanceof Error) {
           if (err.message.includes('404')) {
             errorMessage = 'DNSE không có dữ liệu cho mã này'
@@ -69,7 +96,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
       }
     }
 
-    loadProfitStructureData()
+    loadFinancialStructureData()
   }, [symbol])
 
   // Format large numbers to billions (tỷ đồng)
@@ -84,7 +111,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
         <div className="flex items-center justify-center h-40">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-gray-400">Đang tải cơ cấu lợi nhuận...</p>
+            <p className="text-gray-400">Đang tải cơ cấu lợi nhuận & vốn chủ...</p>
           </div>
         </div>
       </div>
@@ -105,7 +132,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     return (
       <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
         <div className="text-gray-400 text-center py-8">
-          Không có dữ liệu cơ cấu lợi nhuận
+          Không có dữ liệu cơ cấu lợi nhuận & vốn chủ
         </div>
       </div>
     )
@@ -143,10 +170,23 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     }
   }
 
+  // Get equity metric colors
+  const getEquityMetricColor = (metricId: number, isNegative?: boolean) => {
+    if (isNegative) return 'bg-red-500'
+
+    switch (metricId) {
+      case 0: return 'bg-indigo-500'   // Vốn góp
+      case 1: return 'bg-orange-500'   // Cổ phiếu quỹ
+      case 2: return 'bg-teal-500'     // LNST chưa phân phối
+      case 3: return 'bg-pink-500'     // Vốn khác
+      default: return 'bg-gray-400'
+    }
+  }
+
   return (
     <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
       <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-        💰 Cơ cấu lợi nhuận - {symbol}
+        💰 Cơ cấu lợi nhuận & Vốn chủ - {symbol}
       </h3>
 
       <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
@@ -282,6 +322,86 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
           )}
         </div>
       </div>
+
+      {/* Equity Structure Chart */}
+      {equityData && equityData.data && equityData.data.length > 0 && (
+        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50 mt-4">
+          {/* Section Title */}
+          <h4 className="text-md font-semibold text-white mb-3 flex items-center gap-2">
+            🏛️ Cơ cấu Vốn chủ sở hữu
+          </h4>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
+            {equityData.data.map(metric => {
+              const equityColor = getEquityMetricColor(metric.id)
+              return (
+                <div key={metric.id} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 ${equityColor}`}></div>
+                  <span className="text-xs text-gray-300">{metric.label}</span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Header row */}
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
+            <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
+            <div className="flex-1"></div>
+            <span className="text-xs text-gray-400 w-20 text-right font-medium">Nghìn tỷ</span>
+          </div>
+
+          {/* Stacked bar chart for equity */}
+          <div className="space-y-1">
+            {[...equityData.x].reverse().map((quarter, qIdx) => {
+              const originalIdx = equityData.x.length - 1 - qIdx
+
+              // Calculate total equity for this quarter
+              const quarterTotal = equityData.data.reduce((sum, metric) => {
+                return sum + Math.abs(metric.y[originalIdx] || 0)
+              }, 0)
+
+              // Find max total across all quarters for scaling
+              const maxEquityTotal = Math.max(
+                ...equityData.x.map((_, idx) => {
+                  return equityData.data.reduce((sum, metric) => {
+                    return sum + Math.abs(metric.y[idx] || 0)
+                  }, 0)
+                })
+              )
+
+              return (
+                <div key={qIdx} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-16">{quarter}</span>
+                  <div className="flex-1 flex gap-0.5">
+                    {equityData.data.map(metric => {
+                      const value = metric.y[originalIdx] || 0
+                      const isNegative = value < 0
+                      const absValue = Math.abs(value)
+                      const percentage = maxEquityTotal > 0 ? (absValue / maxEquityTotal) * 100 : 0
+                      const percentOfTotal = quarterTotal > 0 ? (absValue / quarterTotal) * 100 : 0
+
+                      if (percentage < 0.5) return null // Skip very small values
+
+                      return (
+                        <div
+                          key={metric.id}
+                          className={`h-4 ${getEquityMetricColor(metric.id, isNegative)} transition-all`}
+                          style={{ width: `${percentage}%` }}
+                          title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ (${percentOfTotal.toFixed(1)}%)`}
+                        ></div>
+                      )
+                    })}
+                  </div>
+                  <span className="text-xs font-semibold w-20 text-right text-white">
+                    {formatBillion(quarterTotal)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
