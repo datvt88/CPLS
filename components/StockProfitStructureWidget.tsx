@@ -157,11 +157,10 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
           {data.data.map(metric => {
-            // Check if metric has any negative values
-            const hasNegative = metric.y.some(v => v < 0)
+            // Always show base color in legend, not red for negative
             return (
               <div key={metric.id} className="flex items-center gap-2">
-                <div className={`w-3 h-3 ${getMetricColor(metric.id, hasNegative)}`}></div>
+                <div className={`w-3 h-3 ${getMetricColor(metric.id, false)}`}></div>
                 <span className="text-xs text-gray-300">{metric.label}</span>
               </div>
             )
