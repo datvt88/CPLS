@@ -111,14 +111,14 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     )
   }
 
-  // Find max total value across all quarters for scaling
-  const quarterTotals = data.x.map((_, qIdx) => {
-    return data.data.reduce((sum, metric) => {
-      const value = metric.y[qIdx] || 0
-      return sum + Math.abs(value)
-    }, 0)
-  })
-  const maxTotal = Math.max(...quarterTotals)
+  // Separate "LN trước thuế" (total) from component profits
+  const profitBeforeTax = data.data.find(m => m.id === 0)
+  const componentProfits = data.data.filter(m => m.id !== 0)
+
+  // Find max value for scaling (use LN trước thuế as reference)
+  const maxTotal = profitBeforeTax
+    ? Math.max(...profitBeforeTax.y.map(v => Math.abs(v)))
+    : 0
 
   // Get metric colors
   const getMetricColor = (metricId: number, isNegative: boolean) => {
@@ -157,10 +157,15 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
           {data.data.map(metric => {
-            // Always show base color in legend, not red for negative
+            // Show circle for LN trước thuế, square for others
+            const isTotal = metric.id === 0
             return (
               <div key={metric.id} className="flex items-center gap-2">
-                <div className={`w-3 h-3 ${getMetricColor(metric.id, false)}`}></div>
+                {isTotal ? (
+                  <div className="w-3 h-3 rounded-full bg-purple-500 border-2 border-purple-300"></div>
+                ) : (
+                  <div className={`w-3 h-3 ${getMetricColor(metric.id, false)}`}></div>
+                )}
                 <span className="text-xs text-gray-300">{metric.label}</span>
               </div>
             )
@@ -174,45 +179,111 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
           <span className="text-xs text-gray-400 w-20 text-right font-medium">Nghìn tỷ</span>
         </div>
 
-        {/* Combined bar chart by quarter */}
-        <div className="space-y-1">
-          {[...data.x].reverse().map((quarter, qIdx) => {
-            const originalIdx = data.x.length - 1 - qIdx
+        {/* Combined bar chart by quarter with trend line overlay */}
+        <div className="relative">
+          <div className="space-y-1">
+            {[...data.x].reverse().map((quarter, qIdx) => {
+              const originalIdx = data.x.length - 1 - qIdx
 
-            // Calculate total for this quarter
-            const quarterTotal = data.data.reduce((sum, metric) => {
-              return sum + Math.abs(metric.y[originalIdx] || 0)
-            }, 0)
+              // Get LN trước thuế value for this quarter
+              const totalValue = profitBeforeTax ? profitBeforeTax.y[originalIdx] || 0 : 0
 
-            return (
-              <div key={qIdx} className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-16">{quarter}</span>
-                <div className="flex-1 flex gap-0.5">
-                  {data.data.map(metric => {
-                    const value = metric.y[originalIdx] || 0
-                    const isNegative = value < 0
-                    const absValue = Math.abs(value)
-                    const percentage = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
-                    const percentOfTotal = quarterTotal > 0 ? (absValue / quarterTotal) * 100 : 0
+              return (
+                <div key={qIdx} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-16">{quarter}</span>
+                  <div className="flex-1 relative">
+                    {/* Stacked bars for component profits only */}
+                    <div className="flex gap-0.5">
+                      {componentProfits.map(metric => {
+                        const value = metric.y[originalIdx] || 0
+                        const isNegative = value < 0
+                        const absValue = Math.abs(value)
+                        const percentage = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
+                        const totalAbs = Math.abs(totalValue)
+                        const percentOfTotal = totalAbs > 0 ? (absValue / totalAbs) * 100 : 0
 
-                    if (percentage < 0.5) return null // Skip very small values
+                        if (percentage < 0.5) return null // Skip very small values
 
-                    return (
-                      <div
-                        key={metric.id}
-                        className={`h-4 ${getMetricColor(metric.id, isNegative)} transition-all`}
-                        style={{ width: `${percentage}%` }}
-                        title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ (${percentOfTotal.toFixed(1)}%)`}
-                      ></div>
-                    )
-                  })}
+                        return (
+                          <div
+                            key={metric.id}
+                            className={`h-4 ${getMetricColor(metric.id, isNegative)} transition-all`}
+                            style={{ width: `${percentage}%` }}
+                            title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ (${percentOfTotal.toFixed(1)}%)`}
+                          ></div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold w-20 text-right text-white">
+                    {formatBillion(Math.abs(totalValue))}
+                  </span>
                 </div>
-                <span className="text-xs font-semibold w-20 text-right text-white">
-                  {formatBillion(quarterTotal)}
-                </span>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
+
+          {/* Trend line for LN trước thuế */}
+          {profitBeforeTax && (
+            <svg
+              className="absolute top-0 left-0 w-full h-full pointer-events-none"
+              style={{ marginLeft: '4rem' }}
+            >
+              {/* Draw connecting lines */}
+              {[...profitBeforeTax.y].reverse().map((value, qIdx) => {
+                if (qIdx === profitBeforeTax.y.length - 1) return null
+
+                const originalIdx = data.x.length - 1 - qIdx
+                const nextOriginalIdx = data.x.length - 2 - qIdx
+                const currentValue = profitBeforeTax.y[originalIdx] || 0
+                const nextValue = profitBeforeTax.y[nextOriginalIdx] || 0
+
+                const y1 = qIdx * 20 + 8 // Center of row (20px height + 8px center)
+                const y2 = (qIdx + 1) * 20 + 8
+
+                const x1Percent = maxTotal > 0 ? (Math.abs(currentValue) / maxTotal) * 100 : 0
+                const x2Percent = maxTotal > 0 ? (Math.abs(nextValue) / maxTotal) * 100 : 0
+
+                return (
+                  <line
+                    key={`line-${qIdx}`}
+                    x1={`${x1Percent}%`}
+                    y1={y1}
+                    x2={`${x2Percent}%`}
+                    y2={y2}
+                    stroke="#a855f7"
+                    strokeWidth="2"
+                  />
+                )
+              })}
+
+              {/* Draw dots */}
+              {[...profitBeforeTax.y].reverse().map((value, qIdx) => {
+                const originalIdx = data.x.length - 1 - qIdx
+                const currentValue = profitBeforeTax.y[originalIdx] || 0
+                const absValue = Math.abs(currentValue)
+                const xPercent = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
+                const y = qIdx * 20 + 8 // Center of row
+
+                return (
+                  <g key={`dot-${qIdx}`}>
+                    <circle
+                      cx={`${xPercent}%`}
+                      cy={y}
+                      r="5"
+                      fill="#a855f7"
+                      stroke="#e9d5ff"
+                      strokeWidth="2"
+                    >
+                      <title>
+                        {profitBeforeTax.label}: {formatBillion(absValue)} nghìn tỷ
+                      </title>
+                    </circle>
+                  </g>
+                )
+              })}
+            </svg>
+          )}
         </div>
       </div>
     </div>
