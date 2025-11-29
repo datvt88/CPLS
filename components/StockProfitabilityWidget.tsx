@@ -112,7 +112,7 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
         📈 Hiệu quả hoạt động - {symbol}
       </h3>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {data.data.map(metric => (
           <div key={metric.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
             <div className="flex items-center justify-between mb-3">

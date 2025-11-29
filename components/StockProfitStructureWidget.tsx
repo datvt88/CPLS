@@ -211,8 +211,9 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
         Cơ cấu lợi nhuận & Vốn chủ - {symbol}
       </h3>
 
-      {/* Profit Structure Section */}
-      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50 mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Profit Structure Section */}
+        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
         <h4 className="text-sm font-semibold text-white mb-3">💰 Cơ cấu lợi nhuận</h4>
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
@@ -344,12 +345,12 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
               })}
             </svg>
           )}
+          </div>
         </div>
-      </div>
 
-      {/* Owners Equity Section */}
-      {equityData && equityData.data && equityData.data.length > 0 && (
-        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+        {/* Owners Equity Section */}
+        {equityData && equityData.data && equityData.data.length > 0 && (
+          <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
           <h4 className="text-sm font-semibold text-white mb-3">💼 Cơ cấu vốn chủ</h4>
           {/* Legend */}
           <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
@@ -414,18 +415,19 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
                 </div>
               )
             })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {equityError && (
-        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-          <h4 className="text-sm font-semibold text-white mb-3">💼 Cơ cấu vốn chủ</h4>
-          <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
-            {equityError}
+        {equityError && (
+          <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+            <h4 className="text-sm font-semibold text-white mb-3">💼 Cơ cấu vốn chủ</h4>
+            <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
+              {equityError}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
