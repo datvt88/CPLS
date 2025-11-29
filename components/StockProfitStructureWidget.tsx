@@ -122,28 +122,24 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
 
   // Get metric colors
   const getMetricColor = (metricId: number, isNegative: boolean) => {
-    if (isNegative) return 'bg-red-500'
-
     switch (metricId) {
       case 0: return 'bg-purple-500'  // LN trước thuế
       case 1: return 'bg-blue-500'    // LN kinh doanh
       case 2: return 'bg-green-500'   // LN tài chính
-      case 3: return 'bg-yellow-500'  // LN liên doanh
-      case 4: return 'bg-gray-500'    // LN khác
-      default: return 'bg-gray-400'
+      case 3: return 'bg-red-500'     // LN liên doanh - always red
+      case 4: return 'bg-gray-500'    // LN khác - always gray
+      default: return isNegative ? 'bg-red-500' : 'bg-gray-400'
     }
   }
 
   const getMetricTextColor = (metricId: number, isNegative: boolean) => {
-    if (isNegative) return 'text-red-400'
-
     switch (metricId) {
       case 0: return 'text-purple-400'
       case 1: return 'text-blue-400'
       case 2: return 'text-green-400'
-      case 3: return 'text-yellow-400'
-      case 4: return 'text-gray-400'
-      default: return 'text-white'
+      case 3: return 'text-red-400'    // LN liên doanh - always red
+      case 4: return 'text-gray-400'   // LN khác - always gray
+      default: return isNegative ? 'text-red-400' : 'text-white'
     }
   }
 
