@@ -79,11 +79,12 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       try {
         console.log('🤖 Performing AI analysis for:', symbol)
 
-        // Fetch technical, fundamental data, profitability data and analyst recommendations in parallel
+        // Fetch technical, fundamental data, profitability data, profit structure and analyst recommendations in parallel
         // For 52-week analysis, we need at least 270 days (52 weeks * 5 trading days + buffer)
         // Recommendations from last 12 months for recent analyst views
         // Profitability data for ROE/ROA trend analysis
-        const [pricesResponse, ratiosResponse, recommendationsResponse, profitabilityResponse] = await Promise.all([
+        // Profit structure data for profit composition and trend analysis
+        const [pricesResponse, ratiosResponse, recommendationsResponse, profitabilityResponse, profitStructureResponse] = await Promise.all([
           fetchStockPrices(symbol, 270),
           fetchFinancialRatios(symbol),
           fetchStockRecommendations(symbol).catch(err => {
@@ -94,6 +95,12 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
             .then(res => res.json())
             .catch(err => {
               console.warn('⚠️ Failed to fetch profitability data, continuing without:', err)
+              return null
+            }),
+          fetch(`/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`)
+            .then(res => res.json())
+            .catch(err => {
+              console.warn('⚠️ Failed to fetch profit structure data, continuing without:', err)
               return null
             })
         ])
@@ -137,14 +144,14 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           ratiosMap[ratio.ratioCode] = ratio
         })
 
-        // Perform analysis with profitability data
-        const aiAnalysis = analyzeStock(sortedData, ratiosMap, profitabilityResponse)
+        // Perform analysis with profitability and profit structure data
+        const aiAnalysis = analyzeStock(sortedData, ratiosMap, profitabilityResponse, profitStructureResponse)
         console.log('✅ AI analysis completed for:', symbol)
         setAnalysis(aiAnalysis)
 
         // Call Gemini API for enhanced analysis (don't wait, run in background)
         setGeminiLoading(true)
-        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, recommendationsResponse.data || [], aiAnalysis, profitabilityResponse)
+        fetchGeminiAnalysis(symbol, sortedData, ratiosMap, recommendationsResponse.data || [], aiAnalysis, profitabilityResponse, profitStructureResponse)
           .then(geminiResult => {
             if (geminiResult) {
               console.log('✅ Gemini analysis completed for:', symbol)
@@ -174,7 +181,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     ratios: Record<string, FinancialRatio>,
     recommendations: any[],
     baseAnalysis: AIAnalysis,
-    profitabilityData: any
+    profitabilityData: any,
+    profitStructureData: any
   ): Promise<GeminiAnalysis | null> => {
     try {
       // Validate input data
@@ -233,7 +241,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         buyPrice: baseAnalysis.shortTerm.buyPrice
       }
 
-      // Prepare fundamental data with detailed ROE/ROA quarterly data
+      // Prepare fundamental data with detailed ROE/ROA quarterly data and profit structure
       const fundamentalData = {
         pe: ratios['PRICE_TO_EARNINGS']?.value,
         pb: ratios['PRICE_TO_BOOK']?.value,
@@ -248,6 +256,11 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         profitability: profitabilityData ? {
           quarters: profitabilityData.x || [],
           metrics: profitabilityData.data || []
+        } : null,
+        // Add profit structure data for profit composition analysis
+        profitStructure: profitStructureData ? {
+          quarters: profitStructureData.x || [],
+          metrics: profitStructureData.data || []
         } : null
       }
 
@@ -311,12 +324,12 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any): AIAnalysis => {
+  const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any, profitStructureData: any): AIAnalysis => {
     // Technical Analysis for Short-term
     const shortTerm = analyzeShortTerm(priceData)
 
-    // Fundamental Analysis for Long-term with profitability trends
-    const longTerm = analyzeLongTerm(priceData, ratios, profitabilityData)
+    // Fundamental Analysis for Long-term with profitability trends and profit structure
+    const longTerm = analyzeLongTerm(priceData, ratios, profitabilityData, profitStructureData)
 
     return { shortTerm, longTerm }
   }
@@ -495,7 +508,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
     }
   }
 
-  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any): Evaluation => {
+  const analyzeLongTerm = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any, profitStructureData: any): Evaluation => {
     const reasons: string[] = []
     let bullishScore = 0
     let bearishScore = 0
@@ -648,7 +661,69 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       }
     }
 
-    // 4. Dividend Yield (Weight: 15%)
+    // 4. Profit Structure Analysis (Weight: 20%)
+    // Analyze profit before tax trend and operating profit percentage
+    if (profitStructureData && profitStructureData.data && profitStructureData.data.length > 0) {
+      const profitBeforeTaxData = profitStructureData.data.find((m: any) => m.id === 0) // LN trước thuế
+      const operatingProfitData = profitStructureData.data.find((m: any) => m.id === 1) // LN kinh doanh
+
+      if (profitBeforeTaxData && profitBeforeTaxData.y && profitBeforeTaxData.y.length >= 2) {
+        const pbtValues = profitBeforeTaxData.y
+        const latestPBT = pbtValues[pbtValues.length - 1]
+        const previousPBT = pbtValues[pbtValues.length - 2]
+        const oldestPBT = pbtValues[0]
+
+        // Analyze profit before tax trend
+        const pbtTrend = latestPBT - oldestPBT
+        const pbtQoQ = latestPBT - previousPBT
+
+        if (latestPBT > 0) {
+          if (pbtTrend > 0 && pbtQoQ > 0) {
+            const trendPercent = oldestPBT !== 0 ? (pbtTrend / Math.abs(oldestPBT)) * 100 : 0
+            if (trendPercent > 20) {
+              bullishScore += 12
+              reasons.push(`✅ LN trước thuế tăng mạnh (+${trendPercent.toFixed(1)}% từ ${profitStructureData.x[0]})`)
+            } else if (trendPercent > 0) {
+              bullishScore += 8
+              reasons.push(`✅ LN trước thuế xu hướng tăng (+${trendPercent.toFixed(1)}% từ ${profitStructureData.x[0]})`)
+            }
+          } else if (pbtTrend < 0 && pbtQoQ < 0) {
+            const trendPercent = oldestPBT !== 0 ? (pbtTrend / Math.abs(oldestPBT)) * 100 : 0
+            bearishScore += 10
+            reasons.push(`❌ LN trước thuế xu hướng giảm (${trendPercent.toFixed(1)}% từ ${profitStructureData.x[0]})`)
+          }
+        } else if (latestPBT < 0) {
+          bearishScore += 15
+          reasons.push(`❌ LN trước thuế âm - Công ty đang lỗ`)
+        }
+
+        // Analyze operating profit percentage (core business strength)
+        if (operatingProfitData && operatingProfitData.y && operatingProfitData.y.length > 0) {
+          const latestOperating = operatingProfitData.y[operatingProfitData.y.length - 1]
+
+          if (latestPBT > 0 && latestOperating > 0) {
+            const operatingPercentage = (latestOperating / latestPBT) * 100
+
+            if (operatingPercentage >= 80) {
+              bullishScore += 8
+              reasons.push(`✅ LN kinh doanh chiếm ${operatingPercentage.toFixed(1)}% - Hoạt động cốt lõi rất mạnh`)
+            } else if (operatingPercentage >= 60) {
+              bullishScore += 5
+              reasons.push(`✅ LN kinh doanh chiếm ${operatingPercentage.toFixed(1)}% - Hoạt động cốt lõi tốt`)
+            } else if (operatingPercentage >= 40) {
+              reasons.push(`⚠️ LN kinh doanh chiếm ${operatingPercentage.toFixed(1)}% - Phụ thuộc vào LN tài chính/khác`)
+            } else {
+              bearishScore += 5
+              reasons.push(`❌ LN kinh doanh chỉ chiếm ${operatingPercentage.toFixed(1)}% - Hoạt động cốt lõi yếu`)
+            }
+          }
+        }
+
+        totalWeight += 20
+      }
+    }
+
+    // 5. Dividend Yield (Weight: 15%)
     const dividendYield = ratios['DIVIDEND_YIELD']?.value
     if (dividendYield !== undefined && dividendYield !== null) {
       const divPercent = dividendYield * 100
@@ -666,7 +741,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
       totalWeight += 15
     }
 
-    // 5. Market Cap & Liquidity (Weight: 15%)
+    // 6. Market Cap & Liquidity (Weight: 15%)
     const marketCap = ratios['MARKETCAP']?.value
     const freeFloat = ratios['FREEFLOAT']?.value
 

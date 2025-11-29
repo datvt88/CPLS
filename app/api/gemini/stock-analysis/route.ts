@@ -248,6 +248,59 @@ function buildStockAnalysisPrompt(
       })
     }
 
+    // Add profit structure data if available
+    if (fundamentalData.profitStructure && fundamentalData.profitStructure.metrics && fundamentalData.profitStructure.metrics.length > 0) {
+      prompt += `\n💰 CƠ CẤU LỢI NHUẬN (5 QUÝ GẦN NHẤT):\n`
+
+      const { quarters, metrics } = fundamentalData.profitStructure
+      const profitBeforeTax = metrics.find((m: any) => m.id === 0)
+      const operatingProfit = metrics.find((m: any) => m.id === 1)
+
+      if (profitBeforeTax && profitBeforeTax.y && profitBeforeTax.y.length > 0) {
+        prompt += `\nLợi nhuận trước thuế (nghìn tỷ): `
+        const reversedQuarters = [...quarters].reverse()
+        const reversedValues = [...profitBeforeTax.y].reverse()
+        reversedQuarters.forEach((q: string, i: number) => {
+          const value = reversedValues[i] / 1000000000000
+          prompt += `${q}: ${value.toFixed(2)}${i < reversedQuarters.length - 1 ? ', ' : ''}`
+        })
+
+        // Calculate profit before tax trend
+        const latest = profitBeforeTax.y[profitBeforeTax.y.length - 1]
+        const oldest = profitBeforeTax.y[0]
+        const trend = latest - oldest
+        const trendPercent = oldest !== 0 ? ((trend / Math.abs(oldest)) * 100).toFixed(1) : '0'
+
+        if (trend > 0) {
+          prompt += ` (📈 Tăng trưởng +${trendPercent}% từ ${quarters[0]})\n`
+        } else if (trend < 0) {
+          prompt += ` (📉 Giảm ${trendPercent}% từ ${quarters[0]})\n`
+        } else {
+          prompt += ` (➡️ Ổn định)\n`
+        }
+
+        // Analyze operating profit percentage
+        if (operatingProfit && operatingProfit.y && operatingProfit.y.length > 0) {
+          const latestOperating = operatingProfit.y[operatingProfit.y.length - 1]
+          const latestPBT = profitBeforeTax.y[profitBeforeTax.y.length - 1]
+
+          if (latestPBT > 0 && latestOperating > 0) {
+            const operatingPercentage = ((latestOperating / latestPBT) * 100).toFixed(1)
+            prompt += `\n📊 Tỷ lệ LN kinh doanh / LN trước thuế: ${operatingPercentage}%\n`
+            if (parseFloat(operatingPercentage) >= 80) {
+              prompt += `   ✅ Hoạt động cốt lõi rất mạnh (>80%)\n`
+            } else if (parseFloat(operatingPercentage) >= 60) {
+              prompt += `   ✅ Hoạt động cốt lõi tốt (60-80%)\n`
+            } else if (parseFloat(operatingPercentage) >= 40) {
+              prompt += `   ⚠️ Phụ thuộc vào lợi nhuận tài chính/khác (40-60%)\n`
+            } else {
+              prompt += `   ❌ Hoạt động cốt lõi yếu (<40%)\n`
+            }
+          }
+        }
+      }
+    }
+
     prompt += `\n`
   }
 
