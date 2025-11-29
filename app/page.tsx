@@ -10,6 +10,9 @@ import InsightsIcon from '@mui/icons-material/Insights';
 import SecurityIcon from '@mui/icons-material/Security';
 import SpeedIcon from '@mui/icons-material/Speed';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import DevicesIcon from '@mui/icons-material/Devices';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 export default function Home() {
   const router = useRouter();
@@ -204,8 +207,53 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Broker CTA Section */}
+      {/* Benefits Section */}
       <section className="py-12 sm:py-16 md:py-20 lg:py-24">
+        <div className="container px-4 sm:px-6 lg:px-8">
+          <div className="max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 sm:gap-10 md:gap-12">
+              {/* Benefit 1 - Multi-device */}
+              <div className="text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="bg-gradient-to-br from-orange-400 to-orange-500 p-6 rounded-full">
+                    <DevicesIcon sx={{ fontSize: { xs: 48, sm: 56, md: 64 } }} className="text-white" />
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-3 uppercase tracking-wide">
+                  Chuyên biệt cho<br />giao dịch chứng khoán
+                </h3>
+              </div>
+
+              {/* Benefit 2 - Money/Opportunities */}
+              <div className="text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="bg-gradient-to-br from-orange-400 to-orange-500 p-6 rounded-full">
+                    <MonetizationOnIcon sx={{ fontSize: { xs: 48, sm: 56, md: 64 } }} className="text-white" />
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-3 uppercase tracking-wide">
+                  Chủ động<br />tối ưu cơ hội
+                </h3>
+              </div>
+
+              {/* Benefit 3 - Analytics/Insights */}
+              <div className="text-center">
+                <div className="flex justify-center mb-6">
+                  <div className="bg-gradient-to-br from-orange-400 to-orange-500 p-6 rounded-full">
+                    <BarChartIcon sx={{ fontSize: { xs: 48, sm: 56, md: 64 } }} className="text-white" />
+                  </div>
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-3 uppercase tracking-wide">
+                  Thông tin & tư vấn<br />chuyên sâu
+                </h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Broker CTA Section */}
+      <section className="py-12 sm:py-16 md:py-20 lg:py-24 bg-[--panel]">
         <div className="container px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             {/* Section Header */}
@@ -239,8 +287,8 @@ export default function Home() {
               </div>
 
               {/* SSI */}
-              <div className="bg-[--panel] rounded-xl sm:rounded-2xl p-6 sm:p-8 border border-gray-800 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20 group text-center">
-                <div className="bg-gradient-to-br from-blue-400 to-cyan-500 w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center mb-4 sm:mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
+              <div className="bg-[--panel] rounded-xl sm:rounded-2xl p-6 sm:p-8 border border-gray-800 hover:border-red-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/20 group text-center">
+                <div className="bg-gradient-to-br from-red-500 to-orange-500 w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center mb-4 sm:mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
                   <AccountBalanceIcon sx={{ fontSize: { xs: 32, sm: 40 } }} className="text-white" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">SSI</h3>
@@ -249,16 +297,16 @@ export default function Home() {
                 </p>
                 <button
                   onClick={() => handleOpenAccount('ssi')}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-400 to-cyan-500 hover:from-blue-500 hover:to-cyan-600 text-white font-bold rounded-lg transition-all duration-300 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-105"
+                  className="w-full px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-lg transition-all duration-300 shadow-lg shadow-red-500/20 hover:shadow-red-500/40 hover:scale-105"
                 >
                   Mở tài khoản
                 </button>
               </div>
 
               {/* Vietcap */}
-              <div className="bg-[--panel] rounded-xl sm:rounded-2xl p-6 sm:p-8 border border-gray-800 hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/20 group text-center">
-                <div className="bg-gradient-to-br from-purple-400 to-pink-500 w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center mb-4 sm:mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
-                  <AccountBalanceIcon sx={{ fontSize: { xs: 32, sm: 40 } }} className="text-white" />
+              <div className="bg-[--panel] rounded-xl sm:rounded-2xl p-6 sm:p-8 border border-gray-800 hover:border-lime-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-lime-500/20 group text-center">
+                <div className="bg-gradient-to-br from-lime-400 to-green-500 w-16 h-16 sm:w-20 sm:h-20 rounded-xl flex items-center justify-center mb-4 sm:mb-6 mx-auto group-hover:scale-110 transition-transform duration-300">
+                  <AccountBalanceIcon sx={{ fontSize: { xs: 32, sm: 40 } }} className="text-black" />
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-3">Vietcap</h3>
                 <p className="text-sm sm:text-base text-gray-400 mb-6">
@@ -266,7 +314,7 @@ export default function Home() {
                 </p>
                 <button
                   onClick={() => handleOpenAccount('vietcap')}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-400 to-pink-500 hover:from-purple-500 hover:to-pink-600 text-white font-bold rounded-lg transition-all duration-300 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-105"
+                  className="w-full px-6 py-3 bg-gradient-to-r from-lime-400 to-green-500 hover:from-lime-500 hover:to-green-600 text-black font-bold rounded-lg transition-all duration-300 shadow-lg shadow-lime-500/20 hover:shadow-lime-500/40 hover:scale-105"
                 >
                   Mở tài khoản
                 </button>
