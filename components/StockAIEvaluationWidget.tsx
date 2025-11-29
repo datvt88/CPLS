@@ -275,6 +275,21 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           reportPrice: rec.reportPrice
         }))
 
+      // Fetch latest news about the company and industry for risks/opportunities analysis
+      console.log('🔍 Fetching latest news for:', symbol)
+      let newsData: any = null
+      try {
+        const newsResponse = await fetch(`/api/news/search?symbol=${symbol}`, {
+          signal: AbortSignal.timeout(10000) // 10 second timeout for news
+        })
+        if (newsResponse.ok) {
+          newsData = await newsResponse.json()
+          console.log('📰 News fetched:', newsData?.articles?.length || 0, 'articles')
+        }
+      } catch (newsError) {
+        console.warn('⚠️ Failed to fetch news, continuing without it:', newsError)
+      }
+
       // Call Gemini API with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -289,7 +304,8 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
             symbol,
             technicalData,
             fundamentalData,
-            recommendations: recentRecommendations
+            recommendations: recentRecommendations,
+            news: newsData
           }),
           signal: controller.signal
         })

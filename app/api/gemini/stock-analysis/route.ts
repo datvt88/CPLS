@@ -3,7 +3,7 @@ import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 export async function POST(request: NextRequest) {
   try {
-    const { symbol, technicalData, fundamentalData, recommendations, model } = await request.json()
+    const { symbol, technicalData, fundamentalData, recommendations, model, news } = await request.json()
 
     // Validate input
     if (!symbol || typeof symbol !== 'string') {
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build comprehensive prompt with technical, fundamental data and analyst recommendations
-    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations)
+    // Build comprehensive prompt with technical, fundamental data, analyst recommendations and latest news
+    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations, news)
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
 
@@ -125,13 +125,14 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Build comprehensive analysis prompt combining technical, fundamental data and analyst recommendations
+ * Build comprehensive analysis prompt combining technical, fundamental data, analyst recommendations and news
  */
 function buildStockAnalysisPrompt(
   symbol: string,
   technicalData?: any,
   fundamentalData?: any,
-  recommendations?: any[]
+  recommendations?: any[],
+  news?: any
 ): string {
   let prompt = `Bạn là chuyên gia phân tích chứng khoán. Hãy phân tích cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
 
@@ -345,16 +346,41 @@ function buildStockAnalysisPrompt(
     prompt += `\n`
   }
 
+  // Latest News Section
+  if (news && news.articles && news.articles.length > 0) {
+    prompt += `📰 TIN TỨC MỚI NHẤT VỀ ${symbol}:\n\n`
+
+    const recentArticles = news.articles.slice(0, 8) // Use up to 8 most recent articles
+    recentArticles.forEach((article: any, idx: number) => {
+      prompt += `${idx + 1}. ${article.title}\n`
+      if (article.pubDate) {
+        prompt += `   Ngày: ${article.pubDate}\n`
+      }
+      if (article.source) {
+        prompt += `   Nguồn: ${article.source}\n`
+      }
+      prompt += `\n`
+    })
+
+    prompt += `⚠️ QUAN TRỌNG: Sử dụng các tin tức trên để phân tích RỦI RO và CƠ HỘI một cách cụ thể và chính xác.\n\n`
+  }
+
   // Analysis Instructions
   prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n`
   prompt += `1. Phân tích tổng hợp các chỉ số kỹ thuật và cơ bản\n`
   prompt += `2. Đánh giá xu hướng ngắn hạn (1-4 tuần) và dài hạn (3-12 tháng)\n`
   prompt += `3. Phân tích xu hướng ROE/ROA qua các quý (nếu có dữ liệu chi tiết)\n`
-  prompt += `4. Xác định mức hỗ trợ và kháng cự quan trọng\n`
-  prompt += `5. Tham khảo đồng thuận từ các công ty chứng khoán (nếu có)\n`
-  prompt += `6. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
-  prompt += `7. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
-  prompt += `8. Đánh giá rủi ro và cơ hội, đặc biệt chú ý đến xu hướng hiệu quả hoạt động\n\n`
+  prompt += `4. Phân tích cơ cấu lợi nhuận và xu hướng tăng trưởng (nếu có dữ liệu)\n`
+  prompt += `5. Xác định mức hỗ trợ và kháng cự quan trọng\n`
+  prompt += `6. Tham khảo đồng thuận từ các công ty chứng khoán (nếu có)\n`
+  prompt += `7. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
+  prompt += `8. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
+  prompt += `9. ⚠️ QUAN TRỌNG: Phân tích RỦI RO và CƠ HỘI dựa trên TIN TỨC MỚI NHẤT:\n`
+  prompt += `   - Đọc kỹ các tin tức được cung cấp ở phần "📰 TIN TỨC MỚI NHẤT"\n`
+  prompt += `   - Từ tin tức, xác định chính xác 3 RỦI RO quan trọng nhất\n`
+  prompt += `   - Từ tin tức, xác định chính xác 3 CƠ HỘI tiềm năng nhất\n`
+  prompt += `   - Mỗi rủi ro/cơ hội phải cụ thể, dựa trên thông tin thực từ tin tức\n`
+  prompt += `   - Nếu không có tin tức, phân tích dựa trên dữ liệu tài chính và xu hướng ngành\n\n`
 
   prompt += `📋 FORMAT TRẢ VỀ:\n`
   prompt += `BẮT BUỘC trả về ĐÚNG định dạng JSON sau (không thêm markdown, code block, hay text khác):\n\n`
@@ -371,8 +397,16 @@ function buildStockAnalysisPrompt(
   prompt += `  },\n`
   prompt += `  "targetPrice": "<giá mục tiêu VD: 95-100 hoặc null nếu không MUA>",\n`
   prompt += `  "stopLoss": "<mức cắt lỗ VD: 85 hoặc null nếu không MUA>",\n`
-  prompt += `  "risks": ["<rủi ro 1>", "<rủi ro 2>", "<rủi ro 3>"],\n`
-  prompt += `  "opportunities": ["<cơ hội 1>", "<cơ hội 2>"]\n`
+  prompt += `  "risks": [\n`
+  prompt += `    "<rủi ro 1 - dựa trên tin tức hoặc dữ liệu tài chính>",\n`
+  prompt += `    "<rủi ro 2 - dựa trên tin tức hoặc dữ liệu tài chính>",\n`
+  prompt += `    "<rủi ro 3 - dựa trên tin tức hoặc dữ liệu tài chính>"\n`
+  prompt += `  ],\n`
+  prompt += `  "opportunities": [\n`
+  prompt += `    "<cơ hội 1 - dựa trên tin tức hoặc dữ liệu tài chính>",\n`
+  prompt += `    "<cơ hội 2 - dựa trên tin tức hoặc dữ liệu tài chính>",\n`
+  prompt += `    "<cơ hội 3 - dựa trên tin tức hoặc dữ liệu tài chính>"\n`
+  prompt += `  ]\n`
   prompt += `}\n\n`
 
   prompt += `QUAN TRỌNG:\n`
@@ -382,6 +416,9 @@ function buildStockAnalysisPrompt(
   prompt += `- Các field string phải trong dấu ngoặc kép\n`
   prompt += `- Confidence phải là số nguyên từ 0-100\n`
   prompt += `- Giá mục tiêu và mức cắt lỗ chỉ ghi số, KHÔNG thêm đơn vị VNĐ\n`
+  prompt += `- Array "risks" phải có ĐÚNG 3 phần tử (không ít hơn, không nhiều hơn)\n`
+  prompt += `- Array "opportunities" phải có ĐÚNG 3 phần tử (không ít hơn, không nhiều hơn)\n`
+  prompt += `- Mỗi rủi ro và cơ hội phải cụ thể, dựa trên tin tức hoặc dữ liệu thực tế\n`
 
   return prompt
 }
