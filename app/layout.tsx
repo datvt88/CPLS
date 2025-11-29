@@ -77,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi">
       <body className={roboto.variable}>
         <Providers>
-          <div className="min-h-screen flex flex-col md:flex-row bg-[--bg] text-white overflow-x-hidden">
+          <div className="bg-[--bg] text-white overflow-x-hidden">
             <AuthListener />
             <ConditionalLayout>{children}</ConditionalLayout>
           </div>
