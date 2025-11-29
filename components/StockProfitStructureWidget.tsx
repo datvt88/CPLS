@@ -21,8 +21,11 @@ interface ProfitStructureData {
 
 export default function StockProfitStructureWidget({ symbol }: StockProfitStructureWidgetProps) {
   const [data, setData] = useState<ProfitStructureData | null>(null)
+  const [equityData, setEquityData] = useState<ProfitStructureData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [equityLoading, setEquityLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [equityError, setEquityError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!symbol) return
@@ -72,19 +75,67 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     loadProfitStructureData()
   }, [symbol])
 
+  useEffect(() => {
+    if (!symbol) return
+
+    // Reset equity states when symbol changes
+    setEquityData(null)
+    setEquityError(null)
+    setEquityLoading(false)
+
+    const loadEquityData = async () => {
+      setEquityLoading(true)
+
+      try {
+        console.log('💼 Loading owners equity data for:', symbol)
+
+        // Use proxy API route to avoid CORS issues
+        const response = await fetch(
+          `/api/dnse/profit-structure?symbol=${symbol}&code=OWNERS_EQUITY&cycleType=quy&cycleNumber=5`
+        )
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`)
+        }
+
+        const result = await response.json()
+        console.log('✅ Owners equity data loaded:', result)
+        setEquityData(result)
+      } catch (err) {
+        console.error('❌ Error loading owners equity data:', err)
+
+        let errorMessage = 'Không tải được dữ liệu cơ cấu vốn chủ'
+        if (err instanceof Error) {
+          if (err.message.includes('404')) {
+            errorMessage = 'DNSE không có dữ liệu cho mã này'
+          } else if (err.message.includes('403')) {
+            errorMessage = 'Bị chặn truy cập API (403)'
+          } else if (err.message.includes('500') || err.message.includes('502') || err.message.includes('503')) {
+            errorMessage = 'DNSE API tạm thời không khả dụng'
+          }
+        }
+        setEquityError(errorMessage)
+      } finally {
+        setEquityLoading(false)
+      }
+    }
+
+    loadEquityData()
+  }, [symbol])
+
   // Format large numbers to billions (tỷ đồng)
   const formatBillion = (value: number): string => {
     const billion = value / 1000000000000
     return billion.toFixed(2)
   }
 
-  if (loading) {
+  if (loading || equityLoading) {
     return (
       <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
         <div className="flex items-center justify-center h-40">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-gray-400">Đang tải cơ cấu lợi nhuận...</p>
+            <p className="text-gray-400">Đang tải dữ liệu...</p>
           </div>
         </div>
       </div>
@@ -143,13 +194,27 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     }
   }
 
+  // Get equity colors
+  const getEquityColor = (metricId: number) => {
+    switch (metricId) {
+      case 0: return 'bg-cyan-500'      // Vốn góp
+      case 1: return 'bg-orange-500'    // Cổ phiếu quỹ
+      case 2: return 'bg-emerald-500'   // LNST chưa phân phối
+      case 3: return 'bg-amber-500'     // Vốn khác
+      default: return 'bg-gray-400'
+    }
+  }
+
   return (
     <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
       <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-        💰 Cơ cấu lợi nhuận - {symbol}
+        Cơ cấu lợi nhuận & Vốn chủ - {symbol}
       </h3>
 
-      <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Profit Structure Section */}
+        <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+        <h4 className="text-sm font-semibold text-white mb-3">💰 Cơ cấu lợi nhuận</h4>
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
           {data.data.map(metric => {
@@ -280,7 +345,88 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
               })}
             </svg>
           )}
+          </div>
         </div>
+
+        {/* Owners Equity Section */}
+        {equityData && equityData.data && equityData.data.length > 0 && (
+          <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+          <h4 className="text-sm font-semibold text-white mb-3">💼 Cơ cấu vốn chủ</h4>
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
+            {equityData.data.map(metric => (
+              <div key={metric.id} className="flex items-center gap-2">
+                <div className={`w-3 h-3 ${getEquityColor(metric.id)}`}></div>
+                <span className="text-xs text-gray-300">{metric.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Header row */}
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
+            <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
+            <div className="flex-1"></div>
+            <span className="text-xs text-gray-400 w-20 text-right font-medium">Nghìn tỷ</span>
+          </div>
+
+          {/* Stacked bar chart by quarter */}
+          <div className="space-y-1">
+            {[...equityData.x].reverse().map((quarter, qIdx) => {
+              const originalIdx = equityData.x.length - 1 - qIdx
+
+              // Calculate total equity for this quarter
+              const totalEquity = equityData.data.reduce((sum, metric) => {
+                return sum + (metric.y[originalIdx] || 0)
+              }, 0)
+
+              // Find max total for scaling
+              const maxEquity = Math.max(...equityData.x.map((_, idx) =>
+                equityData.data.reduce((sum, metric) => sum + Math.abs(metric.y[idx] || 0), 0)
+              ))
+
+              return (
+                <div key={qIdx} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-16">{quarter}</span>
+                  <div className="flex-1 relative">
+                    {/* Stacked bars */}
+                    <div className="flex gap-0.5">
+                      {equityData.data.map(metric => {
+                        const value = metric.y[originalIdx] || 0
+                        const absValue = Math.abs(value)
+                        const percentage = maxEquity > 0 ? (absValue / maxEquity) * 100 : 0
+                        const percentOfTotal = Math.abs(totalEquity) > 0 ? (absValue / Math.abs(totalEquity)) * 100 : 0
+
+                        if (percentage < 0.5) return null // Skip very small values
+
+                        return (
+                          <div
+                            key={metric.id}
+                            className={`h-4 ${getEquityColor(metric.id)} transition-all`}
+                            style={{ width: `${percentage}%` }}
+                            title={`${metric.label}: ${formatBillion(absValue)} nghìn tỷ (${percentOfTotal.toFixed(1)}%)`}
+                          ></div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold w-20 text-right text-white">
+                    {formatBillion(Math.abs(totalEquity))}
+                  </span>
+                </div>
+              )
+            })}
+            </div>
+          </div>
+        )}
+
+        {equityError && (
+          <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+            <h4 className="text-sm font-semibold text-white mb-3">💼 Cơ cấu vốn chủ</h4>
+            <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
+              {equityError}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
