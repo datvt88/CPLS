@@ -324,8 +324,7 @@ export default function Home() {
             {/* Disclaimer */}
             <div className="mt-8 sm:mt-10 bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 sm:p-6 border border-yellow-700/30">
               <p className="text-xs sm:text-sm text-gray-300 text-center leading-relaxed">
-                ⚠️ Chúng tôi không nhận hoa hồng từ các nhà môi giới.
-                Đây là dịch vụ giới thiệu miễn phí để hỗ trợ nhà đầu tư.
+                Miễn phí tính năng phân tích cổ phiếu cho tất cả người dùng
               </p>
             </div>
           </div>
