@@ -226,8 +226,8 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
           {/* Trend line for LN trước thuế */}
           {profitBeforeTax && (
             <svg
-              className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              style={{ marginLeft: '4rem' }}
+              className="absolute top-0 h-full pointer-events-none"
+              style={{ left: '4rem', width: 'calc(100% - 4rem - 5.5rem)' }}
             >
               {/* Draw connecting lines */}
               {[...profitBeforeTax.y].reverse().map((value, qIdx) => {
