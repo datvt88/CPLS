@@ -75,8 +75,12 @@ export default function Home() {
           <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8">
             {/* Logo */}
             <div className="flex justify-center mb-6 sm:mb-8">
-              <div className="bg-gradient-to-br from-green-400 to-emerald-500 p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg shadow-green-500/20">
-                <TrendingUpIcon sx={{ fontSize: { xs: 48, sm: 64, md: 80 } }} className="text-black" />
+              <div className="rounded-2xl sm:rounded-3xl overflow-hidden shadow-lg shadow-green-500/20">
+                <img
+                  src="/logo.png"
+                  alt="Cổ Phiếu Lướt Sóng Logo"
+                  className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 object-contain"
+                />
               </div>
             </div>
 
