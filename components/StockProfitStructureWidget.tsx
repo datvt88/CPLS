@@ -156,12 +156,16 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
       <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
-          {data.data.map(metric => (
-            <div key={metric.id} className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded ${getMetricColor(metric.id, false)}`}></div>
-              <span className="text-xs text-gray-300">{metric.label}</span>
-            </div>
-          ))}
+          {data.data.map(metric => {
+            // Check if metric has any negative values
+            const hasNegative = metric.y.some(v => v < 0)
+            return (
+              <div key={metric.id} className="flex items-center gap-2">
+                <div className={`w-3 h-3 ${getMetricColor(metric.id, hasNegative)}`}></div>
+                <span className="text-xs text-gray-300">{metric.label}</span>
+              </div>
+            )
+          })}
         </div>
 
         {/* Header row */}
@@ -190,6 +194,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
                     const isNegative = value < 0
                     const absValue = Math.abs(value)
                     const percentage = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
+                    const percentOfTotal = quarterTotal > 0 ? (absValue / quarterTotal) * 100 : 0
 
                     if (percentage < 0.5) return null // Skip very small values
 
@@ -198,7 +203,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
                         key={metric.id}
                         className={`h-4 ${getMetricColor(metric.id, isNegative)} transition-all`}
                         style={{ width: `${percentage}%` }}
-                        title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ`}
+                        title={`${metric.label}: ${isNegative ? '-' : ''}${formatBillion(absValue)} nghìn tỷ (${percentOfTotal.toFixed(1)}%)`}
                       ></div>
                     )
                   })}
