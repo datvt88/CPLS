@@ -65,12 +65,14 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [geminiLoading, setGeminiLoading] = useState(false)
+  const [profitabilityData, setProfitabilityData] = useState<any>(null)
 
   useEffect(() => {
     if (!symbol) return
 
     // Reset analysis when symbol changes
     setAnalysis(null)
+    setProfitabilityData(null)
 
     const performAnalysis = async () => {
       setLoading(true)
@@ -141,6 +143,7 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
         const aiAnalysis = analyzeStock(sortedData, ratiosMap, profitabilityResponse)
         console.log('✅ AI analysis completed for:', symbol)
         setAnalysis(aiAnalysis)
+        setProfitabilityData(profitabilityResponse)
 
         // Call Gemini API for enhanced analysis (don't wait, run in background)
         setGeminiLoading(true)
@@ -909,6 +912,81 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           </div>
         </div>
       </div>
+
+      {/* Profitability Structure Analysis */}
+      {profitabilityData && profitabilityData.data && profitabilityData.data.length > 0 && (
+        <div className="mt-4 sm:mt-6 bg-gradient-to-br from-emerald-900/20 to-teal-900/20 rounded-lg p-4 sm:p-5 border border-emerald-700/30">
+          <h4 className="text-lg sm:text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            💰 Cơ cấu lợi nhuận & Vốn chủ
+          </h4>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {profitabilityData.data.map((metric: any, idx: number) => {
+              if (!metric.y || metric.y.length === 0) return null
+
+              const latestValue = metric.y[metric.y.length - 1]
+              const previousValue = metric.y[metric.y.length - 2]
+              const oldestValue = metric.y[0]
+              const trend = latestValue - oldestValue
+              const qoq = previousValue ? latestValue - previousValue : 0
+
+              return (
+                <div key={idx} className="bg-gradient-to-br from-gray-800/40 to-gray-900/40 rounded-lg p-4 border border-gray-700/30">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-semibold text-emerald-300 text-base">{metric.label}</h5>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-white">{latestValue.toFixed(2)}%</div>
+                      <div className={`text-xs ${qoq >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {qoq >= 0 ? '↗' : '↘'} {qoq >= 0 ? '+' : ''}{qoq.toFixed(2)}% QoQ
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trend indicator */}
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                      <span>Xu hướng 5 quý</span>
+                      <span className={trend >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {trend >= 0 ? '+' : ''}{trend.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${trend >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min(Math.abs(trend) * 5, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Quarterly values */}
+                  <div className="space-y-1">
+                    <div className="text-xs text-gray-400 mb-2">Chi tiết theo quý:</div>
+                    <div className="grid grid-cols-5 gap-1 text-xs">
+                      {metric.y.map((value: number, i: number) => (
+                        <div key={i} className="text-center">
+                          <div className="text-gray-500 text-[10px] mb-0.5">{profitabilityData.x[i]}</div>
+                          <div className={`font-medium ${value >= 15 ? 'text-green-400' : value >= 10 ? 'text-yellow-400' : 'text-gray-400'}`}>
+                            {value.toFixed(1)}%
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Summary insights */}
+          <div className="mt-4 bg-emerald-900/10 border border-emerald-700/20 rounded-lg p-3">
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+              💡 <strong>Phân tích:</strong> ROE (Tỷ suất sinh lời trên vốn chủ) và ROA (Tỷ suất sinh lời trên tài sản)
+              phản ánh hiệu quả sử dụng vốn và tài sản của doanh nghiệp.
+              ROE &gt; 15% được coi là tốt, &gt; 20% là xuất sắc.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Gemini AI Analysis */}
       {(geminiLoading || analysis.gemini) && (
