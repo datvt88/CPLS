@@ -1033,14 +1033,6 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           )}
         </div>
       )}
-
-      {/* Disclaimer */}
-      <div className="mt-4 bg-yellow-900/20 border border-yellow-700/30 rounded-lg p-3">
-        <p className="text-xs text-yellow-300">
-          ⚠️ <strong>Lưu ý:</strong> Đây là đánh giá AI dựa trên thuật toán phân tích kỹ thuật và cơ bản.
-          Không phải lời khuyên đầu tư. Nhà đầu tư cần tự nghiên cứu và chịu trách nhiệm với quyết định của mình.
-        </p>
-      </div>
     </div>
   )
 }
