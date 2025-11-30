@@ -88,11 +88,11 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   const getRecommendationBadge = (type: string) => {
     switch (type) {
       case 'BUY':
-        return { label: 'MUA', icon: '📈', color: 'text-green-400' }
+        return { label: 'MUA', icon: '🎯', color: 'text-green-400' }
       case 'HOLD':
-        return { label: 'NẮM GIỮ', icon: '🤝', color: 'text-yellow-400' }
+        return { label: 'NẮM GIỮ', icon: '⏸️', color: 'text-yellow-400' }
       case 'SELL':
-        return { label: 'BÁN', icon: '📉', color: 'text-red-400' }
+        return { label: 'BÁN', icon: '⚠️', color: 'text-red-400' }
       default:
         return { label: type, icon: '❓', color: 'text-gray-400' }
     }
@@ -150,31 +150,31 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   return (
     <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
       {/* Header with inline stats */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+      <div className="flex flex-col gap-3 mb-4">
         <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            💼 Đánh giá từ các Công ty Chứng khoán - {symbol}
+          <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+            🏢 Đánh giá từ các Công ty Chứng khoán - {symbol}
           </h3>
           <p className="text-gray-400 text-xs mt-1">
             12 tháng gần nhất
           </p>
         </div>
         {total > 0 && (
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm">
             <div className="flex items-center gap-1">
               <span className="text-gray-400">Tổng:</span>
               <span className="font-bold text-white">{total}</span>
             </div>
-            <div className="h-4 w-px bg-gray-700"></div>
+            <div className="h-4 w-px bg-gray-700 hidden md:block"></div>
             <div className="flex items-center gap-1">
-              <span className="text-green-400">📈 {stats.buy}</span>
+              <span className="text-green-400">🎯 {stats.buy}</span>
               <span className="text-gray-500">({((stats.buy / total) * 100).toFixed(0)}%)</span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-yellow-400">🤝 {stats.hold}</span>
+              <span className="text-yellow-400">⏸️ {stats.hold}</span>
               <span className="text-gray-500">({((stats.hold / total) * 100).toFixed(0)}%)</span>
             </div>
-            <div className="h-4 w-px bg-gray-700"></div>
+            <div className="h-4 w-px bg-gray-700 hidden md:block"></div>
             <div className="flex items-center gap-1">
               <span className="text-gray-400">Giá TB:</span>
               <span className="font-bold text-purple-400">{formatPrice(avgTargetPrice)}</span>
@@ -190,63 +190,64 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
           <p className="text-gray-400 text-sm">Chưa có đánh giá nào trong 12 tháng gần nhất</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-700/50">
-                <th className="text-left py-2 px-3 text-gray-400 font-medium">Khuyến nghị</th>
-                <th className="text-left py-2 px-3 text-gray-400 font-medium">CTCK</th>
-                <th className="text-left py-2 px-3 text-gray-400 font-medium hidden md:table-cell">Phân tích viên</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">Giá BC</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">Giá MT</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">Tiềm năng</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">Ngày</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayedRecommendations.map((rec, index) => {
-                const badge = getRecommendationBadge(rec.type)
-                const potential = calculatePotential(rec.reportPrice, rec.targetPrice)
+        <div className="overflow-x-auto -mx-4 md:mx-0">
+          <div className="inline-block min-w-full align-middle">
+            <table className="w-full text-xs md:text-sm">
+              <thead>
+                <tr className="border-b border-gray-700/50">
+                  <th className="text-left py-2 px-2 md:px-3 text-gray-400 font-medium">Khuyến nghị</th>
+                  <th className="text-left py-2 px-2 md:px-3 text-gray-400 font-medium">CTCK</th>
+                  <th className="text-left py-2 px-2 md:px-3 text-gray-400 font-medium hidden lg:table-cell">Phân tích viên</th>
+                  <th className="text-right py-2 px-2 md:px-3 text-gray-400 font-medium hidden sm:table-cell">Giá BC</th>
+                  <th className="text-right py-2 px-2 md:px-3 text-gray-400 font-medium">Giá MT</th>
+                  <th className="text-right py-2 px-2 md:px-3 text-gray-400 font-medium">Tiềm năng</th>
+                  <th className="text-right py-2 px-2 md:px-3 text-gray-400 font-medium hidden sm:table-cell">Ngày</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedRecommendations.map((rec, index) => {
+                  const badge = getRecommendationBadge(rec.type)
+                  const potential = calculatePotential(rec.reportPrice, rec.targetPrice)
 
-                return (
-                  <tr
-                    key={index}
-                    className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
-                  >
-                    <td className="py-2 px-3">
-                      <span className={`inline-flex items-center gap-1 font-bold ${badge.color}`}>
-                        <span className="text-base">{badge.icon}</span>
-                        <span className="text-xs">{badge.label}</span>
-                      </span>
-                    </td>
-                    <td className="py-2 px-3">
-                      <div className="font-medium text-white">{rec.firm}</div>
-                      <div className="text-xs text-gray-500">{rec.source}</div>
-                    </td>
-                    <td className="py-2 px-3 text-gray-300 hidden md:table-cell">{rec.analyst}</td>
-                    <td className="py-2 px-3 text-right font-medium text-white">
-                      {rec.reportPrice ? formatPrice(rec.reportPrice) : '-'}
-                    </td>
-                    <td className="py-2 px-3 text-right font-medium text-white">
-                      {formatPrice(rec.targetPrice)}
-                    </td>
-                    <td className="py-2 px-3 text-right">
-                      {potential !== null ? (
-                        <span className={`font-bold ${potential >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {potential >= 0 ? '+' : ''}{potential.toFixed(1)}%
+                  return (
+                    <tr
+                      key={index}
+                      className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+                    >
+                      <td className="py-2 px-2 md:px-3">
+                        <span className={`inline-flex items-center gap-1 font-bold ${badge.color}`}>
+                          <span className="text-sm md:text-base">{badge.icon}</span>
+                          <span className="text-xs hidden sm:inline">{badge.label}</span>
                         </span>
-                      ) : (
-                        <span className="text-gray-500">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-right text-gray-400">
-                      {formatDate(rec.reportDate)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="py-2 px-2 md:px-3">
+                        <div className="font-medium text-white text-xs md:text-sm">{rec.firm}</div>
+                      </td>
+                      <td className="py-2 px-2 md:px-3 text-gray-300 text-xs md:text-sm hidden lg:table-cell">{rec.analyst}</td>
+                      <td className="py-2 px-2 md:px-3 text-right font-medium text-white text-xs md:text-sm hidden sm:table-cell">
+                        {rec.reportPrice ? formatPrice(rec.reportPrice) : '-'}
+                      </td>
+                      <td className="py-2 px-2 md:px-3 text-right font-medium text-white text-xs md:text-sm">
+                        {formatPrice(rec.targetPrice)}
+                      </td>
+                      <td className="py-2 px-2 md:px-3 text-right">
+                        {potential !== null ? (
+                          <span className={`font-bold text-xs md:text-sm ${potential >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {potential >= 0 ? '+' : ''}{potential.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 text-xs md:text-sm">-</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 md:px-3 text-right text-gray-400 text-xs md:text-sm hidden sm:table-cell">
+                        {formatDate(rec.reportDate)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {/* Show more/less button */}
           {recommendations.length > 5 && (
