@@ -223,8 +223,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
                       </span>
                     </td>
                     <td className="py-2 px-2 md:px-3">
-                      <div className="font-medium text-white text-xs md:text-sm">{rec.firm}</div>
-                      <div className="text-[10px] md:text-xs text-gray-500 hidden md:block">{rec.source}</div>
+                      <div className="font-medium text-white text-xs md:text-sm">{rec.source}</div>
                     </td>
                     <td className="py-2 px-2 md:px-3 text-gray-300 hidden md:table-cell text-xs md:text-sm">{rec.analyst}</td>
                     <td className="py-2 px-2 md:px-3 text-right font-medium text-white hidden sm:table-cell text-xs md:text-sm">
