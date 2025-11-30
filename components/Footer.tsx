@@ -7,9 +7,9 @@ export default function Footer() {
             ⚠️ Lưu ý miễn trừ trách nhiệm
           </h3>
           <p className="text-sm text-gray-300 leading-relaxed">
-            Dữ liệu cổ phiếu được lấy từ các nguồn công khai trực tuyến.
-            Công cụ phục vụ mục đích thử nghiệm và tham khảo riêng.
-            Không khuyến khích thay thế người sử dụng để ra quyết định đầu tư.
+            Dữ liệu website được lấy từ các nguồn công khai trực tuyến.
+            Công cụ bao gồm nội dung được tạo bởi AI phục vụ mục đích thử nghiệm và tham khảo riêng tư.
+            Không khuyến khích thay thế con người để ra các quyết định đầu tư.
           </p>
         </div>
       </div>
