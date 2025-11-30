@@ -217,7 +217,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
                       <td className="py-2 px-2 md:px-3">
                         <span className={`inline-flex items-center gap-1 font-bold ${badge.color}`}>
                           <span className="text-sm md:text-base">{badge.icon}</span>
-                          <span className="text-xs hidden sm:inline">{badge.label}</span>
+                          <span className="text-xs sm:text-sm">{badge.label}</span>
                         </span>
                       </td>
                       <td className="py-2 px-2 md:px-3">
