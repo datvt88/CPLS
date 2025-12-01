@@ -1027,11 +1027,11 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
             )}
             <div className="flex items-center gap-2">
               <span className="text-green-400 text-lg">↑</span>
-              <span className="font-semibold text-green-400">Buy (MA10 cắt lên MA30)</span>
+              <span className="font-semibold text-green-400">Buy (Golden Cross)</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-red-400 text-lg">↓</span>
-              <span className="font-semibold text-red-400">Sell (MA10 cắt xuống MA30)</span>
+              <span className="font-semibold text-red-400">Sell (Death Cross)</span>
             </div>
           </div>
           </>
