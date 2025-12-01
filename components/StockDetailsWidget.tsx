@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react'
-import { createChart, ColorType, Time, IChartApi, ISeriesApi } from 'lightweight-charts'
+import { createChart, ColorType, Time, IChartApi, ISeriesApi, SeriesMarker } from 'lightweight-charts'
 import type { CandlestickData, LineData } from 'lightweight-charts'
 import { calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import { fetchStockPricesClient } from '@/services/vndirect-client'
@@ -17,6 +17,22 @@ interface StockDetailsWidgetProps {
 // Clear cache on app restart to avoid stale data from old API versions
 const dataCache = new Map<string, { data: StockPriceData[], timestamp: number }>()
 const CACHE_DURATION = 2 * 60 * 1000 // 2 minutes (reduced for fresher trading data)
+
+// Helper function to calculate Simple Moving Average
+function calculateSMA(data: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = []
+
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(null)
+    } else {
+      const sum = data.slice(i - period + 1, i + 1).reduce((acc, val) => acc + val, 0)
+      result.push(sum / period)
+    }
+  }
+
+  return result
+}
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
 // Returns end-of-day for consistent date comparisons
@@ -512,21 +528,75 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     return { s2Data, r3Data }
   }, [pivotPoints, displayData])
 
-  // Calculate MA10
+  // Calculate MA10 and MA30 for all data points
   const movingAverages = useMemo(() => {
-    if (!chartData.closePrices.length) return { ma10: null }
+    if (!chartData.closePrices.length) return { ma10: null, ma10Array: [], ma30Array: [] }
 
     const closePrices = chartData.closePrices
 
-    // Calculate MA10
+    // Calculate MA10 array for all data points
+    const ma10Array = calculateSMA(closePrices, 10)
+
+    // Calculate MA30 array for all data points
+    const ma30Array = calculateSMA(closePrices, 30)
+
+    // Calculate current MA10 (last value)
     let ma10: number | null = null
     if (closePrices.length >= 10) {
       const sum10 = closePrices.slice(-10).reduce((acc, val) => acc + val, 0)
       ma10 = sum10 / 10
     }
 
-    return { ma10 }
+    return { ma10, ma10Array, ma30Array }
   }, [chartData.closePrices])
+
+  // Detect MA10/MA30 crossover points and create markers
+  const crossoverMarkers = useMemo(() => {
+    if (!displayData.length || !movingAverages.ma10Array.length || !movingAverages.ma30Array.length) {
+      return []
+    }
+
+    const markers: SeriesMarker<Time>[] = []
+    const ma10Array = movingAverages.ma10Array
+    const ma30Array = movingAverages.ma30Array
+
+    // Start from index 30 to ensure both MA10 and MA30 are valid
+    for (let i = 30; i < displayData.length; i++) {
+      const ma10Current = ma10Array[i]
+      const ma30Current = ma30Array[i]
+      const ma10Previous = ma10Array[i - 1]
+      const ma30Previous = ma30Array[i - 1]
+
+      // Skip if any values are null
+      if (ma10Current === null || ma30Current === null || ma10Previous === null || ma30Previous === null) {
+        continue
+      }
+
+      // Golden Cross (Buy signal): MA10 crosses above MA30
+      if (ma10Previous <= ma30Previous && ma10Current > ma30Current) {
+        markers.push({
+          time: displayData[i].date as Time,
+          position: 'belowBar',
+          color: '#22c55e', // green
+          shape: 'arrowUp',
+          text: 'Buy',
+        })
+      }
+
+      // Death Cross (Sell signal): MA10 crosses below MA30
+      if (ma10Previous >= ma30Previous && ma10Current < ma30Current) {
+        markers.push({
+          time: displayData[i].date as Time,
+          position: 'aboveBar',
+          color: '#ef4444', // red
+          shape: 'arrowDown',
+          text: 'Sell',
+        })
+      }
+    }
+
+    return markers
+  }, [displayData, movingAverages.ma10Array, movingAverages.ma30Array])
 
   // Update chart when data or settings change
   useEffect(() => {
@@ -540,9 +610,13 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     if (chartType === 'candlestick') {
       series.candlestick.setData(chartData.candleData)
       series.line?.setData([]) // Hide line series
+      // Set markers on candlestick series
+      series.candlestick.setMarkers(crossoverMarkers)
     } else {
       series.line?.setData(chartData.lineData)
       series.candlestick.setData([]) // Hide candlestick series
+      // Set markers on line series
+      series.line?.setMarkers(crossoverMarkers)
     }
 
     series.bbUpper?.setData(bollingerBands.upper)
@@ -557,7 +631,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
     series.volume?.setData(chartData.volumeData)
 
     chartRef.current?.timeScale().fitContent()
-  }, [displayData, chartType, chartData, bollingerBands, pivotLinesData])
+  }, [displayData, chartType, chartData, bollingerBands, pivotLinesData, crossoverMarkers])
 
   const handleSearch = useCallback(() => {
     if (inputSymbol.trim()) {
@@ -951,6 +1025,14 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
                 </div>
               </>
             )}
+            <div className="flex items-center gap-2">
+              <span className="text-green-400 text-lg">↑</span>
+              <span className="font-semibold text-green-400">Buy (MA10 cắt lên MA30)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 text-lg">↓</span>
+              <span className="font-semibold text-red-400">Sell (MA10 cắt xuống MA30)</span>
+            </div>
           </div>
           </>
         )}
