@@ -113,48 +113,54 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {data.data.map(metric => (
-          <div key={metric.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-white font-semibold text-sm">{metric.label}</h4>
-                <p className="text-gray-400 text-xs mt-1">{metric.tooltip}</p>
+        {data.data.map(metric => {
+          // Calculate the maximum value dynamically for proper chart scaling
+          const maxValue = Math.max(...metric.y.map(v => Math.abs(v)))
+          const scaleMax = Math.max(maxValue * 1.1, 10) // Add 10% padding, minimum 10%
+
+          return (
+            <div key={metric.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-white font-semibold text-sm">{metric.label}</h4>
+                  <p className="text-gray-400 text-xs mt-1">{metric.tooltip}</p>
+                </div>
+              </div>
+
+              {/* Header row */}
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
+                <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
+                <div className="flex-1"></div>
+                <span className="text-xs text-gray-400 w-12 text-right font-medium">%</span>
+              </div>
+
+              {/* Visual bar chart */}
+              <div className="space-y-1">
+                {metric.y.slice().reverse().map((value, idx) => {
+                  const reversedIdx = metric.y.length - 1 - idx
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-16">{data.x[reversedIdx]}</span>
+                      <div className="flex-1 bg-gray-700 rounded-full h-4 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            value >= 20 ? 'bg-green-500' : value >= 10 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.min((Math.abs(value) / scaleMax) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                      <span className={`text-xs font-semibold w-12 text-right ${
+                        value >= 20 ? 'text-green-400' : value >= 10 ? 'text-yellow-400' : 'text-red-400'
+                      }`}>
+                        {value.toFixed(2)}%
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
-
-            {/* Header row */}
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700/50">
-              <span className="text-xs text-gray-400 w-16 font-medium">Quý</span>
-              <div className="flex-1"></div>
-              <span className="text-xs text-gray-400 w-12 text-right font-medium">%</span>
-            </div>
-
-            {/* Visual bar chart */}
-            <div className="space-y-1">
-              {metric.y.slice().reverse().map((value, idx) => {
-                const reversedIdx = metric.y.length - 1 - idx
-                return (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 w-16">{data.x[reversedIdx]}</span>
-                    <div className="flex-1 bg-gray-700 rounded-full h-4 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          value >= 20 ? 'bg-green-500' : value >= 10 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${Math.min((value / 30) * 100, 100)}%` }}
-                      ></div>
-                    </div>
-                    <span className={`text-xs font-semibold w-12 text-right ${
-                      value >= 20 ? 'text-green-400' : value >= 10 ? 'text-yellow-400' : 'text-red-400'
-                    }`}>
-                      {value.toFixed(2)}%
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
