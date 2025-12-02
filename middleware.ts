@@ -1,24 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Define routes that require authentication
-const protectedRoutes = [
-  '/dashboard',
-  '/stocks',
-  '/market',
-  '/signals',
-  '/chat',
-  '/profile',
-  '/management',
-  '/admin',
-]
-
-// Define admin-only routes
-const adminRoutes = [
-  '/management',
-  '/admin',
-]
-
 // Define public routes (no authentication needed)
 const publicRoutes = [
   '/',
@@ -31,7 +13,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow public routes
-  if (publicRoutes.includes(pathname)) {
+  if (publicRoutes.some(route => pathname === route || pathname.startsWith(route))) {
     return NextResponse.next()
   }
 
@@ -40,38 +22,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Allow static files
+  // Allow static files and Next.js internals
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
-    pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js)$/)
+    pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js|webp|gif)$/)
   ) {
     return NextResponse.next()
   }
 
-  // Check if route requires authentication
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
+  // For all other routes, let ProtectedRoute/AdminRoute components handle auth
+  // Middleware only does basic cookie presence check (no redirect)
+  const authToken = request.cookies.get('cpls-auth-token')
 
-  if (isProtectedRoute) {
-    // Get auth token from cookie
-    const authToken = request.cookies.get('cpls-auth-token')
-
-    // If no token, redirect to login
-    if (!authToken) {
-      console.log('🔒 No auth token, redirecting to login:', pathname)
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      url.searchParams.set('redirect', pathname)
-      return NextResponse.redirect(url)
-    }
-
-    // For admin routes, we'll let the AdminRoute component handle detailed auth check
-    // Here we just ensure there's a session
-    const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route))
-    if (isAdminRoute) {
-      // Token exists, let AdminRoute component do the role check
-      return NextResponse.next()
-    }
+  if (!authToken) {
+    console.log('⚠️ Middleware: No auth cookie for:', pathname)
+    // Don't redirect here - let components handle it
+    // This prevents middleware/component conflicts
   }
 
   return NextResponse.next()
@@ -84,7 +51,7 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
+     * - public folder files
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],

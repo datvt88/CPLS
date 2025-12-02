@@ -27,35 +27,37 @@ export default function ProtectedRoute({
   useEffect(() => {
     isMountedRef.current = true
 
-    // Safety timeout: force stop loading after 10 seconds
+    // Safety timeout: force stop loading after 5 seconds
     timeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current) {
-        console.warn('⏱️ Auth check timeout after 10 seconds')
-        console.warn('🔍 Debug info:', { needsPremium, allowed, loading, hasValidSession })
+      if (isMountedRef.current && loading) {
+        console.warn('⏱️ ProtectedRoute: Auth check timeout after 5s')
+        console.warn('🔍 Debug:', { needsPremium, allowed, loading, hasValidSession })
 
         // If we have a valid session, grant access even on timeout
         if (hasValidSession) {
-          console.log('✅ Timeout but session is valid - granting access')
+          console.log('✅ Timeout but session valid - granting access')
           setAllowed(true)
           setLoading(false)
         } else {
           // Only redirect to login if no valid session was ever detected
-          console.warn('❌ Timeout with no valid session - redirecting to login')
+          console.warn('❌ Timeout with no session - redirecting to login')
           setLoading(false)
           router.push('/login')
         }
       }
-    }, 10000) // Increased to 10 seconds
+    }, 5000) // Reduced to 5 seconds
 
     const checkAuth = async () => {
       try {
+        console.log('🔍 ProtectedRoute: Checking auth...')
+
         // Step 1: Check session
         const { data: { session } } = await supabase.auth.getSession()
 
         if (!isMountedRef.current) return
 
         if (!session) {
-          console.log('❌ No session, redirecting to login')
+          console.log('❌ ProtectedRoute: No session found')
           if (timeoutRef.current) clearTimeout(timeoutRef.current)
           setHasValidSession(false)
           setLoading(false)
@@ -63,7 +65,7 @@ export default function ProtectedRoute({
           return
         }
 
-        console.log('✅ Session found:', session.user.email)
+        console.log('✅ ProtectedRoute: Session found -', session.user.email?.slice(0, 20) + '...')
 
         // Mark that we have a valid session
         setHasValidSession(true)
