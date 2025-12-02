@@ -1,9 +1,15 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import {
+  createSessionRecord,
+  updateSessionActivity,
+  cleanupExpiredSessions
+} from '@/lib/session-manager'
 
 export default function AuthListener() {
   const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const activityIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -13,8 +19,17 @@ export default function AuthListener() {
       if (session?.user && mounted) {
         await syncUserProfile(session.user)
 
+        // Create/update session record
+        await createSessionRecord(session.user.id, session.access_token)
+
         // Start keepalive for active session
         startSessionKeepalive()
+
+        // Start activity tracking
+        startActivityTracking(session.access_token)
+
+        // Cleanup expired sessions
+        await cleanupExpiredSessions()
       }
     })
 
@@ -27,11 +42,20 @@ export default function AuthListener() {
       try {
         const user = session?.user
 
-        if (user) {
+        if (user && session) {
           // Handle signed in events
           if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
             await syncUserProfile(user)
+
+            // Create session record
+            await createSessionRecord(user.id, session.access_token)
+
+            // Start tracking
             startSessionKeepalive()
+            startActivityTracking(session.access_token)
+
+            // Cleanup old sessions
+            await cleanupExpiredSessions()
           }
 
           // Handle token refresh
@@ -39,9 +63,10 @@ export default function AuthListener() {
             console.log('✅ Token refreshed successfully')
           }
         } else {
-          // User signed out - stop keepalive
+          // User signed out - stop tracking
           if (event === 'SIGNED_OUT') {
             stopSessionKeepalive()
+            stopActivityTracking()
           }
         }
       } catch (e) {
@@ -57,6 +82,7 @@ export default function AuthListener() {
       mounted = false
       subscription.unsubscribe()
       stopSessionKeepalive()
+      stopActivityTracking()
     }
   }, [])
 
@@ -106,6 +132,40 @@ export default function AuthListener() {
       clearInterval(keepAliveIntervalRef.current)
       keepAliveIntervalRef.current = null
       console.log('🔓 Session keepalive stopped')
+    }
+  }
+
+  /**
+   * Start activity tracking
+   * Updates last_activity timestamp every 5 minutes
+   */
+  const startActivityTracking = (sessionToken: string) => {
+    // Don't start multiple intervals
+    if (activityIntervalRef.current) {
+      return
+    }
+
+    // Update activity every 5 minutes
+    activityIntervalRef.current = setInterval(async () => {
+      try {
+        await updateSessionActivity(sessionToken)
+        console.log('📊 Session activity updated')
+      } catch (error) {
+        console.error('Failed to update session activity:', error)
+      }
+    }, 5 * 60 * 1000) // 5 minutes
+
+    console.log('📊 Activity tracking started (update every 5 min)')
+  }
+
+  /**
+   * Stop activity tracking
+   */
+  const stopActivityTracking = () => {
+    if (activityIntervalRef.current) {
+      clearInterval(activityIntervalRef.current)
+      activityIntervalRef.current = null
+      console.log('📊 Activity tracking stopped')
     }
   }
 
