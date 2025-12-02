@@ -3,6 +3,7 @@ import { Roboto } from 'next/font/google'
 import { Providers } from '@/components/Providers'
 import AuthListener from '../components/AuthListener'
 import ConditionalLayout from '../components/ConditionalLayout'
+import AnalyticsScripts from '../components/AnalyticsScripts'
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <div className="bg-[--bg] text-white overflow-x-hidden">
             <AuthListener />
+            <AnalyticsScripts />
             <ConditionalLayout>{children}</ConditionalLayout>
           </div>
         </Providers>

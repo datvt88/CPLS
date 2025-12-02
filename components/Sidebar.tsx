@@ -12,6 +12,7 @@ import BoltIcon from '@mui/icons-material/Bolt'
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import PersonIcon from '@mui/icons-material/Person'
 import SecurityIcon from '@mui/icons-material/Security'
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 
 export default function Sidebar(){
   const [isAdmin, setIsAdmin] = useState(false)
@@ -78,6 +79,13 @@ export default function Sidebar(){
         {isAdmin && (
           <>
             <div className="my-3 border-t border-gray-700"></div>
+            <Link
+              href="/admin"
+              className="flex items-center py-2 lg:py-2.5 px-2 lg:px-3 rounded bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-400 transition-colors text-sm"
+            >
+              <AdminPanelSettingsIcon sx={{ fontSize: { xs: 20, lg: 22 } }} />
+              <span className="ml-2 font-semibold">Admin Dashboard</span>
+            </Link>
             <Link
               href="/management"
               className="flex items-center py-2 lg:py-2.5 px-2 lg:px-3 rounded bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 transition-colors text-sm"
