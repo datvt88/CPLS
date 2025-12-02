@@ -87,21 +87,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if email already exists
-    const { data: existingUsers, error: checkError } = await supabaseAdmin.auth.admin.listUsers()
-    if (checkError) {
-      console.error('Error checking existing users:', checkError)
-      return NextResponse.json({ error: 'Error checking existing users' }, { status: 500 })
-    }
-
-    const emailExists = existingUsers.users.some(u => u.email === body.email)
-    if (emailExists) {
-      return NextResponse.json(
-        { error: 'Email already exists' },
-        { status: 400 }
-      )
-    }
-
     // Check if phone number already exists in profiles
     const { data: existingProfile, error: phoneCheckError } = await supabaseAdmin
       .from('profiles')
