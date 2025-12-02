@@ -65,8 +65,10 @@ export default function AuthListener() {
    * Refreshes token every 50 minutes (tokens expire after 60 minutes)
    */
   const startSessionKeepalive = () => {
-    // Clear existing interval
-    stopSessionKeepalive()
+    // Don't start multiple intervals
+    if (keepAliveIntervalRef.current) {
+      return
+    }
 
     // Refresh session every 50 minutes
     keepAliveIntervalRef.current = setInterval(async () => {
@@ -79,16 +81,21 @@ export default function AuthListener() {
 
           if (refreshError) {
             console.error('❌ Failed to refresh session:', refreshError)
+            // Don't stop keepalive on error - will retry next interval
           } else if (data.session) {
             console.log('✅ Session refreshed successfully')
           }
+        } else {
+          // No session - stop keepalive
+          console.log('⚠️ No session in keepalive check - stopping')
+          stopSessionKeepalive()
         }
       } catch (error) {
         console.error('Session keepalive error:', error)
       }
     }, 50 * 60 * 1000) // 50 minutes in milliseconds
 
-    console.log('🔐 Session keepalive started')
+    console.log('🔐 Session keepalive started (refresh every 50 min)')
   }
 
   /**
