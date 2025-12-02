@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import DeviceManagement from '@/components/DeviceManagement'
 
 function ProfilePageContent() {
   const router = useRouter()
@@ -505,6 +506,9 @@ function ProfilePageContent() {
             </p>
           </div>
         </div>
+
+        {/* Section 4: Quản lý thiết bị */}
+        <DeviceManagement />
       </div>
     </div>
   )
