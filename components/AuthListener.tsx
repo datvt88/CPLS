@@ -1,8 +1,10 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function AuthListener() {
+  const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     let mounted = true
 
@@ -10,6 +12,9 @@ export default function AuthListener() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user && mounted) {
         await syncUserProfile(session.user)
+
+        // Start keepalive for active session
+        startSessionKeepalive()
       }
     })
 
@@ -17,22 +22,85 @@ export default function AuthListener() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
+      console.log('Auth state changed:', event)
+
       try {
         const user = session?.user
 
-        if (user && (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION')) {
-          await syncUserProfile(user)
+        if (user) {
+          // Handle signed in events
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
+            await syncUserProfile(user)
+            startSessionKeepalive()
+          }
+
+          // Handle token refresh
+          if (event === 'TOKEN_REFRESHED') {
+            console.log('✅ Token refreshed successfully')
+          }
+        } else {
+          // User signed out - stop keepalive
+          if (event === 'SIGNED_OUT') {
+            stopSessionKeepalive()
+          }
         }
       } catch (e) {
-        console.error('Profile sync error:', e)
+        console.error('Auth state change error:', e)
       }
     })
 
+    // Start keepalive immediately if there's a session
+    startSessionKeepalive()
+
+    // Cleanup
     return () => {
       mounted = false
       subscription.unsubscribe()
+      stopSessionKeepalive()
     }
   }, [])
+
+  /**
+   * Start session keepalive
+   * Refreshes token every 50 minutes (tokens expire after 60 minutes)
+   */
+  const startSessionKeepalive = () => {
+    // Clear existing interval
+    stopSessionKeepalive()
+
+    // Refresh session every 50 minutes
+    keepAliveIntervalRef.current = setInterval(async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+
+        if (session) {
+          console.log('🔄 Refreshing session...')
+          const { data, error: refreshError } = await supabase.auth.refreshSession()
+
+          if (refreshError) {
+            console.error('❌ Failed to refresh session:', refreshError)
+          } else if (data.session) {
+            console.log('✅ Session refreshed successfully')
+          }
+        }
+      } catch (error) {
+        console.error('Session keepalive error:', error)
+      }
+    }, 50 * 60 * 1000) // 50 minutes in milliseconds
+
+    console.log('🔐 Session keepalive started')
+  }
+
+  /**
+   * Stop session keepalive
+   */
+  const stopSessionKeepalive = () => {
+    if (keepAliveIntervalRef.current) {
+      clearInterval(keepAliveIntervalRef.current)
+      keepAliveIntervalRef.current = null
+      console.log('🔓 Session keepalive stopped')
+    }
+  }
 
   return null
 }
@@ -69,7 +137,7 @@ async function syncUserProfile(user: any) {
     if (error) {
       console.error('Error syncing profile:', error)
     } else {
-      console.log('Profile synced successfully for user:', user.id)
+      console.log('✅ Profile synced successfully for user:', user.id.slice(0, 8))
     }
   } catch (e) {
     console.error('Error in syncUserProfile:', e)
