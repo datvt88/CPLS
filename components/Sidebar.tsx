@@ -91,7 +91,7 @@ export default function Sidebar(){
               className="flex items-center py-2 lg:py-2.5 px-2 lg:px-3 rounded bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 transition-colors text-sm"
             >
               <SecurityIcon sx={{ fontSize: { xs: 20, lg: 22 } }} />
-              <span className="ml-2 font-semibold">Quản lý</span>
+              <span className="ml-2 font-semibold">Quản lý User</span>
             </Link>
           </>
         )}

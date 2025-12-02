@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import AdminRoute from '@/components/AdminRoute'
 import { profileService, type Profile, type MembershipTier, type UserRole } from '@/services/profile.service'
+import { supabase } from '@/lib/supabaseClient'
 
 function ManagementPageContent() {
   const [users, setUsers] = useState<Profile[]>([])
@@ -39,6 +40,22 @@ function ManagementPageContent() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
+  // Create User Modal
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    phone_number: '',
+    password: '',
+    full_name: '',
+    nickname: '',
+    role: 'user' as UserRole,
+    membership: 'free' as MembershipTier,
+    membership_expires_at: ''
+  })
+  const [creating, setCreating] = useState(false)
+  const [createMessage, setCreateMessage] = useState('')
+  const [passwordCopied, setPasswordCopied] = useState(false)
+
   useEffect(() => {
     loadStats()
     loadUsers()
@@ -71,6 +88,103 @@ function ManagementPageContent() {
       console.error('Error:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*'
+    let password = ''
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setCreateForm({ ...createForm, password })
+    setPasswordCopied(false)
+  }
+
+  const copyPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(createForm.password)
+      setPasswordCopied(true)
+      setTimeout(() => setPasswordCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy password:', error)
+    }
+  }
+
+  const handleOpenCreateModal = () => {
+    setShowCreateModal(true)
+    setCreateForm({
+      email: '',
+      phone_number: '',
+      password: '',
+      full_name: '',
+      nickname: '',
+      role: 'user',
+      membership: 'free',
+      membership_expires_at: ''
+    })
+    setCreateMessage('')
+    setPasswordCopied(false)
+  }
+
+  const handleCreateUser = async () => {
+    setCreating(true)
+    setCreateMessage('')
+
+    try {
+      // Validate
+      if (!createForm.email || !createForm.phone_number || !createForm.password) {
+        setCreateMessage('Vui lòng điền đầy đủ Email, Số điện thoại và Mật khẩu')
+        setCreating(false)
+        return
+      }
+
+      // Get current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setCreateMessage('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại')
+        setCreating(false)
+        return
+      }
+
+      // Call API to create user
+      const response = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          email: createForm.email,
+          phone_number: createForm.phone_number,
+          password: createForm.password,
+          full_name: createForm.full_name || undefined,
+          nickname: createForm.nickname || undefined,
+          role: createForm.role,
+          membership: createForm.membership,
+          membership_expires_at: createForm.membership_expires_at || undefined
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setCreateMessage(result.error || 'Có lỗi xảy ra')
+        setCreating(false)
+        return
+      }
+
+      setCreateMessage('✅ Tạo người dùng thành công!')
+      setTimeout(() => {
+        setShowCreateModal(false)
+        loadUsers()
+        loadStats()
+      }, 1500)
+    } catch (error: any) {
+      console.error('Error creating user:', error)
+      setCreateMessage(error.message || 'Có lỗi xảy ra')
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -169,10 +283,21 @@ function ManagementPageContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-[--fg]">Quản lý người dùng</h1>
-            <span className="px-4 py-2 bg-red-500/20 text-red-400 rounded-full text-sm font-semibold border border-red-500/50">
-              🛡️ Admin Panel
-            </span>
+            <h1 className="text-3xl font-bold text-[--fg]">Quản lý User</h1>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleOpenCreateModal}
+                className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-green-600/50 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Tạo người dùng mới
+              </button>
+              <span className="px-4 py-2 bg-red-500/20 text-red-400 rounded-full text-sm font-semibold border border-red-500/50">
+                🛡️ Admin Panel
+              </span>
+            </div>
           </div>
           <p className="text-[--muted]">Quản lý tài khoản, quyền hạn và gói đăng ký của người dùng</p>
         </div>
@@ -424,6 +549,186 @@ function ManagementPageContent() {
             </div>
           )}
         </div>
+
+        {/* Create User Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-[--panel] rounded-xl border border-gray-800 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-800">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-[--fg]">➕ Tạo người dùng mới</h2>
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="text-[--muted] hover:text-[--fg] transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Email */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">
+                    Email <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                    placeholder="user@example.com"
+                    className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                  />
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">
+                    Số điện thoại <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={createForm.phone_number}
+                    onChange={(e) => setCreateForm({ ...createForm, phone_number: e.target.value })}
+                    placeholder="0901234567"
+                    className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                  />
+                  <p className="text-[--muted] text-xs mt-1">Người dùng sẽ đăng nhập bằng số điện thoại này</p>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">
+                    Mật khẩu <span className="text-red-400">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                      placeholder="Nhập mật khẩu hoặc tạo tự động"
+                      className="flex-1 p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg] font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={generatePassword}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      🎲 Tạo tự động
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copyPassword}
+                      disabled={!createForm.password}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {passwordCopied ? '✅ Đã copy' : '📋 Copy'}
+                    </button>
+                  </div>
+                  <p className="text-[--muted] text-xs mt-1">Tối thiểu 6 ký tự. Click "Copy" để gửi cho người dùng.</p>
+                </div>
+
+                {/* Full Name */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">Họ và tên</label>
+                  <input
+                    type="text"
+                    value={createForm.full_name}
+                    onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+                    placeholder="Nguyễn Văn A"
+                    className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                  />
+                </div>
+
+                {/* Nickname */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">Nickname</label>
+                  <input
+                    type="text"
+                    value={createForm.nickname}
+                    onChange={(e) => setCreateForm({ ...createForm, nickname: e.target.value })}
+                    placeholder="nguyenvana"
+                    className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                  />
+                </div>
+
+                {/* Role */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">Quyền</label>
+                  <select
+                    value={createForm.role}
+                    onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as UserRole })}
+                    className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                  >
+                    <option value="user">User (Người dùng thường)</option>
+                    <option value="mod">Moderator (Quản lý nội dung)</option>
+                    <option value="admin">Admin (Toàn quyền)</option>
+                  </select>
+                </div>
+
+                {/* Membership */}
+                <div>
+                  <label className="block text-[--fg] text-sm font-medium mb-2">Gói đăng ký</label>
+                  <select
+                    value={createForm.membership}
+                    onChange={(e) => setCreateForm({ ...createForm, membership: e.target.value as MembershipTier })}
+                    className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                  >
+                    <option value="free">Free</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+
+                {/* Expiry Date (Premium only) */}
+                {createForm.membership === 'premium' && (
+                  <div>
+                    <label className="block text-[--fg] text-sm font-medium mb-2">
+                      Ngày hết hạn Premium (để trống = vĩnh viễn)
+                    </label>
+                    <input
+                      type="date"
+                      value={createForm.membership_expires_at ? new Date(createForm.membership_expires_at).toISOString().split('T')[0] : ''}
+                      onChange={(e) => setCreateForm({ ...createForm, membership_expires_at: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+                      className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 text-[--fg]"
+                    />
+                  </div>
+                )}
+
+                {/* Message */}
+                {createMessage && (
+                  <div
+                    className={`p-4 rounded-lg text-center font-medium ${
+                      createMessage.includes('✅')
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                        : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                    }`}
+                  >
+                    {createMessage}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-800 flex gap-3">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={creating}
+                  className="flex-1 px-6 py-3 bg-[--bg] border border-gray-800 text-[--fg] rounded-lg hover:bg-[--panel] transition-colors disabled:opacity-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleCreateUser}
+                  disabled={creating}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-green-600/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creating ? 'Đang tạo...' : '✅ Tạo người dùng'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit User Modal */}
         {editingUser && (
