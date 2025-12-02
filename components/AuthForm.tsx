@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { authService } from '@/services/auth.service';
 import { profileService } from '@/services/profile.service';
 import { validatePassword, sanitizeInput } from '@/utils/validation';
@@ -22,8 +22,10 @@ export function AuthForm() {
     email?: string;
   }>({});
   const [loading, setLoading] = useState(false);
+  const submitRef = useRef(false); // Prevent double submit
 
-  const validateForm = (): boolean => {
+  // Memoize validation to avoid recalculation on every render
+  const validateForm = useCallback((): boolean => {
     const newErrors: {
       phoneNumber?: string;
       password?: string;
@@ -55,10 +57,16 @@ export function AuthForm() {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }, [phoneNumber, password, confirmPassword, email, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent double submit
+    if (submitRef.current || loading) {
+      return;
+    }
+
     setMessage('');
     setErrors({});
 
@@ -66,6 +74,7 @@ export function AuthForm() {
       return;
     }
 
+    submitRef.current = true;
     setLoading(true);
 
     try {
@@ -135,6 +144,7 @@ export function AuthForm() {
       setMessage(err instanceof Error ? err.message : 'Có lỗi xảy ra');
     } finally {
       setLoading(false);
+      submitRef.current = false; // Reset submit protection
     }
   };
 

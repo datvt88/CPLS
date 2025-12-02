@@ -1,7 +1,10 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+
+const IS_DEV = process.env.NODE_ENV === 'development'
+const AUTH_TIMEOUT = 10000 // Increased to 10 seconds for better UX
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -24,32 +27,33 @@ export default function ProtectedRoute({
 
   const needsPremium = requirePremium || requireVIP
 
+  const handleTimeout = useCallback(() => {
+    if (!isMountedRef.current || !loading) return
+
+    if (IS_DEV) {
+      console.warn('⏱️ ProtectedRoute: Auth check timeout')
+    }
+
+    if (hasValidSession) {
+      if (IS_DEV) console.log('✅ Granting access on timeout with valid session')
+      setAllowed(true)
+      setLoading(false)
+    } else {
+      if (IS_DEV) console.warn('❌ Redirecting to login - no session')
+      setLoading(false)
+      router.push('/login')
+    }
+  }, [loading, hasValidSession, router])
+
   useEffect(() => {
     isMountedRef.current = true
 
-    // Safety timeout: force stop loading after 5 seconds
-    timeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current && loading) {
-        console.warn('⏱️ ProtectedRoute: Auth check timeout after 5s')
-        console.warn('🔍 Debug:', { needsPremium, allowed, loading, hasValidSession })
-
-        // If we have a valid session, grant access even on timeout
-        if (hasValidSession) {
-          console.log('✅ Timeout but session valid - granting access')
-          setAllowed(true)
-          setLoading(false)
-        } else {
-          // Only redirect to login if no valid session was ever detected
-          console.warn('❌ Timeout with no session - redirecting to login')
-          setLoading(false)
-          router.push('/login')
-        }
-      }
-    }, 5000) // Reduced to 5 seconds
+    // Safety timeout with longer duration
+    timeoutRef.current = setTimeout(handleTimeout, AUTH_TIMEOUT)
 
     const checkAuth = async () => {
       try {
-        console.log('🔍 ProtectedRoute: Checking auth...')
+        if (IS_DEV) console.log('🔍 Checking auth...')
 
         // Step 1: Check session
         const { data: { session } } = await supabase.auth.getSession()
@@ -57,7 +61,7 @@ export default function ProtectedRoute({
         if (!isMountedRef.current) return
 
         if (!session) {
-          console.log('❌ ProtectedRoute: No session found')
+          if (IS_DEV) console.log('❌ No session found')
           if (timeoutRef.current) clearTimeout(timeoutRef.current)
           setHasValidSession(false)
           setLoading(false)
@@ -65,14 +69,12 @@ export default function ProtectedRoute({
           return
         }
 
-        console.log('✅ ProtectedRoute: Session found -', session.user.email?.slice(0, 20) + '...')
-
-        // Mark that we have a valid session
+        if (IS_DEV) console.log('✅ Session found')
         setHasValidSession(true)
 
         // Step 2: If no premium required, grant access immediately
         if (!needsPremium) {
-          console.log('✅ Access granted (no premium required)')
+          if (IS_DEV) console.log('✅ Access granted (no premium required)')
           if (isMountedRef.current) {
             if (timeoutRef.current) clearTimeout(timeoutRef.current)
             setAllowed(true)
@@ -81,87 +83,64 @@ export default function ProtectedRoute({
           return
         }
 
-        // Step 3: Premium required - check membership
-        console.log('🔒 Checking premium membership...')
+        // Step 3: Premium required - check membership with optimized retry
+        if (IS_DEV) console.log('🔒 Checking premium membership...')
 
-        let profile = null
-        let attempts = 0
-        const maxAttempts = 2
-
-        // Retry logic for new users
-        while (attempts < maxAttempts && !profile) {
-          attempts++
-
+        const checkProfile = async (retryCount = 0): Promise<any> => {
           const { data, error } = await supabase
             .from('profiles')
             .select('membership, membership_expires_at')
             .eq('id', session.user.id)
-            .single()
+            .maybeSingle() // Use maybeSingle instead of single to avoid errors
 
-          if (!isMountedRef.current) return
+          // Profile found
+          if (data && !error) return data
 
-          if (!error && data) {
-            profile = data
-            break
+          // Retry for new users (profile might not be created yet)
+          if (error?.code === 'PGRST116' && retryCount < 1) {
+            if (IS_DEV) console.log('⏳ Profile not found, retrying...')
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            return checkProfile(retryCount + 1)
           }
 
-          // If profile not found on first attempt, wait and retry
-          if (error?.code === 'PGRST116' && attempts < maxAttempts) {
-            console.log(`⏳ Profile not found (attempt ${attempts}/${maxAttempts}), retrying...`)
-            await new Promise(resolve => setTimeout(resolve, 1000))
-          } else if (error) {
-            console.error('❌ Profile error:', error)
-            if (timeoutRef.current) clearTimeout(timeoutRef.current)
-            setLoading(false)
-            router.push('/login')
-            return
+          // Other errors
+          if (error) {
+            if (IS_DEV) console.error('❌ Profile error:', error)
+            throw error
           }
+
+          return null
         }
 
+        const profile = await checkProfile()
+
+        if (!isMountedRef.current) return
+
         if (!profile) {
-          console.log('⚠️ Profile not found after retries')
-          if (isMountedRef.current) {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current)
-            setLoading(false)
-            router.push('/upgrade')
-          }
+          if (IS_DEV) console.log('⚠️ No profile found')
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          setLoading(false)
+          router.push('/upgrade')
           return
         }
 
         // Step 4: Check membership status
-        if (profile.membership === 'premium') {
-          // Check expiry
-          if (profile.membership_expires_at) {
-            const expiresAt = new Date(profile.membership_expires_at)
-            const now = new Date()
+        const isPremium = profile.membership === 'premium'
+        const expiresAt = profile.membership_expires_at ? new Date(profile.membership_expires_at) : null
+        const isExpired = expiresAt && expiresAt < new Date()
 
-            if (expiresAt > now) {
-              console.log('✅ Premium user (active until', expiresAt.toLocaleDateString(), ')')
-              if (isMountedRef.current) {
-                if (timeoutRef.current) clearTimeout(timeoutRef.current)
-                setAllowed(true)
-                setLoading(false)
-              }
-            } else {
-              console.log('⚠️ Premium expired')
-              if (isMountedRef.current) {
-                if (timeoutRef.current) clearTimeout(timeoutRef.current)
-                setLoading(false)
-                router.push('/upgrade')
-              }
-            }
-          } else {
-            // Lifetime premium
-            console.log('✅ Premium user (lifetime)')
-            if (isMountedRef.current) {
-              if (timeoutRef.current) clearTimeout(timeoutRef.current)
-              setAllowed(true)
-              setLoading(false)
-            }
+        if (isPremium && !isExpired) {
+          if (IS_DEV) {
+            const expiryText = expiresAt ? `until ${expiresAt.toLocaleDateString()}` : 'lifetime'
+            console.log(`✅ Premium user (${expiryText})`)
+          }
+          if (isMountedRef.current) {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current)
+            setAllowed(true)
+            setLoading(false)
           }
         } else {
-          // Free user
-          console.log('⚠️ Free user, premium required')
+          if (IS_DEV) console.log('⚠️ Premium required but not available')
           if (isMountedRef.current) {
             if (timeoutRef.current) clearTimeout(timeoutRef.current)
             setLoading(false)
@@ -170,7 +149,7 @@ export default function ProtectedRoute({
         }
 
       } catch (error) {
-        console.error('❌ Auth check error:', error)
+        if (IS_DEV) console.error('❌ Auth check error:', error)
         if (isMountedRef.current) {
           if (timeoutRef.current) clearTimeout(timeoutRef.current)
           setLoading(false)
@@ -188,7 +167,8 @@ export default function ProtectedRoute({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [needsPremium, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsPremium]) // Removed router from deps to prevent unnecessary re-renders
 
   if (loading) {
     return (

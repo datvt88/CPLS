@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient'
 import { deviceService } from './device.service'
+import { clearPermissionsCache } from '@/lib/permissions'
 
 export interface AuthCredentials {
   email: string
@@ -10,6 +11,10 @@ export interface ZaloAuthOptions {
   redirectTo?: string
   scopes?: string
 }
+
+// Session cache to reduce redundant API calls
+let sessionCache: { session: any; timestamp: number } | null = null
+const SESSION_CACHE_TTL = 60000 // 1 minute cache
 
 export const authService = {
   /**
@@ -40,9 +45,18 @@ export const authService = {
   async signIn({ email, password }: AuthCredentials) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
-    // Track device after successful login
+    // Clear caches on new login
+    sessionCache = null
+    clearPermissionsCache()
+
+    // Track device after successful login (with error handling)
     if (data.user && !error) {
-      await this.trackUserDevice(data.user.id)
+      try {
+        await this.trackUserDevice(data.user.id)
+      } catch (deviceError) {
+        console.error('Device tracking failed:', deviceError)
+        // Don't fail login if device tracking fails
+      }
     }
 
     return { data, error }
@@ -73,9 +87,18 @@ export const authService = {
         password: password,
       })
 
-      // Track device after successful login
+      // Clear caches on new login
+      sessionCache = null
+      clearPermissionsCache()
+
+      // Track device after successful login (with error handling)
       if (authData.user && !error) {
-        await this.trackUserDevice(authData.user.id)
+        try {
+          await this.trackUserDevice(authData.user.id)
+        } catch (deviceError) {
+          console.error('Device tracking failed:', deviceError)
+          // Don't fail login if device tracking fails
+        }
       }
 
       return { data: authData, error }
@@ -153,21 +176,48 @@ export const authService = {
 
     const { error } = await supabase.auth.signOut()
 
-    // Clear device tracking after logout
+    // Clear all caches on logout
+    sessionCache = null
+    clearPermissionsCache()
+
+    // Clear device tracking after logout (with error handling)
     if (user && !error) {
-      const deviceId = deviceService.getOrCreateDeviceId()
-      await deviceService.removeDevice(user.id, deviceId)
-      deviceService.clearDeviceId()
+      try {
+        const deviceId = deviceService.getOrCreateDeviceId()
+        await deviceService.removeDevice(user.id, deviceId)
+        deviceService.clearDeviceId()
+      } catch (deviceError) {
+        console.error('Device cleanup failed:', deviceError)
+        // Don't fail logout if device cleanup fails
+      }
     }
 
     return { error }
   },
 
   /**
-   * Get current session
+   * Get current session (with caching)
    */
-  async getSession() {
+  async getSession(useCache = true) {
+    // Check cache first
+    if (useCache && sessionCache) {
+      const now = Date.now()
+      if (now - sessionCache.timestamp < SESSION_CACHE_TTL) {
+        return { session: sessionCache.session, error: null }
+      }
+    }
+
+    // Fetch fresh session
     const { data, error } = await supabase.auth.getSession()
+
+    // Update cache on success
+    if (!error && data.session) {
+      sessionCache = {
+        session: data.session,
+        timestamp: Date.now()
+      }
+    }
+
     return { session: data.session, error }
   },
 

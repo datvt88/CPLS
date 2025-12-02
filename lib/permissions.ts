@@ -1,5 +1,18 @@
 import { supabase } from './supabaseClient'
 
+// Cache for permissions to reduce RPC calls
+interface PermissionsCache {
+  isPremium: { value: boolean; timestamp: number } | null
+  features: { value: Feature[]; timestamp: number } | null
+}
+
+const cache: PermissionsCache = {
+  isPremium: null,
+  features: null
+}
+
+const CACHE_TTL = 300000 // 5 minutes cache
+
 /**
  * Feature definitions and access levels
  */
@@ -77,46 +90,63 @@ export function isPremiumFeature(feature: Feature): boolean {
 }
 
 /**
- * Check if user can access a feature (calls Supabase function)
+ * Clear permissions cache (call on login/logout)
  */
-export async function canAccessFeature(feature: Feature): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.rpc('can_access_feature', {
-      p_feature: feature,
-    })
+export function clearPermissionsCache() {
+  cache.isPremium = null
+  cache.features = null
+}
 
-    if (error) {
-      console.error('Error checking feature access:', error)
-      return false
+/**
+ * Check if user can access a feature (calls Supabase function with retry)
+ */
+export async function canAccessFeature(feature: Feature, retries = 1): Promise<boolean> {
+  try {
+    // Check if feature is in FREE_FEATURES first (no need to query)
+    if (FREE_FEATURES.includes(feature)) {
+      return true
     }
 
-    return data === true
+    // For premium features, check user's premium status with cache
+    const isPremium = await isPremiumUser()
+    return isPremium
   } catch (error) {
     console.error('Error in canAccessFeature:', error)
+
+    // Retry once on network error
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      return canAccessFeature(feature, retries - 1)
+    }
+
     return false
   }
 }
 
 /**
- * Get list of features user can access
+ * Get list of features user can access (with caching)
  */
-export async function getAccessibleFeatures(): Promise<Feature[]> {
+export async function getAccessibleFeatures(useCache = true): Promise<Feature[]> {
   try {
-    const { data, error } = await supabase.rpc('get_my_accessible_features')
-
-    if (error) {
-      console.error('Error getting accessible features:', error)
-      return FREE_FEATURES
+    // Check cache first
+    if (useCache && cache.features) {
+      const now = Date.now()
+      if (now - cache.features.timestamp < CACHE_TTL) {
+        return cache.features.value
+      }
     }
 
-    // Filter features user has access to
-    const accessible = data
-      .filter((item: any) => {
-        // Premium users get all features
-        // Free users only get non-premium features
-        return !item.is_premium_only || item.is_premium_only === false
-      })
-      .map((item: any) => item.feature as Feature)
+    // Check if user is premium
+    const isPremium = await isPremiumUser()
+
+    // Premium users get all features, free users get FREE_FEATURES only
+    const accessible = isPremium ? ALL_FEATURES : FREE_FEATURES
+
+    // Update cache
+    cache.features = {
+      value: accessible,
+      timestamp: Date.now()
+    }
 
     return accessible
   } catch (error) {
@@ -126,10 +156,19 @@ export async function getAccessibleFeatures(): Promise<Feature[]> {
 }
 
 /**
- * Check if user has premium membership
+ * Check if user has premium membership (with caching)
  */
-export async function isPremiumUser(): Promise<boolean> {
+export async function isPremiumUser(useCache = true): Promise<boolean> {
   try {
+    // Check cache first
+    if (useCache && cache.isPremium) {
+      const now = Date.now()
+      if (now - cache.isPremium.timestamp < CACHE_TTL) {
+        return cache.isPremium.value
+      }
+    }
+
+    // Fetch fresh data
     const { data, error } = await supabase.rpc('is_premium_user')
 
     if (error) {
@@ -137,7 +176,15 @@ export async function isPremiumUser(): Promise<boolean> {
       return false
     }
 
-    return data === true
+    const isPremium = data === true
+
+    // Update cache
+    cache.isPremium = {
+      value: isPremium,
+      timestamp: Date.now()
+    }
+
+    return isPremium
   } catch (error) {
     console.error('Error in isPremiumUser:', error)
     return false
