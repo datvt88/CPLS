@@ -17,10 +17,21 @@ export async function POST(request: NextRequest) {
 
     console.log('📱 [signin-phone API] Received request for phone:', phoneNumber)
 
+    // Validate phone number presence
     if (!phoneNumber) {
       console.error('❌ [signin-phone API] Missing phone number')
       return NextResponse.json(
         { error: 'Số điện thoại là bắt buộc' },
+        { status: 400 }
+      )
+    }
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^[0-9+\-\s()]{9,20}$/
+    if (!phoneRegex.test(phoneNumber)) {
+      console.error('❌ [signin-phone API] Invalid phone number format:', phoneNumber)
+      return NextResponse.json(
+        { error: 'Số điện thoại không hợp lệ' },
         { status: 400 }
       )
     }
@@ -42,10 +53,12 @@ export async function POST(request: NextRequest) {
     console.log('🔍 [signin-phone API] Looking up phone in database...')
 
     // Look up user by phone number with timeout (Supabase has built-in timeout)
+    // Note: phone_number can be NULL for OAuth users, so we filter those out
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('email')
       .eq('phone_number', phoneNumber)
+      .not('phone_number', 'is', null)
       .single()
 
     const elapsed = Date.now() - startTime
@@ -56,7 +69,7 @@ export async function POST(request: NextRequest) {
       // Distinguish between "not found" and actual errors
       if (profileError.code === 'PGRST116') {
         return NextResponse.json(
-          { error: 'Số điện thoại không tồn tại' },
+          { error: 'Số điện thoại không tồn tại hoặc chưa được liên kết với tài khoản' },
           { status: 404 }
         )
       }
@@ -70,7 +83,7 @@ export async function POST(request: NextRequest) {
     if (!profile) {
       console.error(`❌ [signin-phone API] No profile found (${elapsed}ms)`)
       return NextResponse.json(
-        { error: 'Số điện thoại không tồn tại' },
+        { error: 'Số điện thoại không tồn tại hoặc chưa được liên kết với tài khoản' },
         { status: 404 }
       )
     }

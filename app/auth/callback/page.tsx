@@ -359,8 +359,6 @@ export default function AuthCallbackPage() {
       // Step 4: Create/update profile with Zalo data
       const { profile } = await profileService.getProfile(session.user.id)
 
-      const placeholderPhone = '0000000000'
-
       if (profile) {
         const updateData: any = {
           full_name: zaloUser.name,
@@ -369,10 +367,9 @@ export default function AuthCallbackPage() {
 
         if (zaloUser.birthday) updateData.birthday = zaloUser.birthday
         if (zaloUser.gender) updateData.gender = zaloUser.gender
-
-        if (!profile.phone_number || profile.phone_number === '0000000000') {
-          updateData.phone_number = placeholderPhone
-        }
+        // Note: phone_number is optional for OAuth users
+        // Only update if provided by Zalo
+        if (zaloUser.phone) updateData.phone_number = zaloUser.phone
 
         await profileService.linkZaloAccount(
           session.user.id,
@@ -383,7 +380,7 @@ export default function AuthCallbackPage() {
         await profileService.upsertProfile({
           id: session.user.id,
           email: pseudoEmail,
-          phone_number: placeholderPhone,
+          phone_number: zaloUser.phone || null, // Allow null for OAuth users
           full_name: zaloUser.name,
           avatar_url: zaloUser.picture,
           birthday: zaloUser.birthday,

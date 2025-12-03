@@ -6,7 +6,7 @@ export type UserRole = 'user' | 'mod' | 'admin'
 export interface Profile {
   id: string
   email: string
-  phone_number: string  // BẮT BUỘC: Số điện thoại
+  phone_number?: string | null  // Optional: Required for phone auth, null for OAuth users
   full_name?: string
   nickname?: string  // Tên hiển thị tài khoản (user tự đặt)
   stock_account_number?: string  // Số tài khoản chứng khoán (optional)
@@ -28,7 +28,7 @@ export interface Profile {
 export interface CreateProfileData {
   id: string
   email: string
-  phone_number: string  // BẮT BUỘC: Số điện thoại
+  phone_number?: string | null  // Optional: Required for phone auth, null for OAuth users
   full_name?: string
   nickname?: string
   stock_account_number?: string
