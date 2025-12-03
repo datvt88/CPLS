@@ -70,7 +70,9 @@ class CookieStorage {
     if (typeof window === 'undefined') return
 
     try {
-      // Set to cookie with 30 days expiry
+      // Set to cookie with 30 days expiry (for refresh token)
+      // Note: Access token (JWT) expires based on Supabase settings (8 hours by default)
+      // Refresh token allows getting new access tokens without re-login for 30 days
       this.setCookie(key, value, 30)
 
       // Also set to localStorage as backup

@@ -62,6 +62,45 @@ Open [http://localhost:3000](http://localhost:3000)
 - **UI**: TailwindCSS + Material-UI
 - **Auth**: Supabase Auth (Email/Password, Google OAuth, Phone)
 - **Charts**: Lightweight Charts
+- **Session**: 8-hour JWT with auto-refresh
+
+## ⏱️ Session Management (8 Hours)
+
+The app is configured to keep users logged in for **8 hours** without requiring re-login.
+
+### Key Features:
+- ✅ **8-hour session duration** (configurable in Supabase)
+- ✅ **Auto-refresh tokens** 5 minutes before expiry
+- ✅ **Persistent sessions** across browser restarts
+- ✅ **30-day refresh token** lifetime
+- ✅ **Activity monitoring** and tab visibility handling
+
+### Setup 8-Hour Sessions:
+
+1. **Configure Supabase Dashboard:**
+   - Go to Settings → Authentication
+   - Set **JWT Expiry** to `28800` seconds (8 hours)
+   - Save changes
+
+2. **Verify in Console:**
+   ```javascript
+   // Run in browser console after login
+   getSessionInfo()
+   ```
+
+   Expected output:
+   ```
+   ✓ Session expires in: ~8 hours
+   ✓ Auto-refresh: Enabled
+   ```
+
+3. **Session Lifecycle:**
+   - **0h**: Login, session valid for 8 hours
+   - **7h 55m**: Auto-refresh triggered
+   - **8h**: New session valid for another 8 hours
+   - **30 days**: Refresh token expires, re-login required
+
+📖 **Detailed guide**: [docs/SESSION_8H_CONFIG.md](./docs/SESSION_8H_CONFIG.md)
 
 ## 🐛 Troubleshooting
 
