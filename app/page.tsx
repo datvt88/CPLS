@@ -24,6 +24,34 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    // Check for OAuth callback parameters (code, access_token, error)
+    // If present, redirect to callback page to handle them
+    const handleOAuthRedirect = () => {
+      if (typeof window === 'undefined') return;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+      const code = urlParams.get('code');
+      const accessToken = hashParams.get('access_token');
+      const error = urlParams.get('error') || hashParams.get('error');
+
+      // If OAuth parameters are present, redirect to callback page
+      if (code || accessToken || error) {
+        console.log('🔄 [Homepage] OAuth parameters detected, redirecting to callback page...');
+        // Preserve all parameters and redirect to callback
+        const fullUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        router.replace(`/auth/callback${window.location.search}${window.location.hash}`);
+        return true;
+      }
+      return false;
+    };
+
+    // Handle OAuth redirect first
+    if (handleOAuthRedirect()) {
+      return; // Don't run other effects if redirecting
+    }
+
     // Check if user is already logged in (non-blocking)
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -39,7 +67,7 @@ export default function Home() {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleGetStarted = () => {
     if (isLoggedIn) {
