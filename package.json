@@ -9,7 +9,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check-setup": "node scripts/check-supabase-setup.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
