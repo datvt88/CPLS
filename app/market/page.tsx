@@ -66,23 +66,23 @@ export default function MarketPage() {
         </div>
       </div>
 
-      {/* Tab Content - Keep all mounted, toggle visibility with CSS */}
+      {/* Tab Content - Lazy render only active tab */}
       <div className="space-y-3 sm:space-y-4 md:space-y-5">
-        <div className={activeTab === 'securities' ? 'block' : 'hidden'}>
-          <TopStocksWidget isActive={activeTab === 'securities'} />
-        </div>
+        {activeTab === 'securities' && (
+          <TopStocksWidget isActive={true} />
+        )}
 
-        <div className={activeTab === 'world' ? 'block' : 'hidden'}>
-          <SimpleWorldIndicesWidget isActive={activeTab === 'world'} />
-        </div>
+        {activeTab === 'world' && (
+          <SimpleWorldIndicesWidget isActive={true} />
+        )}
 
-        <div className={activeTab === 'commodities' ? 'block' : 'hidden'}>
-          <SimpleCommoditiesWidget isActive={activeTab === 'commodities'} />
-        </div>
+        {activeTab === 'commodities' && (
+          <SimpleCommoditiesWidget isActive={true} />
+        )}
 
-        <div className={activeTab === 'exchange' ? 'block' : 'hidden'}>
-          <ExchangeRateWidget isActive={activeTab === 'exchange'} />
-        </div>
+        {activeTab === 'exchange' && (
+          <ExchangeRateWidget isActive={true} />
+        )}
       </div>
     </div>
   )
