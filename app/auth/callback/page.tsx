@@ -109,11 +109,19 @@ export default function AuthCallbackPage() {
 
       // STEP 4: Route to appropriate handler
 
-      // Handle Supabase OAuth (Google, etc.)
+      // Handle Supabase OAuth (Google, etc.) - Implicit flow with access_token in hash
       if (accessToken) {
-        console.log('🔑 [Callback] Processing Supabase OAuth (Google)')
+        console.log('🔑 [Callback] Processing Supabase OAuth (Google) - Implicit flow')
         setProgressMessage('Đang xác thực với Google...')
         await handleSupabaseOAuth(accessToken, refreshToken)
+        return
+      }
+
+      // Handle Supabase PKCE flow - code without state (Google OAuth with PKCE)
+      if (code && !state) {
+        console.log('🔑 [Callback] Processing Supabase PKCE OAuth')
+        setProgressMessage('Đang xử lý xác thực...')
+        await handleSupabasePKCE(code)
         return
       }
 
@@ -125,9 +133,9 @@ export default function AuthCallbackPage() {
         return
       }
 
-      // Handle Zalo OAuth error
-      if (queryError && state) {
-        throw new Error(`Lỗi Zalo OAuth: ${queryError}`)
+      // Handle OAuth error
+      if (queryError) {
+        throw new Error(`Lỗi OAuth: ${queryError}`)
       }
 
       // STEP 5: If no valid OAuth parameters, try to get session one more time
@@ -230,6 +238,57 @@ export default function AuthCallbackPage() {
       }, 500)
     } catch (error) {
       console.error('❌ Supabase OAuth error:', error)
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      throw error
+    }
+  }
+
+  /**
+   * Handle Supabase PKCE OAuth callback
+   * Exchanges authorization code for session tokens
+   */
+  const handleSupabasePKCE = async (code: string) => {
+    try {
+      console.log('🔐 [PKCE] Processing Supabase PKCE OAuth...')
+      setProgressMessage('Đang xử lý xác thực...')
+
+      // Exchange code for session using Supabase's built-in PKCE flow
+      console.log('⏳ [PKCE] Exchanging code for session...')
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+      if (error) {
+        console.error('❌ [PKCE] Code exchange error:', error)
+        throw new Error(`Không thể xác thực: ${error.message}`)
+      }
+
+      if (!data.session) {
+        console.error('❌ [PKCE] No session returned after code exchange')
+        throw new Error('Không thể tạo phiên đăng nhập. Vui lòng thử lại.')
+      }
+
+      console.log('✅ [PKCE] Session established:', {
+        user_id: data.session.user.id,
+        email: data.session.user.email,
+        provider: data.session.user.app_metadata.provider,
+      })
+
+      // Profile will be auto-created/updated by AuthListener component
+      // and database trigger (handle_new_user function)
+
+      console.log('✅ [PKCE] Setting status to success')
+      setProgressMessage('Đăng nhập thành công!')
+      setStatus('success')
+
+      // Clean up URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname)
+
+      // Redirect to dashboard
+      console.log('🚀 [PKCE] Redirecting to dashboard...')
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 500)
+    } catch (error) {
+      console.error('❌ Supabase PKCE error:', error)
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
       throw error
     }
