@@ -223,7 +223,7 @@ export async function createSessionRecord(
         ip_address: ipAddress,
         user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
         fingerprint: deviceFingerprint,
-        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
       })
       .select('id')
       .single()
