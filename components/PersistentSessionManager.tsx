@@ -26,6 +26,51 @@ export default function PersistentSessionManager() {
   useEffect(() => {
     console.log('🔐 [PersistentSessionManager] Initializing...')
 
+    // Setup debug helper for browser console
+    if (typeof window !== 'undefined') {
+      (window as any).getSessionInfo = async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!session) {
+          console.log('❌ No active session')
+          return null
+        }
+
+        // Get session from database
+        const fingerprint = await getDeviceFingerprint()
+        const { data: dbSession } = await supabase
+          .from('user_sessions')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('fingerprint', fingerprint)
+          .eq('is_active', true)
+          .maybeSingle()
+
+        const expiresAt = session.expires_at || 0
+        const now = Math.floor(Date.now() / 1000)
+        const timeUntilExpiry = expiresAt - now
+
+        const info = {
+          user: session.user.email,
+          jwtExpiresAt: new Date(expiresAt * 1000).toLocaleString(),
+          timeUntilExpiry: `${Math.floor(timeUntilExpiry / 3600)}h ${Math.floor((timeUntilExpiry % 3600) / 60)}m`,
+          deviceFingerprint: fingerprint,
+          lastActivity: dbSession ? new Date(dbSession.last_activity).toLocaleString() : 'N/A',
+          daysSinceActivity: dbSession
+            ? ((Date.now() - new Date(dbSession.last_activity).getTime()) / (24 * 60 * 60 * 1000)).toFixed(2)
+            : 'N/A',
+          willLogoutAt: dbSession
+            ? new Date(new Date(dbSession.last_activity).getTime() + INACTIVITY_TIMEOUT).toLocaleString()
+            : 'N/A'
+        }
+
+        console.table(info)
+        return info
+      }
+
+      console.log('💡 Tip: Run getSessionInfo() in console to check session status')
+    }
+
     const initializeSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -192,7 +237,7 @@ export default function PersistentSessionManager() {
 
     // Handle tab visibility change
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         console.log('👁️ [PersistentSessionManager] Tab became visible, checking session...')
 
         // Update last activity
@@ -235,13 +280,15 @@ export default function PersistentSessionManager() {
     // Initial setup
     initializeSession()
 
-    // Add event listeners
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', updateActivity)
-    document.addEventListener('click', updateActivity)
-    document.addEventListener('keypress', updateActivity)
-    document.addEventListener('scroll', updateActivity)
-    document.addEventListener('mousemove', updateActivity)
+    // Add event listeners (safely check for browser environment)
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+      window.addEventListener('focus', updateActivity)
+      document.addEventListener('click', updateActivity)
+      document.addEventListener('keypress', updateActivity)
+      document.addEventListener('scroll', updateActivity)
+      document.addEventListener('mousemove', updateActivity)
+    }
 
     // Cleanup
     return () => {
@@ -255,12 +302,14 @@ export default function PersistentSessionManager() {
         clearInterval(checkIntervalRef.current)
       }
 
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', updateActivity)
-      document.removeEventListener('click', updateActivity)
-      document.removeEventListener('keypress', updateActivity)
-      document.removeEventListener('scroll', updateActivity)
-      document.removeEventListener('mousemove', updateActivity)
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+        window.removeEventListener('focus', updateActivity)
+        document.removeEventListener('click', updateActivity)
+        document.removeEventListener('keypress', updateActivity)
+        document.removeEventListener('scroll', updateActivity)
+        document.removeEventListener('mousemove', updateActivity)
+      }
 
       authListener.subscription.unsubscribe()
     }
@@ -268,52 +317,4 @@ export default function PersistentSessionManager() {
 
   // This component doesn't render anything
   return null
-}
-
-/**
- * Helper function to get session info
- * Can be called from browser console for debugging
- */
-if (typeof window !== 'undefined') {
-  (window as any).getSessionInfo = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session) {
-      console.log('❌ No active session')
-      return null
-    }
-
-    // Get session from database
-    const fingerprint = await getDeviceFingerprint()
-    const { data: dbSession } = await supabase
-      .from('user_sessions')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .eq('fingerprint', fingerprint)
-      .eq('is_active', true)
-      .maybeSingle()
-
-    const expiresAt = session.expires_at || 0
-    const now = Math.floor(Date.now() / 1000)
-    const timeUntilExpiry = expiresAt - now
-
-    const info = {
-      user: session.user.email,
-      jwtExpiresAt: new Date(expiresAt * 1000).toLocaleString(),
-      timeUntilExpiry: `${Math.floor(timeUntilExpiry / 3600)}h ${Math.floor((timeUntilExpiry % 3600) / 60)}m`,
-      deviceFingerprint: fingerprint,
-      lastActivity: dbSession ? new Date(dbSession.last_activity).toLocaleString() : 'N/A',
-      daysSinceActivity: dbSession
-        ? ((Date.now() - new Date(dbSession.last_activity).getTime()) / (24 * 60 * 60 * 1000)).toFixed(2)
-        : 'N/A',
-      willLogoutAt: dbSession
-        ? new Date(new Date(dbSession.last_activity).getTime() + INACTIVITY_TIMEOUT).toLocaleString()
-        : 'N/A'
-    }
-
-    console.table(info)
-    return info
-  }
-
-  console.log('💡 Tip: Run getSessionInfo() in console to check session status')
 }
