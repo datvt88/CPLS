@@ -62,45 +62,66 @@ Open [http://localhost:3000](http://localhost:3000)
 - **UI**: TailwindCSS + Material-UI
 - **Auth**: Supabase Auth (Email/Password, Google OAuth, Phone)
 - **Charts**: Lightweight Charts
-- **Session**: 8-hour JWT with auto-refresh
+- **Session**: Persistent sessions with device fingerprinting
 
-## ⏱️ Session Management (8 Hours)
+## ⏱️ Persistent Session Management
 
-The app is configured to keep users logged in for **8 hours** without requiring re-login.
+The app uses **intelligent session management** that keeps users logged in on their existing browsers indefinitely, only logging out when necessary.
 
 ### Key Features:
-- ✅ **8-hour session duration** (configurable in Supabase)
-- ✅ **Auto-refresh tokens** 5 minutes before expiry
-- ✅ **Persistent sessions** across browser restarts
-- ✅ **30-day refresh token** lifetime
-- ✅ **Activity monitoring** and tab visibility handling
+- ✅ **Persistent login** on existing browsers (no re-login required)
+- ✅ **Device fingerprinting** for browser recognition
+- ✅ **3-day inactivity timeout** (automatic logout if no activity)
+- ✅ **90-day session lifetime** (maximum)
+- ✅ **Unlimited devices** (no device limit)
+- ✅ **Auto-refresh tokens** every 8 hours
+- ✅ **Activity tracking** (click, scroll, type, etc.)
 
-### Setup 8-Hour Sessions:
+### How It Works:
 
-1. **Configure Supabase Dashboard:**
-   - Go to Settings → Authentication
-   - Set **JWT Expiry** to `28800` seconds (8 hours)
-   - Save changes
+**Existing Browser:**
+- Login once → Stay logged in forever (until inactive 3+ days)
+- Close browser → Reopen → ✅ Still logged in
+- Works across browser restarts
 
-2. **Verify in Console:**
-   ```javascript
-   // Run in browser console after login
-   getSessionInfo()
-   ```
+**New Browser/Device:**
+- Login creates new session
+- Does NOT logout other devices
+- All devices stay active
 
-   Expected output:
-   ```
-   ✓ Session expires in: ~8 hours
-   ✓ Auto-refresh: Enabled
-   ```
+**Inactivity Logout:**
+- No activity for 3+ days → Automatic logout
+- Activity = any click, scroll, type, mousemove
 
-3. **Session Lifecycle:**
-   - **0h**: Login, session valid for 8 hours
-   - **7h 55m**: Auto-refresh triggered
-   - **8h**: New session valid for another 8 hours
-   - **30 days**: Refresh token expires, re-login required
+### Quick Check:
 
-📖 **Detailed guide**: [docs/SESSION_8H_CONFIG.md](./docs/SESSION_8H_CONFIG.md)
+Run in browser console after login:
+```javascript
+getSessionInfo()
+```
+
+Output shows:
+```
+✓ Device fingerprint: fp_abc123xyz
+✓ Last activity: Just now
+✓ Days since activity: 0.00
+✓ Will logout at: [3 days from now]
+```
+
+### Configuration:
+
+**Supabase Dashboard:**
+1. Go to Settings → Authentication
+2. Set **JWT Expiry** to `28800` seconds (8 hours)
+3. Set **Refresh Token Expiry** to `7776000` seconds (90 days)
+
+**Adjust Inactivity Timeout:**
+See `components/PersistentSessionManager.tsx`:
+```typescript
+const INACTIVITY_TIMEOUT = 3 * 24 * 60 * 60 * 1000 // 3 days
+```
+
+📖 **Detailed guide**: [docs/PERSISTENT_SESSION_GUIDE.md](./docs/PERSISTENT_SESSION_GUIDE.md)
 
 ## 🐛 Troubleshooting
 

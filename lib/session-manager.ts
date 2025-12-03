@@ -86,12 +86,106 @@ async function getClientIP(): Promise<string> {
 }
 
 /**
+ * Generate device fingerprint for persistent device recognition
+ * Used to identify same device across sessions
+ */
+export async function getDeviceFingerprint(): Promise<string> {
+  if (typeof window === 'undefined') {
+    return 'server-side'
+  }
+
+  try {
+    // Check if we have a stored fingerprint
+    const stored = localStorage.getItem('cpls_device_fingerprint')
+    if (stored) {
+      return stored
+    }
+
+    const nav = navigator as any
+    const screen = window.screen
+
+    // Collect browser characteristics
+    const components = [
+      nav.userAgent || '',
+      nav.language || '',
+      screen.colorDepth || '',
+      screen.width || '',
+      screen.height || '',
+      new Date().getTimezoneOffset() || '',
+      nav.hardwareConcurrency || '',
+      nav.deviceMemory || '',
+      nav.platform || '',
+      nav.vendor || '',
+      // Add canvas fingerprint
+      getCanvasFingerprint(),
+    ]
+
+    // Create hash-like string
+    const fingerprint = components.join('|')
+    let hash = 0
+
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32-bit integer
+    }
+
+    const deviceId = `fp_${Math.abs(hash).toString(36)}`
+
+    // Store in localStorage for consistency
+    localStorage.setItem('cpls_device_fingerprint', deviceId)
+    return deviceId
+  } catch (error) {
+    console.error('Error generating fingerprint:', error)
+    return 'fallback_' + Date.now().toString(36)
+  }
+}
+
+/**
+ * Generate canvas fingerprint for better device identification
+ */
+function getCanvasFingerprint(): string {
+  try {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) return 'no-canvas'
+
+    canvas.width = 200
+    canvas.height = 50
+
+    // Draw text with various styles
+    ctx.textBaseline = 'top'
+    ctx.font = '14px "Arial"'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = '#f60'
+    ctx.fillRect(125, 1, 62, 20)
+    ctx.fillStyle = '#069'
+    ctx.fillText('CPLS', 2, 15)
+    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)'
+    ctx.fillText('Device', 4, 17)
+
+    // Get canvas data
+    return canvas.toDataURL().slice(-50) // Last 50 chars
+  } catch (error) {
+    return 'canvas-error'
+  }
+}
+
+/**
  * Create session record in database
  */
-export async function createSessionRecord(userId: string, sessionToken: string): Promise<string | null> {
+export async function createSessionRecord(
+  userId: string,
+  sessionToken: string,
+  fingerprint?: string
+): Promise<string | null> {
   try {
     const deviceInfo = getDeviceInfo()
     const ipAddress = await getClientIP()
+
+    // Use provided fingerprint or generate new one
+    const deviceFingerprint = fingerprint || await getDeviceFingerprint()
 
     const { data, error } = await supabase
       .from('user_sessions')
@@ -104,7 +198,8 @@ export async function createSessionRecord(userId: string, sessionToken: string):
         os: deviceInfo.os,
         ip_address: ipAddress,
         user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+        fingerprint: deviceFingerprint,
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
       })
       .select('id')
       .single()
@@ -114,7 +209,7 @@ export async function createSessionRecord(userId: string, sessionToken: string):
       return null
     }
 
-    console.log('✅ Session record created:', data.id)
+    console.log('✅ Session record created:', data.id, '| Fingerprint:', deviceFingerprint.slice(0, 12) + '...')
     return data.id
   } catch (error) {
     console.error('Error in createSessionRecord:', error)

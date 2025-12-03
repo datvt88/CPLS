@@ -5,7 +5,7 @@ import AuthListener from '../components/AuthListener'
 import ConditionalLayout from '../components/ConditionalLayout'
 import AnalyticsScripts from '../components/AnalyticsScripts'
 import SupabaseConfigWarning from '../components/SupabaseConfigWarning'
-import SessionManager from '../components/SessionManager'
+import PersistentSessionManager from '../components/PersistentSessionManager'
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -81,7 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={roboto.variable}>
         <Providers>
           <SupabaseConfigWarning />
-          <SessionManager />
+          <PersistentSessionManager />
           <div className="bg-[--bg] text-white overflow-x-hidden">
             <AuthListener />
             <AnalyticsScripts />
