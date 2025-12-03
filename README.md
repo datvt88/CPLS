@@ -62,6 +62,66 @@ Open [http://localhost:3000](http://localhost:3000)
 - **UI**: TailwindCSS + Material-UI
 - **Auth**: Supabase Auth (Email/Password, Google OAuth, Phone)
 - **Charts**: Lightweight Charts
+- **Session**: Persistent sessions with device fingerprinting
+
+## ⏱️ Persistent Session Management
+
+The app uses **intelligent session management** that keeps users logged in on their existing browsers indefinitely, only logging out when necessary.
+
+### Key Features:
+- ✅ **Persistent login** on existing browsers (no re-login required)
+- ✅ **Device fingerprinting** for browser recognition
+- ✅ **3-day inactivity timeout** (automatic logout if no activity)
+- ✅ **90-day session lifetime** (maximum)
+- ✅ **Unlimited devices** (no device limit)
+- ✅ **Auto-refresh tokens** every 8 hours
+- ✅ **Activity tracking** (click, scroll, type, etc.)
+
+### How It Works:
+
+**Existing Browser:**
+- Login once → Stay logged in forever (until inactive 3+ days)
+- Close browser → Reopen → ✅ Still logged in
+- Works across browser restarts
+
+**New Browser/Device:**
+- Login creates new session
+- Does NOT logout other devices
+- All devices stay active
+
+**Inactivity Logout:**
+- No activity for 3+ days → Automatic logout
+- Activity = any click, scroll, type, mousemove
+
+### Quick Check:
+
+Run in browser console after login:
+```javascript
+getSessionInfo()
+```
+
+Output shows:
+```
+✓ Device fingerprint: fp_abc123xyz
+✓ Last activity: Just now
+✓ Days since activity: 0.00
+✓ Will logout at: [3 days from now]
+```
+
+### Configuration:
+
+**Supabase Dashboard:**
+1. Go to Settings → Authentication
+2. Set **JWT Expiry** to `28800` seconds (8 hours)
+3. Set **Refresh Token Expiry** to `7776000` seconds (90 days)
+
+**Adjust Inactivity Timeout:**
+See `components/PersistentSessionManager.tsx`:
+```typescript
+const INACTIVITY_TIMEOUT = 3 * 24 * 60 * 60 * 1000 // 3 days
+```
+
+📖 **Detailed guide**: [docs/PERSISTENT_SESSION_GUIDE.md](./docs/PERSISTENT_SESSION_GUIDE.md)
 
 ## 🐛 Troubleshooting
 
