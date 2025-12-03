@@ -296,7 +296,26 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           return null
         }
 
-        return data as GeminiAnalysis
+        // Ensure data has safe defaults for required properties
+        const safeData: GeminiAnalysis = {
+          shortTerm: data.shortTerm ? {
+            signal: data.shortTerm.signal || '',
+            confidence: data.shortTerm.confidence ?? 0,
+            summary: data.shortTerm.summary || ''
+          } : undefined,
+          longTerm: data.longTerm ? {
+            signal: data.longTerm.signal || '',
+            confidence: data.longTerm.confidence ?? 0,
+            summary: data.longTerm.summary || ''
+          } : undefined,
+          targetPrice: data.targetPrice,
+          stopLoss: data.stopLoss,
+          risks: Array.isArray(data.risks) ? data.risks : undefined,
+          opportunities: Array.isArray(data.opportunities) ? data.opportunities : undefined,
+          rawText: data.rawText
+        }
+
+        return safeData
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
         if (fetchError.name === 'AbortError') {
@@ -948,10 +967,10 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                     }`}>
                       {analysis.gemini.shortTerm.signal || 'N/A'}
                     </span>
-                    <span className="text-sm text-gray-400">{analysis.gemini.shortTerm.confidence}%</span>
+                    <span className="text-sm text-gray-400">{analysis.gemini.shortTerm.confidence ?? 0}%</span>
                   </div>
                 </div>
-                <p className="text-sm text-gray-300 leading-relaxed">{analysis.gemini.shortTerm.summary}</p>
+                <p className="text-sm text-gray-300 leading-relaxed">{analysis.gemini.shortTerm.summary || 'Đang phân tích...'}</p>
               </div>
             )}
 
@@ -967,10 +986,10 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                     }`}>
                       {analysis.gemini.longTerm.signal || 'N/A'}
                     </span>
-                    <span className="text-sm text-gray-400">{analysis.gemini.longTerm.confidence}%</span>
+                    <span className="text-sm text-gray-400">{analysis.gemini.longTerm.confidence ?? 0}%</span>
                   </div>
                 </div>
-                <p className="text-sm text-gray-300 leading-relaxed">{analysis.gemini.longTerm.summary}</p>
+                <p className="text-sm text-gray-300 leading-relaxed">{analysis.gemini.longTerm.summary || 'Đang phân tích...'}</p>
               </div>
             )}
           </div>
