@@ -943,10 +943,10 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                   <h5 className="font-semibold text-cyan-300">⚡ Ngắn hạn</h5>
                   <div className="flex items-center gap-2">
                     <span className={`px-3 py-1 rounded text-sm font-bold ${
-                      analysis.gemini.shortTerm.signal.includes('MUA') ? 'bg-green-600' :
-                      analysis.gemini.shortTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
+                      analysis.gemini.shortTerm.signal?.includes('MUA') ? 'bg-green-600' :
+                      analysis.gemini.shortTerm.signal?.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
                     }`}>
-                      {analysis.gemini.shortTerm.signal}
+                      {analysis.gemini.shortTerm.signal || 'N/A'}
                     </span>
                     <span className="text-sm text-gray-400">{analysis.gemini.shortTerm.confidence}%</span>
                   </div>
@@ -962,10 +962,10 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
                   <h5 className="font-semibold text-purple-300">🎯 Dài hạn</h5>
                   <div className="flex items-center gap-2">
                     <span className={`px-3 py-1 rounded text-sm font-bold ${
-                      analysis.gemini.longTerm.signal.includes('MUA') ? 'bg-green-600' :
-                      analysis.gemini.longTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
+                      analysis.gemini.longTerm.signal?.includes('MUA') ? 'bg-green-600' :
+                      analysis.gemini.longTerm.signal?.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
                     }`}>
-                      {analysis.gemini.longTerm.signal}
+                      {analysis.gemini.longTerm.signal || 'N/A'}
                     </span>
                     <span className="text-sm text-gray-400">{analysis.gemini.longTerm.confidence}%</span>
                   </div>
