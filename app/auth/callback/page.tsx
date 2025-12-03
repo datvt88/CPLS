@@ -10,6 +10,7 @@ export default function AuthCallbackPage() {
   const router = useRouter()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [progressMessage, setProgressMessage] = useState<string>('Đang kiểm tra phiên đăng nhập...')
 
   useEffect(() => {
     let mounted = true
@@ -29,17 +30,17 @@ export default function AuthCallbackPage() {
       }
     }
 
-    // Set a timeout to prevent hanging indefinitely
+    // Set a timeout to prevent hanging indefinitely (reduced from 15s to 8s)
     timeoutId = setTimeout(() => {
       if (mounted) {
-        console.error('❌ Auth callback timeout (15s) - redirecting to login')
+        console.error('❌ Auth callback timeout (8s) - redirecting to login')
         setStatus('error')
-        setErrorMessage('Xác thực hết thời gian chờ. Vui lòng kiểm tra:\n- Supabase đã được cấu hình đúng chưa?\n- Redirect URL có trong danh sách cho phép không?')
+        setErrorMessage('Xác thực hết thời gian chờ. Vui lòng thử lại.')
         setTimeout(() => {
           if (mounted) router.push('/login')
-        }, 3000)
+        }, 2000)
       }
-    }, 15000) // 15 second timeout
+    }, 8000) // 8 second timeout (reduced from 15s)
 
     runCallback()
 
@@ -51,32 +52,35 @@ export default function AuthCallbackPage() {
 
   const handleCallback = async () => {
     try {
-      console.log('🔍 Callback page loaded at', new Date().toISOString())
+      console.log('🔍 [Callback] Page loaded at', new Date().toISOString())
       console.log('URL:', window.location.href)
       console.log('Hash:', window.location.hash)
       console.log('Search:', window.location.search)
 
       // STEP 1: Check if Supabase already has a session (auto-restored from storage)
-      console.log('⏳ Checking for existing session...')
+      console.log('⏳ [Callback] Step 1: Checking for existing session...')
+      setProgressMessage('Đang kiểm tra phiên đăng nhập...')
+
       const { data: { session: existingSession }, error: sessionError } = await supabase.auth.getSession()
 
       if (sessionError) {
-        console.error('❌ Error getting session:', sessionError)
-        throw new Error(`Session error: ${sessionError.message}`)
+        console.error('❌ [Callback] Error getting session:', sessionError)
+        throw new Error(`Lỗi phiên đăng nhập: ${sessionError.message}`)
       }
 
       if (existingSession) {
-        console.log('✅ Found existing session:', existingSession.user.email)
-        console.log('Session expires at:', new Date(existingSession.expires_at || 0).toISOString())
+        console.log('✅ [Callback] Found existing session:', existingSession.user.email)
+        setProgressMessage('Đã tìm thấy phiên đăng nhập!')
         setStatus('success')
         setTimeout(() => {
-          console.log('🚀 Redirecting to dashboard...')
+          console.log('🚀 [Callback] Redirecting to dashboard...')
           router.push('/dashboard')
-        }, 1000)
+        }, 500) // Reduced from 1000ms to 500ms
         return
       }
 
-      console.log('ℹ️ No existing session found, checking OAuth parameters...')
+      console.log('ℹ️ [Callback] No existing session found, checking OAuth parameters...')
+      setProgressMessage('Đang xử lý xác thực...')
 
       // STEP 2: Check for Supabase OAuth hash fragments
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
@@ -107,41 +111,45 @@ export default function AuthCallbackPage() {
 
       // Handle Supabase OAuth (Google, etc.)
       if (accessToken) {
-        console.log('🔑 Processing Supabase OAuth (Google)')
+        console.log('🔑 [Callback] Processing Supabase OAuth (Google)')
+        setProgressMessage('Đang xác thực với Google...')
         await handleSupabaseOAuth(accessToken, refreshToken)
         return
       }
 
       // Handle Zalo OAuth - must have both code AND state
       if (code && state) {
-        console.log('🔑 Processing Zalo OAuth')
+        console.log('🔑 [Callback] Processing Zalo OAuth')
+        setProgressMessage('Đang xác thực với Zalo...')
         await handleZaloOAuth(code, queryError, urlParams)
         return
       }
 
       // Handle Zalo OAuth error
       if (queryError && state) {
-        throw new Error(`Zalo OAuth error: ${queryError}`)
+        throw new Error(`Lỗi Zalo OAuth: ${queryError}`)
       }
 
       // STEP 5: If no valid OAuth parameters, try to get session one more time
       // (Sometimes Supabase takes a moment to process the callback)
-      console.log('⏳ Waiting for Supabase to process callback...')
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      console.log('⏳ [Callback] Waiting for Supabase to process callback...')
+      setProgressMessage('Đang hoàn tất xác thực...')
+      await new Promise(resolve => setTimeout(resolve, 500)) // Reduced from 1000ms to 500ms
 
       const { data: { session: delayedSession } } = await supabase.auth.getSession()
 
       if (delayedSession) {
-        console.log('✅ Session established after delay')
+        console.log('✅ [Callback] Session established after delay')
+        setProgressMessage('Xác thực thành công!')
         setStatus('success')
         setTimeout(() => {
           router.push('/dashboard')
-        }, 500)
+        }, 300) // Reduced from 500ms to 300ms
         return
       }
 
       // No valid authentication found
-      console.error('❌ No valid authentication parameters found')
+      console.error('❌ [Callback] No valid authentication parameters found')
       throw new Error('Không tìm thấy thông tin xác thực. Vui lòng thử lại.')
 
     } catch (error) {
@@ -162,66 +170,64 @@ export default function AuthCallbackPage() {
    */
   const handleSupabaseOAuth = async (accessToken: string | null, refreshToken: string | null) => {
     try {
-      console.log('🔐 Setting up Supabase session...')
-      console.log('Has access token:', !!accessToken)
-      console.log('Has refresh token:', !!refreshToken)
+      console.log('🔐 [OAuth] Setting up Supabase session...')
+      setProgressMessage('Đang thiết lập phiên đăng nhập...')
 
       // Supabase client will automatically pick up the session from URL hash
       // We need to call setSession explicitly to ensure it's processed
       if (accessToken && refreshToken) {
-        console.log('⏳ Calling setSession with tokens...')
+        console.log('⏳ [OAuth] Calling setSession with tokens...')
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
         })
 
         if (error) {
-          console.error('❌ setSession error:', error)
+          console.error('❌ [OAuth] setSession error:', error)
           throw new Error(`Không thể tạo phiên đăng nhập: ${error.message}`)
         }
 
-        console.log('✅ Session set successfully:', data.session?.user.email)
+        console.log('✅ [OAuth] Session set successfully:', data.session?.user.email)
       } else {
-        console.warn('⚠️ Missing tokens - attempting to get existing session')
+        console.warn('⚠️ [OAuth] Missing tokens - attempting to get existing session')
       }
 
       // Get the current session
-      console.log('⏳ Getting current session...')
+      console.log('⏳ [OAuth] Getting current session...')
+      setProgressMessage('Đang xác nhận phiên đăng nhập...')
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
       if (sessionError) {
-        console.error('❌ getSession error:', sessionError)
+        console.error('❌ [OAuth] getSession error:', sessionError)
         throw new Error(`Lỗi OAuth: ${sessionError.message}`)
       }
 
       if (!session) {
-        console.error('❌ No session found after OAuth callback')
-        throw new Error('Không thể tạo phiên đăng nhập. Vui lòng kiểm tra cấu hình Supabase.')
+        console.error('❌ [OAuth] No session found after OAuth callback')
+        throw new Error('Không thể tạo phiên đăng nhập. Vui lòng thử lại.')
       }
 
-      console.log('✅ Google OAuth session established:', {
+      console.log('✅ [OAuth] Session established:', {
         user_id: session.user.id,
         email: session.user.email,
         provider: session.user.app_metadata.provider,
-        expires_at: new Date(session.expires_at || 0).toISOString(),
       })
 
       // Profile will be auto-created/updated by AuthListener component
       // and database trigger (handle_new_user function)
 
-      console.log('✅ Setting status to success')
+      console.log('✅ [OAuth] Setting status to success')
+      setProgressMessage('Đăng nhập thành công!')
       setStatus('success')
 
       // Clean up URL hash
-      console.log('🧹 Cleaning up URL hash...')
       window.history.replaceState({}, document.title, window.location.pathname)
 
-      // Redirect to dashboard
-      console.log('🚀 Redirecting to dashboard in 1.5s...')
+      // Redirect to dashboard (reduced delay from 1500ms to 500ms)
+      console.log('🚀 [OAuth] Redirecting to dashboard...')
       setTimeout(() => {
-        console.log('🔄 Executing redirect now...')
         router.push('/dashboard')
-      }, 1500)
+      }, 500)
     } catch (error) {
       console.error('❌ Supabase OAuth error:', error)
       console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
@@ -239,15 +245,16 @@ export default function AuthCallbackPage() {
     urlParams: URLSearchParams
   ) => {
     try {
-      console.log('🔐 Processing Zalo OAuth...')
+      console.log('🔐 [Zalo] Processing Zalo OAuth...')
+      setProgressMessage('Đang xác thực với Zalo...')
 
       // Check for OAuth errors
       if (error) {
-        throw new Error(`Zalo OAuth error: ${error}`)
+        throw new Error(`Lỗi Zalo OAuth: ${error}`)
       }
 
       if (!code) {
-        throw new Error('Không nhận được authorization code từ Zalo')
+        throw new Error('Không nhận được mã xác thực từ Zalo')
       }
 
       const state = urlParams.get('state')
@@ -255,20 +262,21 @@ export default function AuthCallbackPage() {
       // Verify CSRF state parameter
       const storedState = sessionStorage.getItem('zalo_oauth_state')
       if (state !== storedState) {
-        throw new Error('Invalid state parameter - possible CSRF attack')
+        throw new Error('Lỗi bảo mật - vui lòng thử lại')
       }
 
       // Get stored PKCE code verifier
       const codeVerifier = sessionStorage.getItem('zalo_code_verifier')
       if (!codeVerifier) {
-        throw new Error('Code verifier not found - possible session issue')
+        throw new Error('Phiên làm việc hết hạn - vui lòng thử lại')
       }
 
       // Clean up stored state and verifier
       sessionStorage.removeItem('zalo_oauth_state')
       sessionStorage.removeItem('zalo_code_verifier')
 
-      console.log('📤 Exchanging code for token...')
+      console.log('📤 [Zalo] Exchanging code for token...')
+      setProgressMessage('Đang lấy token xác thực...')
 
       // Step 1: Exchange authorization code for access token (server-side)
       const tokenResponse = await fetch('/api/auth/zalo/token', {
@@ -282,13 +290,14 @@ export default function AuthCallbackPage() {
 
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.json()
-        throw new Error(errorData.error || 'Failed to exchange authorization code')
+        throw new Error(errorData.error || 'Không thể lấy token từ Zalo')
       }
 
       const { access_token } = await tokenResponse.json()
-      console.log('✅ Token received')
+      console.log('✅ [Zalo] Token received')
 
-      console.log('👤 Fetching user info...')
+      console.log('👤 [Zalo] Fetching user info...')
+      setProgressMessage('Đang lấy thông tin người dùng...')
 
       // Step 2: Get user info from Zalo (server-side)
       const userResponse = await fetch('/api/auth/zalo/user', {
@@ -299,21 +308,21 @@ export default function AuthCallbackPage() {
 
       if (!userResponse.ok) {
         const errorData = await userResponse.json()
-        throw new Error(errorData.error || 'Failed to get user info from Zalo')
+        throw new Error(errorData.error || 'Không thể lấy thông tin từ Zalo')
       }
 
       const zaloUser = await userResponse.json()
 
-      console.log('✅ Zalo user data received:', {
+      console.log('✅ [Zalo] User data received:', {
         id: zaloUser.id,
         name: zaloUser.name,
-        has_picture: !!zaloUser.picture,
       })
 
       // Step 3: Create/sign in user with Supabase
       const pseudoEmail = `zalo_${zaloUser.id}@cpls.app`
 
-      console.log('🔐 Creating/signing in Supabase user...')
+      console.log('🔐 [Zalo] Creating/signing in Supabase user...')
+      setProgressMessage('Đang tạo phiên đăng nhập...')
 
       // Try to sign in first
       let session
@@ -341,10 +350,11 @@ export default function AuthCallbackPage() {
       }
 
       if (!session) {
-        throw new Error('Failed to create session')
+        throw new Error('Không thể tạo phiên đăng nhập')
       }
 
-      console.log('💾 Updating profile...')
+      console.log('💾 [Zalo] Updating profile...')
+      setProgressMessage('Đang cập nhật thông tin...')
 
       // Step 4: Create/update profile with Zalo data
       const { profile } = await profileService.getProfile(session.user.id)
@@ -383,12 +393,13 @@ export default function AuthCallbackPage() {
         })
       }
 
-      console.log('✅ Profile updated')
+      console.log('✅ [Zalo] Profile updated successfully')
+      setProgressMessage('Đăng nhập thành công!')
       setStatus('success')
 
       setTimeout(() => {
         router.push('/dashboard')
-      }, 1500)
+      }, 500) // Reduced from 1500ms to 500ms
     } catch (error) {
       console.error('❌ Zalo OAuth error:', error)
       throw error
@@ -425,7 +436,10 @@ export default function AuthCallbackPage() {
             <h2 className="text-xl font-semibold text-[--fg] mb-2">
               Đang xác thực...
             </h2>
-            <p className="text-[--muted]">Vui lòng đợi trong giây lát</p>
+            <p className="text-[--muted]">{progressMessage}</p>
+            <div className="mt-4 w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-[--accent] h-1.5 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+            </div>
           </>
         )}
 
@@ -475,8 +489,13 @@ export default function AuthCallbackPage() {
             <h2 className="text-xl font-semibold text-[--fg] mb-2">
               Đăng nhập thất bại
             </h2>
-            <p className="text-[--muted] mb-4">{errorMessage}</p>
-            <p className="text-sm text-[--muted]">Đang chuyển về trang đăng nhập...</p>
+            <p className="text-[--muted] mb-4 whitespace-pre-line">{errorMessage}</p>
+            <button
+              onClick={() => router.push('/login')}
+              className="w-full bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 transition-all rounded-lg p-3 text-black font-bold shadow-lg"
+            >
+              Thử lại
+            </button>
           </>
         )}
       </div>
