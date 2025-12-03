@@ -4,6 +4,7 @@ import { Providers } from '@/components/Providers'
 import AuthListener from '../components/AuthListener'
 import ConditionalLayout from '../components/ConditionalLayout'
 import AnalyticsScripts from '../components/AnalyticsScripts'
+import SupabaseConfigWarning from '../components/SupabaseConfigWarning'
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi">
       <body className={roboto.variable}>
         <Providers>
+          <SupabaseConfigWarning />
           <div className="bg-[--bg] text-white overflow-x-hidden">
             <AuthListener />
             <AnalyticsScripts />

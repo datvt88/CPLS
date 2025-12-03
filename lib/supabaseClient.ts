@@ -4,13 +4,35 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key'
 
-// Warn in development/runtime if env vars are missing
+// Validate environment variables
+const hasValidUrl = supabaseUrl && !supabaseUrl.includes('placeholder') && supabaseUrl.startsWith('https://')
+const hasValidKey = supabaseAnonKey && !supabaseAnonKey.includes('placeholder') && supabaseAnonKey.startsWith('eyJ')
+
+// Log warnings for missing/invalid env vars
 if (typeof window !== 'undefined') {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    console.error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
+  // Client-side validation
+  if (!hasValidUrl) {
+    console.error('❌ [Supabase] NEXT_PUBLIC_SUPABASE_URL is missing or invalid')
+    console.error('   Please check:')
+    console.error('   1. Vercel: Settings → Environment Variables')
+    console.error('   2. Local: Create .env.local file (see SETUP_INSTRUCTIONS.md)')
+    console.error('   3. After updating, redeploy or restart dev server')
   }
-  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    console.error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable')
+  if (!hasValidKey) {
+    console.error('❌ [Supabase] NEXT_PUBLIC_SUPABASE_ANON_KEY is missing or invalid')
+    console.error('   Expected JWT token starting with "eyJ"')
+  }
+
+  // Log success for debugging
+  if (hasValidUrl && hasValidKey) {
+    console.log('✅ [Supabase] Environment variables loaded successfully')
+  }
+} else {
+  // Server-side validation
+  if (!hasValidUrl || !hasValidKey) {
+    console.error('❌ [Supabase] Missing or invalid environment variables on server')
+    console.error('   URL valid:', hasValidUrl)
+    console.error('   Key valid:', hasValidKey)
   }
 }
 
@@ -114,6 +136,14 @@ class CookieStorage {
 
 // Create custom storage instance
 const cookieStorage = new CookieStorage('cpls-auth-token')
+
+// Export validation status for runtime checks
+export const supabaseConfig = {
+  isConfigured: hasValidUrl && hasValidKey,
+  hasValidUrl,
+  hasValidKey,
+  url: hasValidUrl ? supabaseUrl : null,
+}
 
 // Create singleton Supabase client with enhanced session persistence
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

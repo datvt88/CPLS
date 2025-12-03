@@ -125,6 +125,97 @@ CREATE TRIGGER update_profiles_updated_at
 npm run dev
 ```
 
+---
+
+## 🚀 Hướng dẫn cho Vercel Production (Quan trọng!)
+
+Nếu bạn đã deploy lên Vercel và gặp lỗi đăng nhập, làm theo hướng dẫn này:
+
+### 1. Truy cập Vercel Dashboard
+
+1. Đăng nhập vào https://vercel.com
+2. Chọn project của bạn (ví dụ: `cpls`)
+
+### 2. Cấu hình Environment Variables
+
+1. Vào **Settings** → **Environment Variables**
+2. Thêm các biến sau:
+
+| Variable Name | Value | Environment |
+|--------------|-------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxxx.supabase.co` | Production, Preview, Development |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOiJI...` (JWT token) | Production, Preview, Development |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGciOiJI...` (JWT token) | Production, Preview, Development |
+| `GEMINI_API_KEY` | Your Gemini key (optional) | Production only |
+
+**Quan trọng:**
+- Đánh dấu tất cả 3 environments: Production, Preview, Development
+- SUPABASE_SERVICE_ROLE_KEY rất nhạy cảm - chỉ dùng server-side
+
+### 3. Redeploy sau khi cập nhật
+
+**QUAN TRỌNG:** Vercel không tự động rebuild khi bạn thêm env vars!
+
+```bash
+# Option 1: Trigger redeploy từ Dashboard
+Deployments → ⋯ (menu) → Redeploy
+
+# Option 2: Từ Git
+git commit --allow-empty -m "Trigger redeploy"
+git push
+```
+
+### 4. Kiểm tra Environment Variables
+
+Truy cập: `https://your-app.vercel.app/api/health`
+
+**✅ Nếu thành công:**
+```json
+{
+  "status": "healthy",
+  "message": "All environment variables are configured correctly"
+}
+```
+
+**❌ Nếu lỗi:**
+```json
+{
+  "status": "unhealthy",
+  "message": "Environment variables are missing or invalid",
+  "troubleshooting": { ... }
+}
+```
+
+### 5. Cập nhật Redirect URLs
+
+Vào Supabase Dashboard → **Authentication** → **URL Configuration**
+
+Thêm production URL vào Redirect URLs:
+```
+https://your-app.vercel.app/auth/callback
+```
+
+### 6. Debugging trên Vercel
+
+Nếu vẫn lỗi:
+
+1. **Check Runtime Logs:**
+   - Vào Deployments → Chọn deployment
+   - Click "View Function Logs"
+   - Tìm dòng có `❌ [Supabase]`
+
+2. **Check Browser Console:**
+   - Mở https://your-app.vercel.app
+   - F12 → Console
+   - Nếu thấy "❌ [Supabase] NEXT_PUBLIC_SUPABASE_URL is missing"
+   → Env vars chưa được load, cần redeploy
+
+3. **Verify Build Logs:**
+   - Vào Deployments → Build Logs
+   - Kiểm tra có warning nào về env vars không
+
+---
+
 ## 🧪 Test kết nối
 
 Sau khi setup xong, test bằng cách:

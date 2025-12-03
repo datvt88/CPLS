@@ -69,24 +69,50 @@ Open [http://localhost:3000](http://localhost:3000)
 
 **Cause**: Missing or invalid Supabase credentials
 
-**Fix**:
+**Fix:**
+
+**For Local Development:**
 1. Run `npm run check-setup`
-2. Follow the error messages
-3. See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)
+2. Create `.env.local` file
+3. Add Supabase credentials
+4. See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md)
+
+**For Vercel Production:**
+1. Check `/api/health` endpoint: `https://your-app.vercel.app/api/health`
+2. If unhealthy, go to Vercel Dashboard → Settings → Environment Variables
+3. Add required environment variables
+4. **Redeploy** (Vercel doesn't auto-rebuild on env var changes!)
+5. See [Vercel setup guide](./SETUP_INSTRUCTIONS.md#-hướng-dẫn-cho-vercel-production-quan-trọng)
 
 ### "Missing NEXT_PUBLIC_SUPABASE_URL"
 
-**Cause**: `.env.local` file not created
+**Cause**: `.env.local` file not created (local) or env vars not set (Vercel)
 
-**Fix**:
+**Fix for Local:**
 ```bash
 cp .env.local.example .env.local
 # Then edit .env.local with real credentials
 ```
 
+**Fix for Vercel:**
+- Go to Vercel Dashboard → Settings → Environment Variables
+- Add all required variables
+- Redeploy the project
+
+### Red warning banner appears
+
+**Cause**: Supabase not configured properly
+
+**Fix:**
+1. Click "Xem chi tiết" to see health check
+2. Follow the troubleshooting steps
+3. Check `/api/health` for detailed status
+
 ### Other issues
 
-Check browser console (F12) for detailed error logs with emoji prefixes:
+**Check browser console (F12) for detailed logs:**
+- ✅ [Supabase] Environment variables loaded successfully
+- ❌ [Supabase] NEXT_PUBLIC_SUPABASE_URL is missing or invalid
 - 🔐 [Auth] - Authentication flow
 - 📱 [signin-phone API] - Phone lookup
 - ✅/❌ - Success/Error indicators
