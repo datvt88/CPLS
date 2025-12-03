@@ -14,6 +14,12 @@ const nextConfig = {
   // Production optimizations
   productionBrowserSourceMaps: false,
 
+  // Experimental features for Next.js 16
+  experimental: {
+    // Use system TLS certificates for Turbopack builds (fixes Google Fonts issue)
+    turbopackUseSystemTlsCerts: true,
+  },
+
   // Optional: Bundle analyzer (uncomment when needed)
   // webpack: (config, { isServer }) => {
   //   if (!isServer) {

@@ -9,7 +9,7 @@ const publicRoutes = [
   '/auth/callback',
 ]
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow public routes
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   const authToken = request.cookies.get('cpls-auth-token')
 
   if (!authToken) {
-    console.log('⚠️ Middleware: No auth cookie for:', pathname)
+    console.log('⚠️ Proxy: No auth cookie for:', pathname)
     // Don't redirect here - let components handle it
     // This prevents middleware/component conflicts
   }
