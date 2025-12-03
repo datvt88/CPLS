@@ -67,6 +67,7 @@ export function AuthForm() {
     }
 
     setLoading(true);
+    console.log(`🔐 [AuthForm] Starting ${mode} process...`);
 
     try {
       const sanitizedPhone = sanitizeInput(phoneNumber);
@@ -74,19 +75,26 @@ export function AuthForm() {
 
       if (mode === 'login') {
         // Login
-        const { error } = await authService.signInWithPhone({
+        console.log('📱 [AuthForm] Attempting phone login...');
+        const { data, error } = await authService.signInWithPhone({
           phoneNumber: sanitizedPhone,
           password: sanitizedPassword
         });
 
         if (error) {
+          console.error('❌ [AuthForm] Login failed:', error.message);
           setMessage(error.message);
-        } else {
+        } else if (data?.user) {
+          console.log('✅ [AuthForm] Login successful, redirecting to dashboard...');
           setMessage('Đăng nhập thành công!');
           setTimeout(() => router.push('/dashboard'), 1000);
+        } else {
+          console.error('❌ [AuthForm] No user data returned');
+          setMessage('Đăng nhập thất bại. Vui lòng thử lại.');
         }
       } else {
         // Register
+        console.log('📝 [AuthForm] Attempting registration...');
         const sanitizedEmail = sanitizeInput(email);
 
         const { data: signUpData, error: signUpError } = await authService.signUp({
@@ -95,12 +103,16 @@ export function AuthForm() {
         });
 
         if (signUpError) {
+          console.error('❌ [AuthForm] Registration failed:', signUpError.message);
           throw new Error(signUpError.message || 'Không thể tạo tài khoản');
         }
 
         if (!signUpData.user) {
+          console.error('❌ [AuthForm] No user data returned from signup');
           throw new Error('Không thể tạo tài khoản');
         }
+
+        console.log('✅ [AuthForm] User created, creating profile...');
 
         // Create profile
         await profileService.upsertProfile({
@@ -110,6 +122,8 @@ export function AuthForm() {
           full_name: fullName || 'User',
           membership: 'free',
         });
+
+        console.log('✅ [AuthForm] Profile created successfully');
 
         // Check if email confirmation is required
         const emailConfirmationRequired = !signUpData.session;
@@ -132,9 +146,12 @@ export function AuthForm() {
         }
       }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Có lỗi xảy ra');
+      console.error('❌ [AuthForm] Error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Có lỗi xảy ra';
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
+      console.log('🏁 [AuthForm] Process completed');
     }
   };
 
