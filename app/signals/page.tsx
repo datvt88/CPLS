@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
+import GoldenCrossWidget from '@/components/GoldenCrossWidget'
 
 function SignalsPageContent() {
   const router = useRouter()
@@ -188,7 +189,7 @@ function SignalsPageContent() {
   // Premium users see actual content
   return (
     <div className="min-h-screen bg-[--bg] p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header with Premium Badge */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -202,35 +203,14 @@ function SignalsPageContent() {
 
         {/* Premium Content */}
         <div className="grid gap-6">
-          {/* Coming Soon Notice */}
-          <div className="bg-blue-500/20 border border-blue-500/50 rounded-xl p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-500/30 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-blue-400 font-semibold text-lg mb-1">Tính năng đang được phát triển</h3>
-                <p className="text-[--muted] text-sm">
-                  Tín hiệu AI và phân tích chuyên sâu sẽ sớm có mặt. Cảm ơn bạn đã đồng hành cùng chúng tôi!
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Golden Cross Signals */}
+          <GoldenCrossWidget limit={15} autoRefresh={true} refreshInterval={300000} />
 
-          {/* Placeholder Content */}
+          {/* Additional signals sections can be added here */}
           <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-xl font-bold text-[--fg] mb-4">Tín hiệu hôm nay</h2>
+            <h2 className="text-xl font-bold text-[--fg] mb-4">Các tín hiệu khác</h2>
             <p className="text-[--muted]">
-              Hệ thống AI đang được huấn luyện để cung cấp các tín hiệu mua/bán chính xác nhất cho bạn.
-            </p>
-          </div>
-
-          <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-xl font-bold text-[--fg] mb-4">Phân tích kỹ thuật</h2>
-            <p className="text-[--muted]">
-              Các báo cáo phân tích kỹ thuật chi tiết với biểu đồ và chỉ báo sẽ được cập nhật sớm.
+              Thêm nhiều loại tín hiệu khác như Death Cross, RSI Oversold/Overbought, MACD Crossover, và Volume Breakout sẽ được cập nhật sớm.
             </p>
           </div>
         </div>
