@@ -148,7 +148,25 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           .then(geminiResult => {
             if (geminiResult) {
               console.log('✅ Gemini analysis completed for:', symbol)
-              setAnalysis(prev => prev ? { ...prev, gemini: geminiResult } : prev)
+              console.log('📊 Gemini data structure:', {
+                hasShortTerm: !!geminiResult.shortTerm,
+                hasLongTerm: !!geminiResult.longTerm,
+                shortTermSignal: geminiResult.shortTerm?.signal,
+                shortTermConfidence: geminiResult.shortTerm?.confidence,
+                shortTermSummary: geminiResult.shortTerm?.summary?.substring(0, 50),
+                longTermSignal: geminiResult.longTerm?.signal,
+                longTermConfidence: geminiResult.longTerm?.confidence,
+                longTermSummary: geminiResult.longTerm?.summary?.substring(0, 50)
+              })
+
+              try {
+                setAnalysis(prev => {
+                  if (!prev) return prev
+                  return { ...prev, gemini: geminiResult }
+                })
+              } catch (stateError) {
+                console.error('❌ Error setting Gemini state:', stateError)
+              }
             }
           })
           .catch(err => {
@@ -288,34 +306,52 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
           throw new Error(errorData.error || `Gemini API error: ${response.status}`)
         }
 
-        const data = await response.json()
+        let data
+        try {
+          data = await response.json()
+          console.log('📥 Gemini raw response:', JSON.stringify(data).substring(0, 200))
+        } catch (parseError) {
+          console.error('❌ Failed to parse Gemini JSON response:', parseError)
+          return null
+        }
 
         // Validate response structure
-        if (!data || (!data.shortTerm && !data.longTerm)) {
-          console.warn('Invalid Gemini response structure')
+        if (!data || typeof data !== 'object') {
+          console.warn('⚠️ Invalid Gemini response structure - not an object')
+          return null
+        }
+
+        if (!data.shortTerm && !data.longTerm) {
+          console.warn('⚠️ Invalid Gemini response structure - missing both shortTerm and longTerm')
           return null
         }
 
         // Ensure data has safe defaults for required properties
-        const safeData: GeminiAnalysis = {
-          shortTerm: data.shortTerm ? {
-            signal: data.shortTerm.signal || '',
-            confidence: data.shortTerm.confidence ?? 0,
-            summary: data.shortTerm.summary || ''
-          } : undefined,
-          longTerm: data.longTerm ? {
-            signal: data.longTerm.signal || '',
-            confidence: data.longTerm.confidence ?? 0,
-            summary: data.longTerm.summary || ''
-          } : undefined,
-          targetPrice: data.targetPrice,
-          stopLoss: data.stopLoss,
-          risks: Array.isArray(data.risks) ? data.risks : undefined,
-          opportunities: Array.isArray(data.opportunities) ? data.opportunities : undefined,
-          rawText: data.rawText
-        }
+        try {
+          const safeData: GeminiAnalysis = {
+            shortTerm: data.shortTerm && typeof data.shortTerm === 'object' ? {
+              signal: String(data.shortTerm.signal || ''),
+              confidence: Number(data.shortTerm.confidence ?? 0),
+              summary: String(data.shortTerm.summary || '')
+            } : undefined,
+            longTerm: data.longTerm && typeof data.longTerm === 'object' ? {
+              signal: String(data.longTerm.signal || ''),
+              confidence: Number(data.longTerm.confidence ?? 0),
+              summary: String(data.longTerm.summary || '')
+            } : undefined,
+            targetPrice: data.targetPrice ? String(data.targetPrice) : undefined,
+            stopLoss: data.stopLoss ? String(data.stopLoss) : undefined,
+            risks: Array.isArray(data.risks) ? data.risks.filter(r => r && typeof r === 'string') : undefined,
+            opportunities: Array.isArray(data.opportunities) ? data.opportunities.filter(o => o && typeof o === 'string') : undefined,
+            rawText: data.rawText ? String(data.rawText) : undefined
+          }
 
-        return safeData
+          console.log('✅ Gemini data sanitized successfully')
+          return safeData
+        } catch (sanitizeError) {
+          console.error('❌ Error sanitizing Gemini data:', sanitizeError)
+          return null
+        }
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
         if (fetchError.name === 'AbortError') {
@@ -951,7 +987,9 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
             </div>
           )}
 
-          {analysis.gemini && (
+          {analysis.gemini && (() => {
+            try {
+              return (
             <>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4">
@@ -1049,7 +1087,16 @@ export default function StockAIEvaluationWidget({ symbol }: StockAIEvaluationWid
             )}
           </div>
             </>
-          )}
+              )
+            } catch (renderError) {
+              console.error('❌ Error rendering Gemini analysis:', renderError)
+              return (
+                <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
+                  Không thể hiển thị phân tích AI. Vui lòng thử lại sau.
+                </div>
+              )
+            }
+          })()}
         </div>
       )}
     </div>
