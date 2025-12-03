@@ -10,10 +10,15 @@ import { createClient } from '@supabase/supabase-js'
  * Security: Returns email only, password verification happens client-side via Supabase Auth
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+
   try {
     const { phoneNumber } = await request.json()
 
+    console.log('📱 [signin-phone API] Received request for phone:', phoneNumber)
+
     if (!phoneNumber) {
+      console.error('❌ [signin-phone API] Missing phone number')
       return NextResponse.json(
         { error: 'Số điện thoại là bắt buộc' },
         { status: 400 }
@@ -25,7 +30,7 @@ export async function POST(request: NextRequest) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Supabase credentials not configured')
+      console.error('❌ [signin-phone API] Supabase credentials not configured')
       return NextResponse.json(
         { error: 'Server configuration error' },
         { status: 500 }
@@ -34,28 +39,53 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Look up user by phone number
+    console.log('🔍 [signin-phone API] Looking up phone in database...')
+
+    // Look up user by phone number with timeout (Supabase has built-in timeout)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('email')
       .eq('phone_number', phoneNumber)
       .single()
 
-    if (profileError || !profile) {
+    const elapsed = Date.now() - startTime
+
+    if (profileError) {
+      console.error(`❌ [signin-phone API] Query error (${elapsed}ms):`, profileError.message)
+
+      // Distinguish between "not found" and actual errors
+      if (profileError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Số điện thoại không tồn tại' },
+          { status: 404 }
+        )
+      }
+
+      return NextResponse.json(
+        { error: 'Lỗi truy vấn cơ sở dữ liệu' },
+        { status: 500 }
+      )
+    }
+
+    if (!profile) {
+      console.error(`❌ [signin-phone API] No profile found (${elapsed}ms)`)
       return NextResponse.json(
         { error: 'Số điện thoại không tồn tại' },
         { status: 404 }
       )
     }
 
+    console.log(`✅ [signin-phone API] Found email for phone (${elapsed}ms):`, profile.email)
+
     // Return email for client-side authentication
     return NextResponse.json({
       email: profile.email,
     })
   } catch (error) {
-    console.error('Error in phone lookup:', error)
+    const elapsed = Date.now() - startTime
+    console.error(`❌ [signin-phone API] Unexpected error (${elapsed}ms):`, error)
     return NextResponse.json(
-      { error: 'Đã có lỗi xảy ra' },
+      { error: 'Đã có lỗi xảy ra. Vui lòng thử lại.' },
       { status: 500 }
     )
   }

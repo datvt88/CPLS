@@ -40,9 +40,11 @@ export const authService = {
   async signIn({ email, password }: AuthCredentials) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
-    // Track device after successful login
+    // Track device after successful login (non-blocking)
     if (data.user && !error) {
-      await this.trackUserDevice(data.user.id)
+      this.trackUserDevice(data.user.id).catch(err => {
+        console.error('⚠️ Device tracking failed (non-critical):', err)
+      })
     }
 
     return { data, error }
@@ -54,32 +56,65 @@ export const authService = {
    */
   async signInWithPhone({ phoneNumber, password }: { phoneNumber: string; password: string }) {
     try {
-      // Lookup email by phone number
-      const response = await fetch('/api/auth/signin-phone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber }),
-      })
+      console.log('🔐 [Auth] Starting phone login for:', phoneNumber)
 
-      const data = await response.json()
+      // Lookup email by phone number with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
 
-      if (!response.ok) {
-        return { data: null, error: { message: data.error || 'Số điện thoại không tồn tại' } }
+      try {
+        const response = await fetch('/api/auth/signin-phone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber }),
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          console.error('❌ [Auth] Phone lookup failed:', data.error)
+          return { data: null, error: { message: data.error || 'Số điện thoại không tồn tại' } }
+        }
+
+        console.log('✅ [Auth] Phone lookup successful, email:', data.email)
+
+        // Sign in with the retrieved email
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: password,
+        })
+
+        if (error) {
+          console.error('❌ [Auth] Password verification failed:', error.message)
+          return { data: authData, error: { message: 'Số điện thoại hoặc mật khẩu không đúng' } }
+        }
+
+        console.log('✅ [Auth] Login successful for user:', authData.user?.id)
+
+        // Track device after successful login (non-blocking)
+        if (authData.user) {
+          this.trackUserDevice(authData.user.id).catch(err => {
+            console.error('⚠️ Device tracking failed (non-critical):', err)
+          })
+        }
+
+        return { data: authData, error: null }
+      } catch (fetchErr) {
+        clearTimeout(timeoutId)
+        if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+          console.error('❌ [Auth] Request timeout')
+          return {
+            data: null,
+            error: { message: 'Yêu cầu hết thời gian chờ. Vui lòng kiểm tra kết nối mạng.' }
+          }
+        }
+        throw fetchErr
       }
-
-      // Sign in with the retrieved email
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: password,
-      })
-
-      // Track device after successful login
-      if (authData.user && !error) {
-        await this.trackUserDevice(authData.user.id)
-      }
-
-      return { data: authData, error }
     } catch (err) {
+      console.error('❌ [Auth] Unexpected error:', err)
       return {
         data: null,
         error: { message: err instanceof Error ? err.message : 'Đã có lỗi xảy ra' }
