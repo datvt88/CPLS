@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient'
 import { deviceService } from './device.service'
+import { clearDeviceFingerprintCache } from '@/lib/session-manager'
 
 export interface AuthCredentials {
   email: string
@@ -188,11 +189,12 @@ export const authService = {
 
     const { error } = await supabase.auth.signOut()
 
-    // Clear device tracking after logout
+    // Clear device tracking and caches after logout
     if (user && !error) {
       const deviceId = deviceService.getOrCreateDeviceId()
       await deviceService.removeDevice(user.id, deviceId)
       deviceService.clearDeviceId()
+      clearDeviceFingerprintCache() // Clear fingerprint cache
     }
 
     return { error }

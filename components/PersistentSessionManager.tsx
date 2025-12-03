@@ -4,18 +4,19 @@ import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { createSessionRecord, updateSessionActivity, getDeviceFingerprint } from '@/lib/session-manager'
 
-const INACTIVITY_TIMEOUT = 3 * 24 * 60 * 60 * 1000 // 3 days in milliseconds
+const INACTIVITY_TIMEOUT = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
+const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 /**
  * PersistentSessionManager Component
  *
  * Manages long-lived sessions with the following rules:
- * 1. User stays logged in on their existing browsers (persistent)
+ * 1. User stays logged in for 30 days (persistent)
  * 2. Only logout when:
- *    - Login from a NEW device
- *    - No activity for 3+ days
- * 3. Refresh token valid for 90 days
- * 4. No device limit - all existing devices stay logged in
+ *    - No activity for 30+ days
+ *    - User manually logs out
+ * 3. Session valid for 30 days with auto-refresh
+ * 4. Max 3 devices - oldest device removed when limit reached
  */
 export default function PersistentSessionManager() {
   const refreshTimerRef = useRef<NodeJS.Timeout>()
@@ -55,11 +56,11 @@ export default function PersistentSessionManager() {
         console.log('✅ [PersistentSessionManager] Found existing session for this device')
         sessionIdRef.current = existingSession.id
 
-        // Check if inactive for > 3 days
+        // Check if inactive for > 30 days
         const lastActivity = new Date(existingSession.last_activity).getTime()
         const daysSinceActivity = (Date.now() - lastActivity) / (24 * 60 * 60 * 1000)
 
-        if (daysSinceActivity > 3) {
+        if (daysSinceActivity > 30) {
           console.log(`⏰ [PersistentSessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
           await handleInactivityLogout(existingSession.id)
           return
@@ -157,7 +158,7 @@ export default function PersistentSessionManager() {
         const timeSinceActivity = Date.now() - lastActivityRef.current
 
         if (timeSinceActivity > INACTIVITY_TIMEOUT) {
-          console.log('⏰ [PersistentSessionManager] Inactive for 3+ days - logging out')
+          console.log('⏰ [PersistentSessionManager] Inactive for 30+ days - logging out')
 
           if (sessionIdRef.current) {
             await handleInactivityLogout(sessionIdRef.current)
