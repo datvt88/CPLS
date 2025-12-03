@@ -1,5 +1,5 @@
 import { database } from '@/lib/firebaseClient'
-import { ref, get, set, push, query, orderByChild, equalTo, update } from 'firebase/database'
+import { ref, get, set, push, query, orderByChild, equalTo, update, Query, DatabaseReference } from 'firebase/database'
 
 export interface GoldenCrossStock {
   symbol: string
@@ -111,7 +111,7 @@ export async function saveBuyRecommendation(recommendation: Omit<StockRecommenda
 export async function getBuyRecommendations(status?: 'active' | 'completed' | 'stopped'): Promise<StockRecommendation[]> {
   try {
     const recommendationsRef = ref(database, 'buyRecommendations')
-    let recommendationsQuery = recommendationsRef
+    let recommendationsQuery: DatabaseReference | Query = recommendationsRef
 
     if (status) {
       recommendationsQuery = query(recommendationsRef, orderByChild('status'), equalTo(status))
