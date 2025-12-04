@@ -85,19 +85,29 @@ async function getClientIP(): Promise<string> {
   }
 }
 
+// Memory cache for device fingerprint (faster than localStorage)
+let cachedFingerprint: string | null = null
+
 /**
  * Generate device fingerprint for persistent device recognition
  * Used to identify same device across sessions
+ * Optimized with memory cache to avoid repeated computations
  */
 export async function getDeviceFingerprint(): Promise<string> {
   if (typeof window === 'undefined') {
     return 'server-side'
   }
 
+  // Return from memory cache if available (fastest)
+  if (cachedFingerprint) {
+    return cachedFingerprint
+  }
+
   try {
-    // Check if we have a stored fingerprint
+    // Check if we have a stored fingerprint in localStorage
     const stored = localStorage.getItem('cpls_device_fingerprint')
     if (stored) {
+      cachedFingerprint = stored // Cache in memory
       return stored
     }
 
@@ -132,12 +142,26 @@ export async function getDeviceFingerprint(): Promise<string> {
 
     const deviceId = `fp_${Math.abs(hash).toString(36)}`
 
-    // Store in localStorage for consistency
+    // Store in both localStorage and memory cache
     localStorage.setItem('cpls_device_fingerprint', deviceId)
+    cachedFingerprint = deviceId
+
     return deviceId
   } catch (error) {
     console.error('Error generating fingerprint:', error)
-    return 'fallback_' + Date.now().toString(36)
+    const fallback = 'fallback_' + Date.now().toString(36)
+    cachedFingerprint = fallback
+    return fallback
+  }
+}
+
+/**
+ * Clear cached fingerprint (call on logout)
+ */
+export function clearDeviceFingerprintCache(): void {
+  cachedFingerprint = null
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('cpls_device_fingerprint')
   }
 }
 
@@ -199,7 +223,7 @@ export async function createSessionRecord(
         ip_address: ipAddress,
         user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
         fingerprint: deviceFingerprint,
-        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
       })
       .select('id')
       .single()

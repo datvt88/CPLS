@@ -1,18 +1,10 @@
 import './globals.css'
-import { Roboto } from 'next/font/google'
 import { Providers } from '@/components/Providers'
 import AuthListener from '../components/AuthListener'
 import ConditionalLayout from '../components/ConditionalLayout'
 import AnalyticsScripts from '../components/AnalyticsScripts'
 import SupabaseConfigWarning from '../components/SupabaseConfigWarning'
 import PersistentSessionManager from '../components/PersistentSessionManager'
-
-const roboto = Roboto({
-  weight: ['300', '400', '500', '700'],
-  subsets: ['latin', 'vietnamese'],
-  display: 'swap',
-  variable: '--font-roboto',
-})
 
 export const metadata = {
   title: 'Cổ Phiếu Lướt Sóng - Nền Tảng Phân Tích Cổ Phiếu Thông Minh Với AI',
@@ -78,7 +70,15 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <body className={roboto.variable}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body style={{ fontFamily: 'Roboto, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
         <Providers>
           <SupabaseConfigWarning />
           <PersistentSessionManager />
