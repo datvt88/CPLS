@@ -134,12 +134,13 @@ export async function getGoldenCrossStocks(limit: number = 50): Promise<GoldenCr
       }
     }
 
-    // Filter stocks with Golden Cross (ma50 > ma200)
+    // Filter stocks with Golden Cross (ma10 > ma30)
+    // ma10 is fast MA, ma30 is slow MA - Golden Cross when fast > slow
     const goldenCrossStocks = stocks.filter(stock => {
-      return stock.ma50 && stock.ma200 && stock.ma50 > stock.ma200
+      return stock.ma50 && stock.ma200 && stock.ma200 > stock.ma50
     })
 
-    console.log(`Found ${goldenCrossStocks.length} stocks with Golden Cross signal out of ${stocks.length} total`)
+    console.log(`Found ${goldenCrossStocks.length} stocks with Golden Cross (ma10 > ma30) out of ${stocks.length} total`)
 
     // Sort by cross date (most recent first)
     goldenCrossStocks.sort((a, b) => {
