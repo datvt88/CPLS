@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
-import GoldenCrossWidget from '@/components/GoldenCrossWidget'
-import RecommendationsHistoryWidget from '@/components/RecommendationsHistoryWidget'
+import GoldenCrossSignalsWidget from '@/components/GoldenCrossSignalsWidget'
 
 function SignalsPageContent() {
   const router = useRouter()
@@ -194,30 +193,16 @@ function SignalsPageContent() {
         {/* Header with Premium Badge */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-[--fg] mb-2">Tín hiệu AI</h1>
-            <p className="text-[--muted]">Dành riêng cho nhà đầu tư cùng đồng hành (Invest Partner)</p>
+            <h1 className="text-3xl font-bold text-[--fg] mb-2">Tín hiệu</h1>
+            <p className="text-[--muted]">Danh sách mã cổ phiếu từ Firebase Realtime Database</p>
           </div>
           <span className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm font-semibold">
             ⭐ Premium
           </span>
         </div>
 
-        {/* Premium Content */}
-        <div className="grid gap-6">
-          {/* Widget 1: Golden Cross Signals */}
-          <GoldenCrossWidget limit={15} autoRefresh={true} refreshInterval={300000} />
-
-          {/* Widget 2: Recommendations History */}
-          <RecommendationsHistoryWidget />
-
-          {/* Additional signals sections can be added here */}
-          <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-xl font-bold text-[--fg] mb-4">Các tín hiệu khác</h2>
-            <p className="text-[--muted]">
-              Thêm nhiều loại tín hiệu khác như Death Cross, RSI Oversold/Overbought, MACD Crossover, và Volume Breakout sẽ được cập nhật sớm.
-            </p>
-          </div>
-        </div>
+        {/* Premium Content - Simple Stock List */}
+        <GoldenCrossSignalsWidget />
       </div>
     </div>
   )
