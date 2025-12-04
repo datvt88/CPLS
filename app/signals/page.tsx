@@ -49,8 +49,8 @@ export default function SignalsPage() {
 
   // Show signals for all users (logged in, free, premium, anonymous)
   return (
-    <div className="min-h-screen bg-[--bg] p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[--bg] p-3 md:p-6">
+      <div className="w-full mx-auto">
         {/* Header with membership badge */}
         <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
           <div>

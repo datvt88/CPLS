@@ -19,18 +19,19 @@ let cachedData: { data: StockData[]; timestamp: number } | null = null
 // Memoized stock row component for better rendering performance
 const StockRow = memo(({ stock, formatNumber }: { stock: StockData; formatNumber: (num: number | undefined) => string }) => (
   <tr className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors">
-    <td className="py-3 px-4">
-      <span className="font-bold text-white">{stock.ticker}</span>
+    <td className="py-2 md:py-3 px-2 md:px-4">
+      <span className="font-bold text-white whitespace-nowrap">{stock.ticker}</span>
     </td>
-    <td className="py-3 px-4 text-right text-green-400 font-semibold">
+    <td className="py-2 md:py-3 px-2 md:px-4 text-right text-green-400 font-semibold whitespace-nowrap">
       {formatNumber(stock.ma30)}
     </td>
-    <td className="py-3 px-4 text-yellow-400">
-      <span className="inline-flex items-center gap-2">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+    <td className="py-2 md:py-3 px-2 md:px-4 text-yellow-400">
+      <span className="inline-flex items-center gap-1 md:gap-2">
+        <svg className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
         </svg>
-        Golden Cross (5 phiên)
+        <span className="hidden sm:inline">Golden Cross (5 phiên)</span>
+        <span className="sm:hidden">GC (5p)</span>
       </span>
     </td>
   </tr>
@@ -152,31 +153,33 @@ function GoldenCrossSignalsWidget() {
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-      <div className="mb-6">
-        <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+    <div className="bg-[--panel] rounded-xl p-4 md:p-6 border border-gray-800 w-full">
+      <div className="mb-4 md:mb-6">
+        <h3 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
           📊 Danh sách mã cổ phiếu
         </h3>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-400 text-xs md:text-sm mt-1">
           {stocks.length} mã cổ phiếu từ Firebase Realtime Database
         </p>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-700">
-              <th className="text-left py-3 px-4 font-semibold text-gray-300">Mã cổ phiếu</th>
-              <th className="text-right py-3 px-4 font-semibold text-gray-300">Vùng Mua</th>
-              <th className="text-left py-3 px-4 font-semibold text-gray-300">Tín hiệu</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stocks.map((stock) => (
-              <StockRow key={stock.ticker} stock={stock} formatNumber={formatNumber} />
-            ))}
-          </tbody>
-        </table>
+      <div className="overflow-x-auto -mx-4 md:mx-0">
+        <div className="inline-block min-w-full align-middle">
+          <table className="min-w-full text-xs md:text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-2 md:py-3 px-2 md:px-4 font-semibold text-gray-300 whitespace-nowrap">Mã cổ phiếu</th>
+                <th className="text-right py-2 md:py-3 px-2 md:px-4 font-semibold text-gray-300 whitespace-nowrap">Vùng Mua</th>
+                <th className="text-left py-2 md:py-3 px-2 md:px-4 font-semibold text-gray-300 whitespace-nowrap">Tín hiệu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stocks.map((stock) => (
+                <StockRow key={stock.ticker} stock={stock} formatNumber={formatNumber} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
