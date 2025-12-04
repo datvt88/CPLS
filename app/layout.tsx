@@ -59,12 +59,13 @@ export const metadata = {
       'zalo-platform-site-verification': 'FyJcAj-pL2y9k-C7oerBNZgdwddMqJmlDZWp',
     },
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 5,
-  },
   category: 'finance',
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
