@@ -1,49 +1,98 @@
-import { database } from '@/lib/firebaseClient'
-import { ref, get, set, push, query, orderByChild, equalTo, update, Query, DatabaseReference } from 'firebase/database'
+import { getDatabase, ref, get, Database } from 'firebase/database'
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 
 export interface GoldenCrossStock {
-  symbol: string
-  date: string
-  ma10: number
-  ma30: number
-  price: number
-  volume: number
+  ticker: string
+  name?: string
   crossDate?: string
+  ma50?: number
+  ma200?: number
+  price?: number
+  volume?: number
+  marketCap?: number
+  sector?: string
+  lastUpdated?: string
 }
 
-export interface StockRecommendation {
-  id?: string
-  symbol: string
-  recommendedPrice: number
-  currentPrice: number
-  targetPrice?: string
-  stopLoss?: string
-  confidence: number
-  aiSignal: 'MUA' | 'BÁN' | 'NẮM GIỮ'
-  technicalAnalysis: string[]
-  fundamentalAnalysis: string[]
-  risks: string[]
-  opportunities: string[]
-  createdAt: string
-  status: 'active' | 'completed' | 'stopped'
-}
+let goldenCrossApp: FirebaseApp | null = null
+let goldenCrossDatabase: Database | null = null
 
-export interface PerformanceMetrics {
-  totalRecommendations: number
-  profitableCount: number
-  lossCount: number
-  avgReturn: number
-  bestReturn: number
-  worstReturn: number
-  winRate: number
+/**
+ * Initialize Firebase app for Golden Cross data
+ * Uses environment variables or fallback to default Firebase project
+ */
+function initGoldenCrossFirebase(): Database {
+  if (goldenCrossDatabase) {
+    return goldenCrossDatabase
+  }
+
+  // Try to use custom Firebase config first
+  const customFirebaseUrl = process.env.FIREBASE_URL || process.env.NEXT_PUBLIC_FIREBASE_URL
+
+  // Check if app already exists
+  const existingApps = getApps()
+
+  // If custom Firebase URL is provided, use it
+  if (customFirebaseUrl) {
+    const existingApp = existingApps.find(app => app.name === 'golden-cross-db')
+
+    if (existingApp) {
+      goldenCrossApp = existingApp
+    } else {
+      // Create config with custom URL
+      // Note: Firebase SDK requires at least apiKey and projectId
+      const config: any = {
+        apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDB3e7EIk8cZEtKsEdfZza0hSIAMmvFRQ4', // Fallback to default
+        databaseURL: customFirebaseUrl,
+        projectId: process.env.FIREBASE_PROJECT_ID || 'wp-realtime-chat-cpls', // Fallback to default
+      }
+
+      try {
+        goldenCrossApp = initializeApp(config, 'golden-cross-db')
+      } catch (error) {
+        console.error('Error initializing custom Firebase:', error)
+        // Fallback to default app
+        goldenCrossApp = existingApps[0] || null
+      }
+    }
+  } else {
+    // Use default Firebase app (wp-realtime-chat-cpls)
+    console.log('Using default Firebase app for Golden Cross data')
+    goldenCrossApp = existingApps[0] || null
+
+    if (!goldenCrossApp) {
+      // Initialize default Firebase app
+      const defaultConfig = {
+        apiKey: 'AIzaSyDB3e7EIk8cZEtKsEdfZza0hSIAMmvFRQ4',
+        authDomain: 'wp-realtime-chat-cpls.firebaseapp.com',
+        databaseURL: 'https://wp-realtime-chat-cpls-default-rtdb.asia-southeast1.firebasedatabase.app',
+        projectId: 'wp-realtime-chat-cpls',
+        storageBucket: 'wp-realtime-chat-cpls.appspot.com',
+        messagingSenderId: '234321083134',
+        appId: '1:234321083134:web:c3b5816f0f5627a80683af',
+      }
+      goldenCrossApp = initializeApp(defaultConfig)
+    }
+  }
+
+  if (!goldenCrossApp) {
+    throw new Error('Failed to initialize Firebase app for Golden Cross')
+  }
+
+  goldenCrossDatabase = getDatabase(goldenCrossApp)
+  return goldenCrossDatabase
 }
 
 /**
- * Fetch golden cross stocks from Firebase
+ * Fetch list of stocks with Golden Cross signal from Firebase
+ * @param limit - Maximum number of stocks to return
+ * @returns Array of Golden Cross stocks
  */
-export async function getGoldenCrossStocks(): Promise<GoldenCrossStock[]> {
+export async function getGoldenCrossStocks(limit: number = 50): Promise<GoldenCrossStock[]> {
   try {
+    const database = initGoldenCrossFirebase()
     const goldenCrossRef = ref(database, 'goldenCross')
+
     const snapshot = await get(goldenCrossRef)
 
     if (!snapshot.exists()) {
@@ -54,239 +103,125 @@ export async function getGoldenCrossStocks(): Promise<GoldenCrossStock[]> {
     const data = snapshot.val()
     const stocks: GoldenCrossStock[] = []
 
-    Object.keys(data).forEach(symbol => {
-      const stockData = data[symbol]
-      if (stockData && typeof stockData === 'object') {
-        stocks.push({
-          symbol,
-          date: stockData.date || new Date().toISOString(),
-          ma10: stockData.ma10 || 0,
-          ma30: stockData.ma30 || 0,
-          price: stockData.price || 0,
-          volume: stockData.volume || 0,
-          crossDate: stockData.crossDate
-        })
+    // Convert Firebase object to array
+    if (typeof data === 'object') {
+      for (const key in data) {
+        const stock = data[key]
+        if (stock && typeof stock === 'object') {
+          stocks.push({
+            ticker: stock.ticker || key,
+            name: stock.name,
+            crossDate: stock.crossDate,
+            ma50: stock.ma50,
+            ma200: stock.ma200,
+            price: stock.price,
+            volume: stock.volume,
+            marketCap: stock.marketCap,
+            sector: stock.sector,
+            lastUpdated: stock.lastUpdated,
+          })
+        }
       }
+    }
+
+    // Sort by cross date (most recent first)
+    stocks.sort((a, b) => {
+      const dateA = a.crossDate ? new Date(a.crossDate).getTime() : 0
+      const dateB = b.crossDate ? new Date(b.crossDate).getTime() : 0
+      return dateB - dateA
     })
 
-    // Sort by date descending (newest first)
-    stocks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-    console.log(`📊 Fetched ${stocks.length} golden cross stocks from Firebase`)
-    return stocks
+    // Return limited results
+    return stocks.slice(0, limit)
   } catch (error) {
-    console.error('Error fetching golden cross stocks:', error)
+    console.error('Error fetching golden cross stocks from Firebase:', error)
     throw error
   }
 }
 
 /**
- * Save a buy recommendation to Firebase
+ * Fetch a specific stock's Golden Cross data
+ * @param ticker - Stock ticker symbol
+ * @returns Golden Cross stock data or null if not found
  */
-export async function saveBuyRecommendation(recommendation: Omit<StockRecommendation, 'id' | 'createdAt' | 'status'>): Promise<string> {
+export async function getGoldenCrossStock(ticker: string): Promise<GoldenCrossStock | null> {
   try {
-    const recommendationsRef = ref(database, 'buyRecommendations')
-    const newRecommendationRef = push(recommendationsRef)
+    const database = initGoldenCrossFirebase()
+    const stockRef = ref(database, `goldenCross/${ticker}`)
 
-    const fullRecommendation: StockRecommendation = {
-      ...recommendation,
-      createdAt: new Date().toISOString(),
-      status: 'active'
-    }
-
-    await set(newRecommendationRef, fullRecommendation)
-
-    const id = newRecommendationRef.key || ''
-    console.log(`✅ Saved buy recommendation for ${recommendation.symbol} with ID: ${id}`)
-    return id
-  } catch (error) {
-    console.error('Error saving buy recommendation:', error)
-    throw error
-  }
-}
-
-/**
- * Get all buy recommendations
- */
-export async function getBuyRecommendations(status?: 'active' | 'completed' | 'stopped'): Promise<StockRecommendation[]> {
-  try {
-    const recommendationsRef = ref(database, 'buyRecommendations')
-    let recommendationsQuery: DatabaseReference | Query = recommendationsRef
-
-    if (status) {
-      recommendationsQuery = query(recommendationsRef, orderByChild('status'), equalTo(status))
-    }
-
-    const snapshot = await get(recommendationsQuery)
+    const snapshot = await get(stockRef)
 
     if (!snapshot.exists()) {
-      console.log('No buy recommendations found')
-      return []
+      return null
     }
 
     const data = snapshot.val()
-    const recommendations: StockRecommendation[] = []
-
-    Object.keys(data).forEach(key => {
-      const rec = data[key]
-      recommendations.push({
-        id: key,
-        ...rec
-      })
-    })
-
-    // Sort by created date descending
-    recommendations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-    console.log(`📊 Fetched ${recommendations.length} buy recommendations`)
-    return recommendations
-  } catch (error) {
-    console.error('Error fetching buy recommendations:', error)
-    throw error
-  }
-}
-
-/**
- * Update recommendation status and current price
- */
-export async function updateRecommendationStatus(
-  id: string,
-  currentPrice: number,
-  status?: 'active' | 'completed' | 'stopped'
-): Promise<void> {
-  try {
-    const recommendationRef = ref(database, `buyRecommendations/${id}`)
-    const updates: any = {
-      currentPrice,
-      lastUpdated: new Date().toISOString()
-    }
-
-    if (status) {
-      updates.status = status
-    }
-
-    await update(recommendationRef, updates)
-    console.log(`✅ Updated recommendation ${id}`)
-  } catch (error) {
-    console.error('Error updating recommendation:', error)
-    throw error
-  }
-}
-
-/**
- * Calculate performance metrics for all recommendations
- */
-export async function calculatePerformanceMetrics(): Promise<PerformanceMetrics> {
-  try {
-    const recommendations = await getBuyRecommendations()
-
-    if (recommendations.length === 0) {
-      return {
-        totalRecommendations: 0,
-        profitableCount: 0,
-        lossCount: 0,
-        avgReturn: 0,
-        bestReturn: 0,
-        worstReturn: 0,
-        winRate: 0
-      }
-    }
-
-    let profitableCount = 0
-    let lossCount = 0
-    let totalReturn = 0
-    let bestReturn = -Infinity
-    let worstReturn = Infinity
-
-    recommendations.forEach(rec => {
-      const returnPercent = ((rec.currentPrice - rec.recommendedPrice) / rec.recommendedPrice) * 100
-      totalReturn += returnPercent
-
-      if (returnPercent > 0) {
-        profitableCount++
-      } else if (returnPercent < 0) {
-        lossCount++
-      }
-
-      if (returnPercent > bestReturn) {
-        bestReturn = returnPercent
-      }
-
-      if (returnPercent < worstReturn) {
-        worstReturn = returnPercent
-      }
-    })
-
-    const avgReturn = totalReturn / recommendations.length
-    const winRate = (profitableCount / recommendations.length) * 100
-
     return {
-      totalRecommendations: recommendations.length,
-      profitableCount,
-      lossCount,
-      avgReturn,
-      bestReturn: bestReturn === -Infinity ? 0 : bestReturn,
-      worstReturn: worstReturn === Infinity ? 0 : worstReturn,
-      winRate
+      ticker: data.ticker || ticker,
+      name: data.name,
+      crossDate: data.crossDate,
+      ma50: data.ma50,
+      ma200: data.ma200,
+      price: data.price,
+      volume: data.volume,
+      marketCap: data.marketCap,
+      sector: data.sector,
+      lastUpdated: data.lastUpdated,
     }
   } catch (error) {
-    console.error('Error calculating performance metrics:', error)
-    throw error
+    console.error(`Error fetching golden cross data for ${ticker}:`, error)
+    return null
   }
 }
 
 /**
- * Update all active recommendations with current market prices
+ * Get statistics about Golden Cross stocks
  */
-export async function updateAllRecommendationsWithCurrentPrices(): Promise<void> {
+export async function getGoldenCrossStats(): Promise<{
+  totalStocks: number
+  averageMA50: number
+  averageMA200: number
+  sectors: Record<string, number>
+}> {
   try {
-    const activeRecommendations = await getBuyRecommendations('active')
+    const stocks = await getGoldenCrossStocks(1000)
 
-    console.log(`Updating ${activeRecommendations.length} active recommendations with current prices`)
+    const stats = {
+      totalStocks: stocks.length,
+      averageMA50: 0,
+      averageMA200: 0,
+      sectors: {} as Record<string, number>,
+    }
 
-    const updatePromises = activeRecommendations.map(async rec => {
-      try {
-        // Fetch current price from VNDirect API
-        const response = await fetch(`/api/vndirect/prices?symbol=${rec.symbol}&days=1`)
+    if (stocks.length === 0) {
+      return stats
+    }
 
-        if (!response.ok) {
-          console.warn(`Failed to fetch price for ${rec.symbol}`)
-          return
-        }
+    let ma50Sum = 0
+    let ma200Sum = 0
+    let ma50Count = 0
+    let ma200Count = 0
 
-        const data = await response.json()
-
-        if (data.data && data.data.length > 0) {
-          const currentPrice = data.data[0].adClose
-
-          // Auto-update status if stop loss or target reached
-          let newStatus: 'active' | 'completed' | 'stopped' = rec.status
-
-          if (rec.stopLoss) {
-            const stopLossPrice = parseFloat(rec.stopLoss.replace(/,/g, ''))
-            if (currentPrice <= stopLossPrice) {
-              newStatus = 'stopped'
-            }
-          }
-
-          if (rec.targetPrice) {
-            const targetPrice = parseFloat(rec.targetPrice.replace(/,/g, '').split('-')[0])
-            if (currentPrice >= targetPrice) {
-              newStatus = 'completed'
-            }
-          }
-
-          await updateRecommendationStatus(rec.id!, currentPrice, newStatus)
-        }
-      } catch (error) {
-        console.error(`Error updating price for ${rec.symbol}:`, error)
+    stocks.forEach(stock => {
+      if (stock.ma50) {
+        ma50Sum += stock.ma50
+        ma50Count++
+      }
+      if (stock.ma200) {
+        ma200Sum += stock.ma200
+        ma200Count++
+      }
+      if (stock.sector) {
+        stats.sectors[stock.sector] = (stats.sectors[stock.sector] || 0) + 1
       }
     })
 
-    await Promise.all(updatePromises)
-    console.log('✅ Finished updating all active recommendations')
+    stats.averageMA50 = ma50Count > 0 ? ma50Sum / ma50Count : 0
+    stats.averageMA200 = ma200Count > 0 ? ma200Sum / ma200Count : 0
+
+    return stats
   } catch (error) {
-    console.error('Error updating recommendations with current prices:', error)
+    console.error('Error calculating golden cross stats:', error)
     throw error
   }
 }

@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
-import GoldenCrossSignalsWidget from '@/components/GoldenCrossSignalsWidget'
-import RecommendationsPerformanceWidget from '@/components/RecommendationsPerformanceWidget'
+import GoldenCrossWidget from '@/components/GoldenCrossWidget'
 
 function SignalsPageContent() {
   const router = useRouter()
@@ -204,28 +203,16 @@ function SignalsPageContent() {
 
         {/* Premium Content */}
         <div className="grid gap-6">
-          {/* Info Banner */}
-          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/50 rounded-xl p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-500/30 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-purple-300 font-semibold text-lg mb-1">Tín hiệu Golden Cross AI</h3>
-                <p className="text-[--muted] text-sm">
-                  Hệ thống AI tự động phân tích và đánh giá các cổ phiếu xuất hiện tín hiệu Golden Cross, kết hợp phân tích kỹ thuật và cơ bản để đưa ra khuyến nghị chính xác.
-                </p>
-              </div>
-            </div>
+          {/* Golden Cross Signals */}
+          <GoldenCrossWidget limit={15} autoRefresh={true} refreshInterval={300000} />
+
+          {/* Additional signals sections can be added here */}
+          <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
+            <h2 className="text-xl font-bold text-[--fg] mb-4">Các tín hiệu khác</h2>
+            <p className="text-[--muted]">
+              Thêm nhiều loại tín hiệu khác như Death Cross, RSI Oversold/Overbought, MACD Crossover, và Volume Breakout sẽ được cập nhật sớm.
+            </p>
           </div>
-
-          {/* Golden Cross Signals Widget */}
-          <GoldenCrossSignalsWidget />
-
-          {/* Recommendations Performance Widget */}
-          <RecommendationsPerformanceWidget />
         </div>
       </div>
     </div>
