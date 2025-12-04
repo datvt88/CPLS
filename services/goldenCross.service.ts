@@ -19,40 +19,64 @@ let goldenCrossDatabase: Database | null = null
 
 /**
  * Initialize Firebase app for Golden Cross data
- * Uses FIREBASE_URL and FIREBASE_SECRET from environment variables
+ * Uses environment variables or fallback to default Firebase project
  */
 function initGoldenCrossFirebase(): Database {
   if (goldenCrossDatabase) {
     return goldenCrossDatabase
   }
 
-  const firebaseUrl = process.env.FIREBASE_URL || process.env.NEXT_PUBLIC_FIREBASE_URL
-  const firebaseSecret = process.env.FIREBASE_SECRET
-
-  if (!firebaseUrl) {
-    throw new Error('FIREBASE_URL is not configured')
-  }
+  // Try to use custom Firebase config first
+  const customFirebaseUrl = process.env.FIREBASE_URL || process.env.NEXT_PUBLIC_FIREBASE_URL
 
   // Check if app already exists
   const existingApps = getApps()
-  const existingApp = existingApps.find(app => app.name === 'golden-cross-db')
 
-  if (existingApp) {
-    goldenCrossApp = existingApp
-  } else {
-    // Initialize new Firebase app for Golden Cross data
-    const config: any = {
-      databaseURL: firebaseUrl,
-    }
+  // If custom Firebase URL is provided, use it
+  if (customFirebaseUrl) {
+    const existingApp = existingApps.find(app => app.name === 'golden-cross-db')
 
-    // If secret is provided, it will be used for authentication
-    if (firebaseSecret) {
-      config.databaseAuthVariableOverride = {
-        uid: 'golden-cross-service',
+    if (existingApp) {
+      goldenCrossApp = existingApp
+    } else {
+      // Create config with custom URL
+      // Note: Firebase SDK requires at least apiKey and projectId
+      const config: any = {
+        apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDB3e7EIk8cZEtKsEdfZza0hSIAMmvFRQ4', // Fallback to default
+        databaseURL: customFirebaseUrl,
+        projectId: process.env.FIREBASE_PROJECT_ID || 'wp-realtime-chat-cpls', // Fallback to default
+      }
+
+      try {
+        goldenCrossApp = initializeApp(config, 'golden-cross-db')
+      } catch (error) {
+        console.error('Error initializing custom Firebase:', error)
+        // Fallback to default app
+        goldenCrossApp = existingApps[0] || null
       }
     }
+  } else {
+    // Use default Firebase app (wp-realtime-chat-cpls)
+    console.log('Using default Firebase app for Golden Cross data')
+    goldenCrossApp = existingApps[0] || null
 
-    goldenCrossApp = initializeApp(config, 'golden-cross-db')
+    if (!goldenCrossApp) {
+      // Initialize default Firebase app
+      const defaultConfig = {
+        apiKey: 'AIzaSyDB3e7EIk8cZEtKsEdfZza0hSIAMmvFRQ4',
+        authDomain: 'wp-realtime-chat-cpls.firebaseapp.com',
+        databaseURL: 'https://wp-realtime-chat-cpls-default-rtdb.asia-southeast1.firebasedatabase.app',
+        projectId: 'wp-realtime-chat-cpls',
+        storageBucket: 'wp-realtime-chat-cpls.appspot.com',
+        messagingSenderId: '234321083134',
+        appId: '1:234321083134:web:c3b5816f0f5627a80683af',
+      }
+      goldenCrossApp = initializeApp(defaultConfig)
+    }
+  }
+
+  if (!goldenCrossApp) {
+    throw new Error('Failed to initialize Firebase app for Golden Cross')
   }
 
   goldenCrossDatabase = getDatabase(goldenCrossApp)

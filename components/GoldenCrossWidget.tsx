@@ -201,9 +201,42 @@ export default function GoldenCrossWidget({
         </Box>
 
         {stocks.length === 0 ? (
-          <Alert severity="info">
-            Chưa có tín hiệu Golden Cross nào. Hệ thống sẽ tự động cập nhật khi có tín hiệu mới.
-          </Alert>
+          <Box>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2" fontWeight="medium" gutterBottom>
+                📊 Chưa có dữ liệu Golden Cross
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                Chưa có cổ phiếu nào có tín hiệu Golden Cross trong hệ thống.
+                Điều này có thể do:
+              </Typography>
+              <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                <li>Chưa có dữ liệu trong Firebase Realtime Database</li>
+                <li>Chưa có cổ phiếu nào đáp ứng điều kiện Golden Cross</li>
+                <li>Hệ thống chưa được cấu hình đầy đủ</li>
+              </Box>
+            </Alert>
+
+            <Alert severity="warning">
+              <Typography variant="body2" fontWeight="medium" gutterBottom>
+                🔧 Để test tính năng:
+              </Typography>
+              <Typography variant="body2" component="div">
+                1. Truy cập{' '}
+                <Link
+                  href="/admin/golden-cross"
+                  style={{ color: '#3b82f6', textDecoration: 'underline' }}
+                >
+                  Admin Panel
+                </Link>
+                {' '}để seed dữ liệu demo
+                <br />
+                2. Click nút "Seed Demo Data" để thêm 10 cổ phiếu mẫu
+                <br />
+                3. Quay lại trang này để xem kết quả
+              </Typography>
+            </Alert>
+          </Box>
         ) : (
           <>
             <Alert severity="info" icon={<Info />} sx={{ mb: 2 }}>
