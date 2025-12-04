@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   getBuyRecommendations,
   saveBuyRecommendation,
-  updateRecommendationStatus,
-  calculatePerformanceMetrics,
-  updateAllRecommendationsWithCurrentPrices
+  updateRecommendationStatus
 } from '@/services/recommendations.service'
 
 /**
@@ -121,44 +119,5 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/signals/recommendations/performance
- * Get performance metrics for all recommendations
- */
-export async function GET_PERFORMANCE(request: NextRequest) {
-  try {
-    const metrics = await calculatePerformanceMetrics()
-
-    return NextResponse.json({
-      success: true,
-      data: metrics
-    })
-  } catch (error) {
-    console.error('Error calculating performance:', error)
-    return NextResponse.json(
-      { error: 'Failed to calculate performance metrics' },
-      { status: 500 }
-    )
-  }
-}
-
-/**
- * POST /api/signals/recommendations/update-prices
- * Update all active recommendations with current market prices
- */
-export async function POST_UPDATE_PRICES(request: NextRequest) {
-  try {
-    await updateAllRecommendationsWithCurrentPrices()
-
-    return NextResponse.json({
-      success: true,
-      message: 'All active recommendations updated with current prices'
-    })
-  } catch (error) {
-    console.error('Error updating prices:', error)
-    return NextResponse.json(
-      { error: 'Failed to update prices' },
-      { status: 500 }
-    )
-  }
-}
+// Note: Performance metrics endpoint moved to /api/signals/recommendations/performance/route.ts
+// Note: Update prices endpoint should be moved to /api/signals/recommendations/update-prices/route.ts
