@@ -42,18 +42,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch golden cross stocks from Firebase (ma10 > ma30)
-    const goldenCrossStocks = await getGoldenCrossStocks(limit * 2)
+    // Fetch all stocks from Firebase /goldenCross
+    const goldenCrossStocks = await getGoldenCrossStocks()
 
     if (goldenCrossStocks.length === 0) {
       return NextResponse.json({
         stocks: [],
         total: 0,
-        message: 'No Golden Cross stocks found in database'
+        message: 'No stocks found in Firebase /goldenCross'
       })
     }
 
-    console.log(`📊 Found ${goldenCrossStocks.length} Golden Cross stocks, analyzing...`)
+    console.log(`📊 Found ${goldenCrossStocks.length} stocks from Firebase, analyzing...`)
 
     // Analyze each stock with Gemini
     const analyzedStocks: GoldenCrossAnalysis[] = []
@@ -101,16 +101,16 @@ export async function GET(request: NextRequest) {
         }
 
         // Calculate prices
-        const currentPrice = stock.price || 0
-        const ma20 = stock.ma50 || currentPrice // ma50 mapped from ma20 if available
+        const currentPrice = stock.price || stock.avgNmValue || 0
+        const ma20 = (stock.ma10 && stock.ma30) ? ((stock.ma10 + stock.ma30) / 2) : currentPrice // Estimate MA20 as average of MA10 and MA30
         const cutLoss = currentPrice * 0.96 // -4%
 
         const analyzedStock: GoldenCrossAnalysis = {
           ticker: stock.ticker,
           name: stock.name,
           price: currentPrice,
-          ma10: stock.ma200, // ma10 from Firebase
-          ma30: stock.ma50,  // ma30 from Firebase
+          ma10: stock.ma10,
+          ma30: stock.ma30,
           ma20: ma20,
           signal: analysis.signal,
           confidence: analysis.confidence,
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
               confidence: analysis.confidence,
               aiSignal: `Golden Cross: ${analysis.signal}`,
               technicalAnalysis: [
-                `Golden Cross: MA10(${stock.ma200?.toFixed(2)}) > MA30(${stock.ma50?.toFixed(2)})`,
+                `MA10: ${stock.ma10?.toFixed(2)}, MA30: ${stock.ma30?.toFixed(2)}`,
                 `Giá mua đề xuất: ${ma20.toFixed(0)} (MA20)`,
                 `Cut loss: ${cutLoss.toFixed(0)} (-4%)`,
               ],
@@ -196,16 +196,17 @@ export async function GET(request: NextRequest) {
  * Build simple prompt for Gemini
  */
 function buildSimplePrompt(stock: any): string {
+  const currentPrice = stock.price || stock.avgNmValue || 0
   return `Bạn là chuyên gia phân tích chứng khoán. Phân tích cổ phiếu ${stock.ticker}:
 
 Dữ liệu:
-- Giá hiện tại: ${stock.price?.toLocaleString('vi-VN')} VNĐ
-- MA10: ${stock.ma200?.toFixed(2)}
-- MA30: ${stock.ma50?.toFixed(2)}
-- Tín hiệu: Golden Cross (MA10 > MA30)
+- Giá hiện tại: ${currentPrice.toLocaleString('vi-VN')} VNĐ
+- MA10: ${stock.ma10?.toFixed(2)}
+- MA30: ${stock.ma30?.toFixed(2)}
+${stock.note ? `- Ghi chú: ${stock.note}` : ''}
 
 Yêu cầu:
-1. Đánh giá tín hiệu này là MUA hay THEO DÕI
+1. Đánh giá cổ phiếu này là MUA hay THEO DÕI
 2. Độ tin cậy (0-100)
 3. Tóm tắt ngắn gọn (1-2 câu)
 

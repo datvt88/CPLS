@@ -4,10 +4,12 @@ import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 export interface GoldenCrossStock {
   ticker: string
   name?: string
-  crossDate?: string
-  ma50?: number
-  ma200?: number
   price?: number
+  avgNmValue?: number
+  ma10?: number
+  ma30?: number
+  macdv?: number
+  note?: string
   volume?: number
   marketCap?: number
   sector?: string
@@ -84,11 +86,10 @@ function initGoldenCrossFirebase(): Database {
 }
 
 /**
- * Fetch all stocks from Firebase /goldenCross path (no filtering applied)
- * @param limit - Maximum number of stocks to return
- * @returns Array of stocks from Firebase
+ * Fetch all stocks from Firebase /goldenCross path (raw data, no transformation)
+ * @returns Array of all stocks from Firebase
  */
-export async function getGoldenCrossStocks(limit: number = 50): Promise<GoldenCrossStock[]> {
+export async function getGoldenCrossStocks(): Promise<GoldenCrossStock[]> {
   try {
     const database = initGoldenCrossFirebase()
     const goldenCrossRef = ref(database, 'goldenCross')
@@ -103,26 +104,24 @@ export async function getGoldenCrossStocks(limit: number = 50): Promise<GoldenCr
     const data = snapshot.val()
     const stocks: GoldenCrossStock[] = []
 
-    // Convert Firebase object to array
+    // Convert Firebase object to array (keep original structure)
     if (typeof data === 'object') {
       for (const key in data) {
         const stock = data[key]
         if (stock && typeof stock === 'object') {
-          // Support both ma50/ma200 and ma10/ma30 from Firebase
-          const ma50 = stock.ma50 || stock.ma30 || 0
-          const ma200 = stock.ma200 || stock.ma10 || 0
-
           stocks.push({
             ticker: stock.ticker || key,
-            name: stock.name || key,
-            crossDate: stock.crossDate || stock.lastUpdated || new Date().toISOString(),
-            ma50: ma50,
-            ma200: ma200,
-            price: stock.price || stock.avgNmValue || 0,
-            volume: stock.volume || 0,
-            marketCap: stock.marketCap || 0,
-            sector: stock.sector || 'Unknown',
-            lastUpdated: stock.lastUpdated || new Date().toISOString(),
+            name: stock.name,
+            price: stock.price,
+            avgNmValue: stock.avgNmValue,
+            ma10: stock.ma10,
+            ma30: stock.ma30,
+            macdv: stock.macdv,
+            note: stock.note,
+            volume: stock.volume,
+            marketCap: stock.marketCap,
+            sector: stock.sector,
+            lastUpdated: stock.lastUpdated,
           })
         }
       }
@@ -130,15 +129,8 @@ export async function getGoldenCrossStocks(limit: number = 50): Promise<GoldenCr
 
     console.log(`Found ${stocks.length} stocks from Firebase /goldenCross`)
 
-    // Sort by cross date (most recent first)
-    stocks.sort((a, b) => {
-      const dateA = a.crossDate ? new Date(a.crossDate).getTime() : 0
-      const dateB = b.crossDate ? new Date(b.crossDate).getTime() : 0
-      return dateB - dateA
-    })
-
-    // Return limited results
-    return stocks.slice(0, limit)
+    // Return all stocks as-is from Firebase
+    return stocks
   } catch (error) {
     console.error('Error fetching golden cross stocks from Firebase:', error)
     throw error
@@ -165,10 +157,12 @@ export async function getGoldenCrossStock(ticker: string): Promise<GoldenCrossSt
     return {
       ticker: data.ticker || ticker,
       name: data.name,
-      crossDate: data.crossDate,
-      ma50: data.ma50,
-      ma200: data.ma200,
       price: data.price,
+      avgNmValue: data.avgNmValue,
+      ma10: data.ma10,
+      ma30: data.ma30,
+      macdv: data.macdv,
+      note: data.note,
       volume: data.volume,
       marketCap: data.marketCap,
       sector: data.sector,
@@ -185,17 +179,17 @@ export async function getGoldenCrossStock(ticker: string): Promise<GoldenCrossSt
  */
 export async function getGoldenCrossStats(): Promise<{
   totalStocks: number
-  averageMA50: number
-  averageMA200: number
+  averageMA10: number
+  averageMA30: number
   sectors: Record<string, number>
 }> {
   try {
-    const stocks = await getGoldenCrossStocks(1000)
+    const stocks = await getGoldenCrossStocks()
 
     const stats = {
       totalStocks: stocks.length,
-      averageMA50: 0,
-      averageMA200: 0,
+      averageMA10: 0,
+      averageMA30: 0,
       sectors: {} as Record<string, number>,
     }
 
@@ -203,27 +197,27 @@ export async function getGoldenCrossStats(): Promise<{
       return stats
     }
 
-    let ma50Sum = 0
-    let ma200Sum = 0
-    let ma50Count = 0
-    let ma200Count = 0
+    let ma10Sum = 0
+    let ma30Sum = 0
+    let ma10Count = 0
+    let ma30Count = 0
 
     stocks.forEach(stock => {
-      if (stock.ma50) {
-        ma50Sum += stock.ma50
-        ma50Count++
+      if (stock.ma10) {
+        ma10Sum += stock.ma10
+        ma10Count++
       }
-      if (stock.ma200) {
-        ma200Sum += stock.ma200
-        ma200Count++
+      if (stock.ma30) {
+        ma30Sum += stock.ma30
+        ma30Count++
       }
       if (stock.sector) {
         stats.sectors[stock.sector] = (stats.sectors[stock.sector] || 0) + 1
       }
     })
 
-    stats.averageMA50 = ma50Count > 0 ? ma50Sum / ma50Count : 0
-    stats.averageMA200 = ma200Count > 0 ? ma200Sum / ma200Count : 0
+    stats.averageMA10 = ma10Count > 0 ? ma10Sum / ma10Count : 0
+    stats.averageMA30 = ma30Count > 0 ? ma30Sum / ma30Count : 0
 
     return stats
   } catch (error) {
