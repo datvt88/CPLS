@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { authService } from '@/services/auth.service'
-import { profileService } from '@/services/profile.service'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
+
   const [status, setStatus] =
     useState<'loading' | 'success' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState('')
@@ -16,26 +15,25 @@ export default function AuthCallbackPage() {
   )
 
   useEffect(() => {
-    const controller = new AbortController()
+    const aborter = new AbortController()
 
-    handleCallback().catch((err) => {
-      if (controller.signal.aborted) return
-      console.error('❌ Callback root error:', err)
-      showError(err.message || 'Có lỗi xảy ra khi xác thực')
+    handleAuth().catch((err) => {
+      if (!aborter.signal.aborted) {
+        console.error('❌ Callback error:', err)
+        showError('Có lỗi xảy ra khi đăng nhập')
+      }
     })
 
-    return () => controller.abort()
+    return () => aborter.abort()
   }, [])
 
-  const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
-
   /** ------------------------------------------------------------------
-   * MAIN CALLBACK HANDLER
-   * -----------------------------------------------------------------*/
-  const handleCallback = async () => {
+   * MAIN AUTH HANDLER
+   * ------------------------------------------------------------------*/
+  const handleAuth = async () => {
     setProgressMessage('Đang kiểm tra phiên đăng nhập...')
 
-    // STEP 1 — Check existing session
+    /** STEP 1 — Kiểm tra session hiện có */
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -44,61 +42,39 @@ export default function AuthCallbackPage() {
       return loginSuccess('Đã tìm thấy phiên đăng nhập!')
     }
 
-    // STEP 2 — Read OAuth fragments from URL
-    const hash = new URLSearchParams(window.location.hash.replace('#', ''))
-    const accessToken = hash.get('access_token')
-    const refreshToken = hash.get('refresh_token')
-    const oauthError = hash.get('error')
-
-    if (oauthError)
-      return showError(`OAuth error: ${oauthError}`)
-
-    // → Google / Github OAuth handled by Supabase automatically.
-    if (accessToken) {
+    /** STEP 2 — Google OAuth callback từ Supabase */
+    if (window.location.hash.includes('access_token')) {
       return handleSupabaseOAuth()
     }
 
-    // STEP 3 — ZALO OAuth (using query params, not hash)
-    const params = new URLSearchParams(window.location.search)
-    const code = params.get('code')
-    const state = params.get('state')
-    const zaloError = params.get('error')
-
-    if (zaloError) return showError(`Zalo OAuth lỗi: ${zaloError}`)
-
-    if (code && state) {
-      return handleZaloOAuth(code, state)
-    }
-
-    // STEP 4 — Final fallback (Supabase sometimes needs 300–800ms to restore session)
+    /** STEP 3 — Chờ Supabase đồng bộ (tránh load quá nhanh) */
     setProgressMessage('Đang hoàn tất xác thực...')
-    await delay(400)
+    await new Promise((r) => setTimeout(r, 300))
 
     const {
-      data: { session: lastCheck },
+      data: { session: session2 },
     } = await supabase.auth.getSession()
 
-    if (lastCheck) return loginSuccess()
+    if (session2) return loginSuccess()
 
-    return showError('Không tìm thấy thông tin xác thực. Vui lòng thử lại.')
+    /** STEP 4 — Không có session */
+    return showError('Không tìm thấy phiên đăng nhập. Vui lòng thử lại.')
   }
 
   /** ------------------------------------------------------------------
-   * SUPABASE OAUTH (Google/Github)
-   * Supabase TỰ ĐỘNG tạo session — KHÔNG setSession thủ công nữa.
-   * -----------------------------------------------------------------*/
+   * SUPABASE OAUTH: Google (Supabase tự tạo session)
+   * ------------------------------------------------------------------*/
   const handleSupabaseOAuth = async () => {
     try {
-      setProgressMessage('Đang xác thực với nhà cung cấp...')
+      setProgressMessage('Đang xác thực với Google...')
 
-      // Supabase session already stored → just fetch
       const {
         data: { session },
         error,
       } = await supabase.auth.getSession()
 
       if (error || !session) {
-        return showError('Không thể tạo phiên đăng nhập từ Supabase')
+        return showError('Không thể lấy phiên đăng nhập từ Supabase')
       }
 
       return loginSuccess('Đăng nhập thành công!')
@@ -108,107 +84,33 @@ export default function AuthCallbackPage() {
   }
 
   /** ------------------------------------------------------------------
-   * ZALO OAuth custom login (PKCE)
-   * -----------------------------------------------------------------*/
-  const handleZaloOAuth = async (code: string, state: string) => {
-    try {
-      setProgressMessage('Đang xác thực với Zalo...')
-
-      const storedState = sessionStorage.getItem('zalo_oauth_state')
-      const verifier = sessionStorage.getItem('zalo_code_verifier')
-
-      if (!storedState || state !== storedState)
-        return showError('Lỗi bảo mật. Vui lòng thử lại.')
-
-      if (!verifier)
-        return showError('Phiên Zalo hết hạn. Vui lòng thử lại.')
-
-      // Cleanup early
-      sessionStorage.removeItem('zalo_oauth_state')
-      sessionStorage.removeItem('zalo_code_verifier')
-
-      /** --- STEP 1: Exchange CODE → TOKEN --- */
-      const tokenRes = await fetch('/api/auth/zalo/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, code_verifier: verifier }),
-      })
-
-      const token = await tokenRes.json()
-      if (!tokenRes.ok) return showError(token.error || 'Không thể lấy token Zalo')
-
-      /** --- STEP 2: Fetch user info --- */
-      const userRes = await fetch('/api/auth/zalo/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: token.access_token }),
-      })
-
-      const zaloUser = await userRes.json()
-      if (!userRes.ok) return showError(zaloUser.error)
-
-      /** --- STEP 3: Login / Create Supabase user --- */
-      const email = `zalo_${zaloUser.id}@cpls.app`
-      const pass = `zalo_${zaloUser.id}_pw_${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 6)}`
-
-      let session
-      const signIn = await authService.signIn({ email, password: pass })
-
-      if (signIn.error) {
-        const signup = await authService.signUp({ email, password: pass })
-        if (signup.error) return showError(signup.error.message)
-        session = signup.data.session
-      } else {
-        session = signIn.data.session
-      }
-
-      if (!session) return showError('Không thể tạo phiên đăng nhập')
-
-      /** --- STEP 4: Update profile --- */
-      await profileService.upsertProfile({
-        id: session.user.id,
-        email,
-        full_name: zaloUser.name,
-        phone_number: zaloUser.phone || '0000000000',
-        avatar_url: zaloUser.picture,
-        zalo_id: zaloUser.id,
-      })
-
-      return loginSuccess()
-    } catch (err: any) {
-      console.error(err)
-      return showError(err.message)
-    }
-  }
-
-  /** ------------------------------------------------------------------
-   * SUCCESS / ERROR HANDLERS
-   * -----------------------------------------------------------------*/
+   * SUCCESS + ERROR
+   * ------------------------------------------------------------------*/
   const loginSuccess = (msg = 'Đăng nhập thành công!') => {
-    setProgressMessage(msg)
     setStatus('success')
+    setProgressMessage(msg)
 
-    // Clean URL
+    // Xóa hash gây rối
     window.history.replaceState({}, '', '/callback')
 
     setTimeout(() => router.push('/dashboard'), 600)
   }
 
   const showError = (msg: string) => {
-    console.error('❌ ERROR:', msg)
+    console.error('❌ Auth error:', msg)
     setErrorMessage(msg)
     setStatus('error')
-
-    setTimeout(() => router.push('/login'), 3000)
+    setTimeout(() => router.push('/login'), 2500)
   }
 
   /** ------------------------------------------------------------------
    * UI
-   * -----------------------------------------------------------------*/
+   * ------------------------------------------------------------------*/
   return (
     <div className="min-h-screen flex items-center justify-center bg-[--bg] p-4">
       <div className="bg-[--panel] rounded-lg shadow-lg p-8 max-w-md w-full text-center">
 
+        {/* Loading */}
         {status === 'loading' && (
           <>
             <div className="mb-4">
@@ -217,28 +119,38 @@ export default function AuthCallbackPage() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.3..." />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-[--fg] mb-2">Đang xác thực...</h2>
+            <h2 className="text-xl font-semibold text-[--fg] mb-2">
+              Đang xác thực...
+            </h2>
             <p className="text-[--muted]">{progressMessage}</p>
           </>
         )}
 
+        {/* Success */}
         {status === 'success' && (
           <>
             <svg className="h-12 w-12 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4..." />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
             </svg>
-            <h2 className="text-xl font-semibold text-[--fg] mb-2">Đăng nhập thành công!</h2>
+            <h2 className="text-xl font-semibold text-[--fg] mb-2">
+              Đăng nhập thành công!
+            </h2>
             <p className="text-[--muted]">Đang chuyển hướng...</p>
           </>
         )}
 
+        {/* Error */}
         {status === 'error' && (
           <>
             <svg className="h-12 w-12 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2..." />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2" />
             </svg>
-            <h2 className="text-xl font-semibold text-[--fg] mb-2">Đăng nhập thất bại</h2>
-            <p className="text-[--muted] mb-4 whitespace-pre-line">{errorMessage}</p>
+            <h2 className="text-xl font-semibold text-[--fg] mb-2">
+              Đăng nhập thất bại
+            </h2>
+            <p className="text-[--muted] mb-4 whitespace-pre-line">
+              {errorMessage}
+            </p>
             <button
               onClick={() => router.push('/login')}
               className="w-full bg-green-500 hover:bg-green-600 text-black font-bold rounded-lg p-3 shadow-lg"
