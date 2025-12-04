@@ -5,7 +5,7 @@ import {
   updateRecommendationStatus,
   calculatePerformanceMetrics,
   updateAllRecommendationsWithCurrentPrices
-} from '@/services/goldenCross.service'
+} from '@/services/recommendations.service'
 
 /**
  * GET /api/signals/recommendations
