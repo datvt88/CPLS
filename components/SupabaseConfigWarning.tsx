@@ -1,22 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabaseConfig } from '@/lib/supabaseClient'
 
 /**
  * Component to display warning when Supabase is not configured properly
- * Shows in development and production
+ * Compatible with new supabaseClient (no supabaseConfig export)
  */
 export default function SupabaseConfigWarning() {
   const [show, setShow] = useState(false)
   const [healthData, setHealthData] = useState<any>(null)
 
   useEffect(() => {
-    // Only show if not configured
-    if (!supabaseConfig.isConfigured) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    const isConfigured =
+      typeof url === 'string' &&
+      url.startsWith('https://') &&
+      typeof key === 'string' &&
+      key.startsWith('eyJ')
+
+    if (!isConfigured) {
       setShow(true)
 
-      // Fetch health check for more details
       fetch('/api/health')
         .then(res => res.json())
         .then(data => setHealthData(data))
@@ -47,6 +53,7 @@ export default function SupabaseConfigWarning() {
           <h3 className="font-bold text-sm mb-1">
             ⚠️ Supabase chưa được cấu hình
           </h3>
+
           <p className="text-xs mb-2 opacity-90">
             Ứng dụng không thể kết nối với Supabase. Đăng nhập sẽ không hoạt động.
           </p>
@@ -55,9 +62,11 @@ export default function SupabaseConfigWarning() {
             <div className="text-xs space-y-1 opacity-90">
               <p className="font-semibold">Cách khắc phục:</p>
               <ul className="list-disc list-inside space-y-0.5 ml-2">
-                {healthData.troubleshooting.actions.map((action: string, i: number) => (
-                  <li key={i}>{action}</li>
-                ))}
+                {healthData.troubleshooting.actions.map(
+                  (action: string, i: number) => (
+                    <li key={i}>{action}</li>
+                  )
+                )}
               </ul>
             </div>
           )}
@@ -71,6 +80,7 @@ export default function SupabaseConfigWarning() {
             >
               Xem chi tiết →
             </a>
+
             <button
               onClick={() => setShow(false)}
               className="text-xs underline hover:no-underline"
