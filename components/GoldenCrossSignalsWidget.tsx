@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 
 interface StockData {
   ticker: string
@@ -12,22 +12,60 @@ interface StockData {
   note?: string
 }
 
-export default function GoldenCrossSignalsWidget() {
+// Cache duration: 2 minutes
+const CACHE_DURATION = 2 * 60 * 1000
+let cachedData: { data: StockData[]; timestamp: number } | null = null
+
+// Memoized stock row component for better rendering performance
+const StockRow = memo(({ stock, formatNumber }: { stock: StockData; formatNumber: (num: number | undefined) => string }) => (
+  <tr className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors">
+    <td className="py-3 px-4">
+      <span className="font-bold text-white">{stock.ticker}</span>
+    </td>
+    <td className="py-3 px-4 text-right text-green-400 font-semibold">
+      {formatNumber(stock.ma30)}
+    </td>
+    <td className="py-3 px-4 text-yellow-400">
+      <span className="inline-flex items-center gap-2">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+        Golden Cross (5 phiên)
+      </span>
+    </td>
+  </tr>
+))
+
+StockRow.displayName = 'StockRow'
+
+function GoldenCrossSignalsWidget() {
   const [stocks, setStocks] = useState<StockData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchStocksFromFirebase()
-  }, [])
-
-  const fetchStocksFromFirebase = async () => {
+  const fetchStocksFromFirebase = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
+      // Check cache first
+      if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
+        console.log('✅ Using cached signals data')
+        setStocks(cachedData.data)
+        setLoading(false)
+        return
+      }
+
+      console.log('🔄 Fetching fresh signals data...')
+
       // Get stock list from Firebase via API
-      const response = await fetch('/api/signals/golden-cross')
+      const response = await fetch('/api/signals/golden-cross', {
+        // Add cache headers for browser caching
+        headers: {
+          'Cache-Control': 'public, max-age=120', // 2 minutes
+        },
+      })
+
       if (!response.ok) {
         throw new Error('Failed to fetch stocks from Firebase')
       }
@@ -52,6 +90,12 @@ export default function GoldenCrossSignalsWidget() {
         })
       }
 
+      // Update cache
+      cachedData = {
+        data: stockList,
+        timestamp: Date.now()
+      }
+
       setStocks(stockList)
     } catch (err: any) {
       console.error('Error fetching stocks:', err)
@@ -59,12 +103,17 @@ export default function GoldenCrossSignalsWidget() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const formatNumber = (num: number | undefined) => {
+  useEffect(() => {
+    fetchStocksFromFirebase()
+  }, [fetchStocksFromFirebase])
+
+  // Memoize formatNumber to prevent recreating on each render
+  const formatNumber = useCallback((num: number | undefined) => {
     if (num === undefined || num === null) return '-'
     return num.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
-  }
+  }, [])
 
   if (loading) {
     return (
@@ -123,26 +172,8 @@ export default function GoldenCrossSignalsWidget() {
             </tr>
           </thead>
           <tbody>
-            {stocks.map((stock, index) => (
-              <tr
-                key={stock.ticker}
-                className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors"
-              >
-                <td className="py-3 px-4">
-                  <span className="font-bold text-white">{stock.ticker}</span>
-                </td>
-                <td className="py-3 px-4 text-right text-cyan-400 font-semibold">
-                  {formatNumber(stock.ma30)}
-                </td>
-                <td className="py-3 px-4 text-yellow-400">
-                  <span className="inline-flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                    Golden Cross (5 phiên)
-                  </span>
-                </td>
-              </tr>
+            {stocks.map((stock) => (
+              <StockRow key={stock.ticker} stock={stock} formatNumber={formatNumber} />
             ))}
           </tbody>
         </table>
@@ -150,3 +181,6 @@ export default function GoldenCrossSignalsWidget() {
     </div>
   )
 }
+
+// Export memoized component for better performance
+export default memo(GoldenCrossSignalsWidget)
