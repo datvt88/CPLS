@@ -10,20 +10,14 @@ interface GoldenCrossAnalysis {
   ticker: string
   name?: string
   price?: number
-  crossDate?: string
   ma10?: number
   ma30?: number
-  signal: 'MUA' | 'THEO DÕI' | 'NẮM GIỮ'
+  ma20?: number
+  signal: 'MUA' | 'THEO DÕI'
   confidence: number
-  shortTermSignal: string
-  longTermSignal: string
-  targetPrice?: string
-  stopLoss?: string
+  recommendedPrice?: number
+  cutLoss?: number
   summary: string
-  risks: string[]
-  opportunities: string[]
-  technicalScore: number
-  fundamentalScore: number
   lastUpdated?: string
 }
 
@@ -36,7 +30,7 @@ export async function GET(request: NextRequest) {
     // Validate model
     const selectedModel = isValidModel(model) ? model : DEFAULT_GEMINI_MODEL
 
-    console.log('🔍 Fetching Golden Cross stocks with analysis...')
+    console.log('🔍 Fetching Golden Cross stocks...')
     console.log('🤖 Using Gemini model:', selectedModel)
 
     // Check if API keys are configured
@@ -49,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch golden cross stocks from Firebase (ma10 > ma30)
-    const goldenCrossStocks = await getGoldenCrossStocks(limit * 2) // Fetch more to filter later
+    const goldenCrossStocks = await getGoldenCrossStocks(limit * 2)
 
     if (goldenCrossStocks.length === 0) {
       return NextResponse.json({
@@ -59,117 +53,101 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log(`📊 Found ${goldenCrossStocks.length} Golden Cross stocks, analyzing with Stock Analysis API...`)
+    console.log(`📊 Found ${goldenCrossStocks.length} Golden Cross stocks, analyzing...`)
 
-    // Analyze each stock using Stock Analysis API
+    // Analyze each stock with Gemini
     const analyzedStocks: GoldenCrossAnalysis[] = []
     const buyRecommendations: any[] = []
 
     for (const stock of goldenCrossStocks) {
       try {
-        console.log(`🔬 Analyzing ${stock.ticker} using Stock Analysis API...`)
+        console.log(`🔬 Analyzing ${stock.ticker}...`)
 
-        // Fetch stock data from VNDirect (prices, financials, recommendations)
-        const [priceData, financialRatios, recommendations] = await Promise.all([
-          fetchStockPrice(stock.ticker),
-          fetchFinancialRatios(stock.ticker),
-          fetchRecommendations(stock.ticker)
-        ])
+        // Simple prompt for Gemini
+        const prompt = buildSimplePrompt(stock)
 
-        if (!priceData) {
-          console.warn(`⚠️ No price data for ${stock.ticker}, skipping...`)
-          continue
-        }
-
-        // Prepare data for Gemini analysis
-        const technicalData = {
-          currentPrice: priceData.close || stock.price || 0,
-          ma10: stock.ma200, // ma200 mapped from ma10
-          ma30: stock.ma50,  // ma50 mapped from ma30
-          volume: {
-            current: priceData.volume || stock.volume || 0,
-          },
-          goldenCross: {
-            crossDate: stock.crossDate,
-            ma10: stock.ma200,
-            ma30: stock.ma50,
+        // Call Gemini API
+        const geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiKey,
+            },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.7,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 512,
+              },
+            }),
           }
-        }
-
-        // Call Stock Analysis API (same as used in Cổ Phiếu)
-        const analysis = await callStockAnalysisAPI(
-          stock.ticker,
-          technicalData,
-          financialRatios,
-          recommendations,
-          selectedModel
         )
 
-        if (!analysis) {
-          console.warn(`⚠️ Failed to analyze ${stock.ticker}, skipping...`)
+        if (!geminiResponse.ok) {
+          console.warn(`⚠️ Gemini API error for ${stock.ticker}`)
           continue
         }
 
-        // Calculate scores
-        const technicalScore = calculateTechnicalScore(stock, analysis)
-        const fundamentalScore = analysis.longTerm.confidence
+        const geminiData = await geminiResponse.json()
+        const analysis = parseSimpleResponse(geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '')
 
-        // Determine signal
-        const signal = determineSignal(analysis, technicalScore, fundamentalScore)
+        if (!analysis) {
+          console.warn(`⚠️ Failed to parse analysis for ${stock.ticker}`)
+          continue
+        }
+
+        // Calculate prices
+        const currentPrice = stock.price || 0
+        const ma20 = stock.ma50 || currentPrice // ma50 mapped from ma20 if available
+        const cutLoss = currentPrice * 0.96 // -4%
 
         const analyzedStock: GoldenCrossAnalysis = {
           ticker: stock.ticker,
           name: stock.name,
-          price: priceData.close || stock.price,
-          crossDate: stock.crossDate,
+          price: currentPrice,
           ma10: stock.ma200, // ma10 from Firebase
           ma30: stock.ma50,  // ma30 from Firebase
-          signal,
-          confidence: Math.round((analysis.shortTerm.confidence + analysis.longTerm.confidence) / 2),
-          shortTermSignal: analysis.shortTerm.signal,
-          longTermSignal: analysis.longTerm.signal,
-          targetPrice: analysis.targetPrice,
-          stopLoss: analysis.stopLoss,
-          summary: analysis.shortTerm.summary || 'Cổ phiếu có tín hiệu Golden Cross tích cực',
-          risks: analysis.risks || [],
-          opportunities: analysis.opportunities || [],
-          technicalScore,
-          fundamentalScore,
+          ma20: ma20,
+          signal: analysis.signal,
+          confidence: analysis.confidence,
+          recommendedPrice: ma20,
+          cutLoss: cutLoss,
+          summary: analysis.summary,
           lastUpdated: new Date().toISOString(),
         }
 
         analyzedStocks.push(analyzedStock)
 
         // Save MUA recommendations to Firebase
-        if (signal === 'MUA' && analysis.targetPrice) {
+        if (analysis.signal === 'MUA') {
           try {
             const recommendationId = await saveBuyRecommendation({
               symbol: stock.ticker,
-              recommendedPrice: priceData.close || stock.price || 0,
-              currentPrice: priceData.close || stock.price || 0,
-              targetPrice: parseTargetPrice(analysis.targetPrice),
-              stopLoss: parseStopLoss(analysis.stopLoss),
-              confidence: Math.round((analysis.shortTerm.confidence + analysis.longTerm.confidence) / 2),
-              aiSignal: `${analysis.shortTerm.signal} / ${analysis.longTerm.signal}`,
+              recommendedPrice: ma20,
+              currentPrice: currentPrice,
+              targetPrice: ma20 * 1.1, // +10% target
+              stopLoss: cutLoss,
+              confidence: analysis.confidence,
+              aiSignal: `Golden Cross: ${analysis.signal}`,
               technicalAnalysis: [
                 `Golden Cross: MA10(${stock.ma200?.toFixed(2)}) > MA30(${stock.ma50?.toFixed(2)})`,
-                `Technical Score: ${technicalScore}/100`,
-                ...analysis.opportunities.slice(0, 2)
+                `Giá mua đề xuất: ${ma20.toFixed(0)} (MA20)`,
+                `Cut loss: ${cutLoss.toFixed(0)} (-4%)`,
               ],
-              fundamentalAnalysis: financialRatios ? [
-                `P/E: ${financialRatios.pe?.toFixed(2) || 'N/A'}`,
-                `P/B: ${financialRatios.pb?.toFixed(2) || 'N/A'}`,
-                `ROE: ${((financialRatios.roe || 0) * 100).toFixed(2)}%`,
-              ] : [],
-              risks: analysis.risks,
-              opportunities: analysis.opportunities
+              fundamentalAnalysis: [],
+              risks: ['Thị trường biến động'],
+              opportunities: [analysis.summary]
             })
 
             buyRecommendations.push({
               ticker: stock.ticker,
               recommendationId,
               signal: 'MUA',
-              confidence: analyzedStock.confidence
+              confidence: analysis.confidence
             })
 
             console.log(`✅ Saved BUY recommendation for ${stock.ticker} (ID: ${recommendationId})`)
@@ -178,7 +156,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Limit the number of analyzed stocks
+        // Limit results
         if (analyzedStocks.length >= limit) {
           break
         }
@@ -188,7 +166,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Sort by confidence score (highest first)
+    // Sort by confidence
     analyzedStocks.sort((a, b) => b.confidence - a.confidence)
 
     console.log(`✅ Successfully analyzed ${analyzedStocks.length} stocks`)
@@ -215,156 +193,64 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Fetch stock price from VNDirect
+ * Build simple prompt for Gemini
  */
-async function fetchStockPrice(ticker: string) {
-  try {
-    const response = await fetch(`https://finfo-api.vndirect.com.vn/v4/stock_prices?sort=date&q=code:${ticker}&size=1&page=1`)
-    const data = await response.json()
-    return data.data?.[0] || null
-  } catch (error) {
-    console.error(`Error fetching price for ${ticker}:`, error)
-    return null
-  }
+function buildSimplePrompt(stock: any): string {
+  return `Bạn là chuyên gia phân tích chứng khoán. Phân tích cổ phiếu ${stock.ticker}:
+
+Dữ liệu:
+- Giá hiện tại: ${stock.price?.toLocaleString('vi-VN')} VNĐ
+- MA10: ${stock.ma200?.toFixed(2)}
+- MA30: ${stock.ma50?.toFixed(2)}
+- Tín hiệu: Golden Cross (MA10 > MA30)
+
+Yêu cầu:
+1. Đánh giá tín hiệu này là MUA hay THEO DÕI
+2. Độ tin cậy (0-100)
+3. Tóm tắt ngắn gọn (1-2 câu)
+
+Trả về ĐÚNG format JSON (không markdown):
+{
+  "signal": "MUA hoặc THEO DÕI",
+  "confidence": <số 0-100>,
+  "summary": "<tóm tắt ngắn>"
+}
+
+Chỉ trả về JSON, không thêm text khác.`
 }
 
 /**
- * Fetch financial ratios from VNDirect
+ * Parse simple Gemini response
  */
-async function fetchFinancialRatios(ticker: string) {
+function parseSimpleResponse(text: string): { signal: 'MUA' | 'THEO DÕI', confidence: number, summary: string } | null {
   try {
-    const response = await fetch(`https://finfo-api.vndirect.com.vn/v4/ratios?q=code:${ticker}&size=1`)
-    const data = await response.json()
-    return data.data?.[0] || null
-  } catch (error) {
-    console.error(`Error fetching ratios for ${ticker}:`, error)
-    return null
-  }
-}
+    // Remove markdown code blocks if present
+    let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
 
-/**
- * Fetch analyst recommendations
- */
-async function fetchRecommendations(ticker: string) {
-  try {
-    const response = await fetch(`https://finfo-api.vndirect.com.vn/v4/stock_recommendation?q=code:${ticker}&size=20`)
-    const data = await response.json()
-    return data.data || []
-  } catch (error) {
-    console.error(`Error fetching recommendations for ${ticker}:`, error)
-    return []
-  }
-}
-
-/**
- * Call Stock Analysis API (same as Cổ Phiếu uses)
- */
-async function callStockAnalysisAPI(
-  ticker: string,
-  technicalData: any,
-  fundamentalData: any,
-  recommendations: any[],
-  model: string
-) {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/gemini/stock-analysis`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        symbol: ticker,
-        technicalData,
-        fundamentalData,
-        recommendations,
-        model
-      })
-    })
-
-    if (!response.ok) {
-      console.error(`Stock Analysis API error for ${ticker}:`, response.status)
+    // Find JSON object
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
       return null
     }
 
-    const data = await response.json()
-    return data
+    const parsed = JSON.parse(jsonMatch[0])
+
+    // Validate
+    if (!parsed.signal || !parsed.confidence || !parsed.summary) {
+      return null
+    }
+
+    // Normalize signal
+    const signal = parsed.signal.includes('MUA') ? 'MUA' : 'THEO DÕI'
+    const confidence = Math.max(0, Math.min(100, Number(parsed.confidence) || 60))
+
+    return {
+      signal,
+      confidence,
+      summary: parsed.summary
+    }
   } catch (error) {
-    console.error(`Error calling Stock Analysis API for ${ticker}:`, error)
+    console.error('Failed to parse Gemini response:', error)
     return null
   }
-}
-
-/**
- * Calculate technical score based on Golden Cross and indicators
- */
-function calculateTechnicalScore(stock: any, analysis: any): number {
-  let score = 60 // Base score for having Golden Cross
-
-  // MA10 above MA30
-  if (stock.ma200 && stock.ma50) {
-    const maGap = ((stock.ma200 - stock.ma50) / stock.ma50) * 100
-    if (maGap > 5) score += 15
-    else if (maGap > 2) score += 10
-    else if (maGap > 0) score += 5
-  }
-
-  // Price above MA30
-  if (stock.price && stock.ma50 && stock.price > stock.ma50) {
-    score += 10
-  }
-
-  // Recent cross (within 30 days)
-  if (stock.crossDate) {
-    const daysSinceCross = Math.floor(
-      (new Date().getTime() - new Date(stock.crossDate).getTime()) / (1000 * 60 * 60 * 24)
-    )
-    if (daysSinceCross <= 7) score += 15
-    else if (daysSinceCross <= 30) score += 10
-  }
-
-  return Math.min(100, score)
-}
-
-/**
- * Determine if stock should be marked as MUA or THEO DÕI
- */
-function determineSignal(analysis: any, technicalScore: number, fundamentalScore: number): 'MUA' | 'THEO DÕI' | 'NẮM GIỮ' {
-  const avgScore = (technicalScore + fundamentalScore) / 2
-
-  // MUA criteria
-  if (
-    (analysis.shortTerm.signal.includes('MUA') || analysis.longTerm.signal.includes('MUA')) &&
-    avgScore >= 70 &&
-    analysis.targetPrice
-  ) {
-    return 'MUA'
-  }
-
-  // THEO DÕI criteria
-  if (avgScore >= 60) {
-    return 'THEO DÕI'
-  }
-
-  return 'NẮM GIỮ'
-}
-
-/**
- * Parse target price from string
- */
-function parseTargetPrice(targetPrice?: string): number {
-  if (!targetPrice) return 0
-  const match = targetPrice.match(/[\d,]+/)
-  if (!match) return 0
-  return parseFloat(match[0].replace(/,/g, ''))
-}
-
-/**
- * Parse stop loss from string
- */
-function parseStopLoss(stopLoss?: string): number {
-  if (!stopLoss) return 0
-  const match = stopLoss.match(/[\d,]+/)
-  if (!match) return 0
-  return parseFloat(match[0].replace(/,/g, ''))
 }

@@ -6,6 +6,7 @@ import ProtectedRoute from '../../components/ProtectedRoute'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
 import GoldenCrossWidget from '@/components/GoldenCrossWidget'
+import RecommendationsHistoryWidget from '@/components/RecommendationsHistoryWidget'
 
 function SignalsPageContent() {
   const router = useRouter()
@@ -203,8 +204,11 @@ function SignalsPageContent() {
 
         {/* Premium Content */}
         <div className="grid gap-6">
-          {/* Golden Cross Signals */}
+          {/* Widget 1: Golden Cross Signals */}
           <GoldenCrossWidget limit={15} autoRefresh={true} refreshInterval={300000} />
+
+          {/* Widget 2: Recommendations History */}
+          <RecommendationsHistoryWidget />
 
           {/* Additional signals sections can be added here */}
           <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
