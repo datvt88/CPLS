@@ -108,31 +108,49 @@ export async function getGoldenCrossStocks(limit: number = 50): Promise<GoldenCr
       for (const key in data) {
         const stock = data[key]
         if (stock && typeof stock === 'object') {
+          // Support both ma50/ma200 and ma10/ma30 from Firebase
+          const ma50 = stock.ma50 || stock.ma30 || 0
+          const ma200 = stock.ma200 || stock.ma10 || 0
+
+          // Calculate cross date if not provided
+          let crossDate = stock.crossDate
+          if (!crossDate && ma50 > ma200) {
+            crossDate = stock.lastUpdated || new Date().toISOString()
+          }
+
           stocks.push({
             ticker: stock.ticker || key,
-            name: stock.name,
-            crossDate: stock.crossDate,
-            ma50: stock.ma50,
-            ma200: stock.ma200,
-            price: stock.price,
-            volume: stock.volume,
-            marketCap: stock.marketCap,
-            sector: stock.sector,
-            lastUpdated: stock.lastUpdated,
+            name: stock.name || key,
+            crossDate: crossDate,
+            ma50: ma50,
+            ma200: ma200,
+            price: stock.price || stock.avgNmValue || 0,
+            volume: stock.volume || 0,
+            marketCap: stock.marketCap || 0,
+            sector: stock.sector || 'Unknown',
+            lastUpdated: stock.lastUpdated || new Date().toISOString(),
           })
         }
       }
     }
 
+    // Filter stocks with Golden Cross (ma10 > ma30)
+    // ma10 is fast MA, ma30 is slow MA - Golden Cross when fast > slow
+    const goldenCrossStocks = stocks.filter(stock => {
+      return stock.ma50 && stock.ma200 && stock.ma200 > stock.ma50
+    })
+
+    console.log(`Found ${goldenCrossStocks.length} stocks with Golden Cross (ma10 > ma30) out of ${stocks.length} total`)
+
     // Sort by cross date (most recent first)
-    stocks.sort((a, b) => {
+    goldenCrossStocks.sort((a, b) => {
       const dateA = a.crossDate ? new Date(a.crossDate).getTime() : 0
       const dateB = b.crossDate ? new Date(b.crossDate).getTime() : 0
       return dateB - dateA
     })
 
     // Return limited results
-    return stocks.slice(0, limit)
+    return goldenCrossStocks.slice(0, limit)
   } catch (error) {
     console.error('Error fetching golden cross stocks from Firebase:', error)
     throw error
