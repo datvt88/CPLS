@@ -2,13 +2,18 @@
 
 import { useState, useEffect } from 'react'
 
-interface StockSymbol {
-  symbol: string
-  [key: string]: any
+interface StockData {
+  ticker: string
+  price?: number
+  ma10?: number
+  ma30?: number
+  macdv?: number
+  avgNmValue?: number
+  note?: string
 }
 
 export default function GoldenCrossSignalsWidget() {
-  const [stocks, setStocks] = useState<string[]>([])
+  const [stocks, setStocks] = useState<StockData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,11 +34,22 @@ export default function GoldenCrossSignalsWidget() {
 
       const data = await response.json()
 
-      // Extract stock symbols from Firebase data
-      const stockList: string[] = []
+      // Extract stock data from Firebase
+      const stockList: StockData[] = []
       if (data.data && typeof data.data === 'object') {
         // Firebase returns object with keys as stock symbols
-        stockList.push(...Object.keys(data.data))
+        Object.keys(data.data).forEach(symbol => {
+          const stockInfo = data.data[symbol]
+          stockList.push({
+            ticker: stockInfo.ticker || symbol,
+            price: stockInfo.price,
+            ma10: stockInfo.ma10,
+            ma30: stockInfo.ma30,
+            macdv: stockInfo.macdv,
+            avgNmValue: stockInfo.avgNmValue,
+            note: stockInfo.note
+          })
+        })
       }
 
       setStocks(stockList)
@@ -43,6 +59,11 @@ export default function GoldenCrossSignalsWidget() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const formatNumber = (num: number | undefined) => {
+    if (num === undefined || num === null) return '-'
+    return num.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
   }
 
   if (loading) {
@@ -92,17 +113,50 @@ export default function GoldenCrossSignalsWidget() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {stocks.map((symbol) => (
-          <div
-            key={symbol}
-            className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 rounded-lg p-4 border border-gray-700/50 hover:border-purple-500/50 transition-colors"
-          >
-            <div className="text-center">
-              <div className="text-xl font-bold text-white">{symbol}</div>
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-700">
+              <th className="text-left py-3 px-4 font-semibold text-gray-300">Mã CP</th>
+              <th className="text-right py-3 px-4 font-semibold text-gray-300">Giá</th>
+              <th className="text-right py-3 px-4 font-semibold text-gray-300">MA10</th>
+              <th className="text-right py-3 px-4 font-semibold text-gray-300">MA30</th>
+              <th className="text-right py-3 px-4 font-semibold text-gray-300">MACDV</th>
+              <th className="text-right py-3 px-4 font-semibold text-gray-300">Avg Volume</th>
+              <th className="text-left py-3 px-4 font-semibold text-gray-300">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stocks.map((stock, index) => (
+              <tr
+                key={stock.ticker}
+                className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors"
+              >
+                <td className="py-3 px-4">
+                  <span className="font-bold text-white">{stock.ticker}</span>
+                </td>
+                <td className="py-3 px-4 text-right text-green-400 font-semibold">
+                  {formatNumber(stock.price)}
+                </td>
+                <td className="py-3 px-4 text-right text-cyan-400">
+                  {formatNumber(stock.ma10)}
+                </td>
+                <td className="py-3 px-4 text-right text-cyan-400">
+                  {formatNumber(stock.ma30)}
+                </td>
+                <td className="py-3 px-4 text-right text-purple-400">
+                  {formatNumber(stock.macdv)}
+                </td>
+                <td className="py-3 px-4 text-right text-gray-400">
+                  {formatNumber(stock.avgNmValue)}
+                </td>
+                <td className="py-3 px-4 text-gray-400">
+                  {stock.note || '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )
