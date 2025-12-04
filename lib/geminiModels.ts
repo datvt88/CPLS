@@ -19,21 +19,9 @@ export const GEMINI_MODELS: GeminiModel[] = [
     status: 'active',
   },
   {
-    id: 'gemini-2.0-flash-exp',
-    name: 'Gemini 2.0 Flash (Thử nghiệm)',
-    description: 'Phiên bản thử nghiệm, cập nhật tính năng mới nhất',
-    status: 'experimental',
-  },
-  {
     id: 'gemini-2.5-flash-lite',
     name: 'Gemini 2.5 Flash Lite',
     description: 'Nhanh nhất, chi phí thấp',
-    status: 'active',
-  },
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    description: 'Phân tích sâu nhất, độ chính xác cao nhất',
     status: 'active',
   },
 ]
