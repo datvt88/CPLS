@@ -17,7 +17,7 @@ interface StockData {
 const CACHE_DURATION = 2 * 60 * 1000
 let cachedData: { data: StockData[]; timestamp: number } | null = null
 
-// Memoized stock row component for better rendering performance
+// Memoized stock row component for better rendering performance (desktop table view)
 const StockRow = memo(({ stock, formatNumber, formatDate }: { stock: StockData; formatNumber: (num: number | undefined) => string; formatDate: (date: string | undefined) => string }) => (
   <tr className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors">
     <td className="py-3 px-4">
@@ -40,7 +40,33 @@ const StockRow = memo(({ stock, formatNumber, formatDate }: { stock: StockData; 
   </tr>
 ))
 
+// Memoized stock card component for mobile view
+const StockCard = memo(({ stock, formatNumber, formatDate }: { stock: StockData; formatNumber: (num: number | undefined) => string; formatDate: (date: string | undefined) => string }) => (
+  <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition-colors">
+    <div className="flex items-center justify-between mb-3">
+      <span className="font-bold text-white text-lg">{stock.ticker}</span>
+      <span className="text-xs text-gray-400">{formatDate(stock.timeCross)}</span>
+    </div>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-gray-400 text-sm">Vùng Mua</span>
+        <span className="text-green-400 font-semibold">{formatNumber(stock.ma30)}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-gray-400 text-sm">Tín hiệu</span>
+        <span className="inline-flex items-center gap-1.5 text-yellow-400 text-sm">
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          Golden Cross
+        </span>
+      </div>
+    </div>
+  </div>
+))
+
 StockRow.displayName = 'StockRow'
+StockCard.displayName = 'StockCard'
 
 function GoldenCrossSignalsWidget() {
   const [stocks, setStocks] = useState<StockData[]>([])
@@ -137,11 +163,11 @@ function GoldenCrossSignalsWidget() {
 
   if (loading) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <div className="flex items-center justify-center h-60">
+      <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800">
+        <div className="flex items-center justify-center h-40 sm:h-60">
           <div className="text-center">
-            <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-gray-400">Đang tải danh sách cổ phiếu...</p>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-gray-400 text-sm sm:text-base">Đang tải danh sách cổ phiếu...</p>
           </div>
         </div>
       </div>
@@ -150,8 +176,8 @@ function GoldenCrossSignalsWidget() {
 
   if (error) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 text-red-400">
+      <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800">
+        <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3 sm:p-4 text-red-400 text-sm sm:text-base">
           {error}
         </div>
       </div>
@@ -160,11 +186,11 @@ function GoldenCrossSignalsWidget() {
 
   if (stocks.length === 0) {
     return (
-      <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-        <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+      <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800">
+        <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-2">
           📊 Danh sách mã cổ phiếu
         </h3>
-        <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 text-blue-400">
+        <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-3 sm:p-4 text-blue-400 text-sm sm:text-base">
           Chưa có mã cổ phiếu nào trong danh sách
         </div>
       </div>
@@ -172,17 +198,25 @@ function GoldenCrossSignalsWidget() {
   }
 
   return (
-    <div className="bg-[--panel] rounded-xl p-6 border border-gray-800">
-      <div className="mb-6">
-        <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+    <div className="bg-[--panel] rounded-xl p-4 sm:p-6 border border-gray-800">
+      <div className="mb-4 sm:mb-6">
+        <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
           📊 Danh sách mã cổ phiếu
         </h3>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-400 text-xs sm:text-sm mt-1">
           {stocks.length} mã cổ phiếu từ Firebase Realtime Database
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Mobile view - Card layout */}
+      <div className="block sm:hidden space-y-3">
+        {stocks.map((stock) => (
+          <StockCard key={stock.ticker} stock={stock} formatNumber={formatNumber} formatDate={formatDate} />
+        ))}
+      </div>
+
+      {/* Desktop view - Table layout */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700">

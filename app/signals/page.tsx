@@ -49,13 +49,13 @@ export default function SignalsPage() {
 
   // Show signals for all users (logged in, free, premium, anonymous)
   return (
-    <div className="min-h-screen bg-[--bg] p-6">
+    <div className="min-h-screen bg-[--bg] p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header with membership badge */}
-        <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
+        <div className="mb-6 sm:mb-8 flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-[--fg] mb-2">Tín hiệu</h1>
-            <p className="text-[--muted]">Danh sách mã cổ phiếu từ Firebase Realtime Database</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[--fg] mb-2">Tín hiệu</h1>
+            <p className="text-sm sm:text-base text-[--muted]">Danh sách mã cổ phiếu từ Firebase Realtime Database</p>
           </div>
           <div className="flex items-center gap-3">
             {isPremium && (
@@ -80,19 +80,19 @@ export default function SignalsPage() {
         {/* Call-to-action banners */}
         {!isLoggedIn ? (
           // Banner for anonymous users
-          <div className="mt-8 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-600/30 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="mt-6 sm:mt-8 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-600/30 rounded-xl p-4 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-              <div className="flex-1">
-                <h3 className="text-[--fg] font-semibold mb-2">Đăng nhập để trải nghiệm đầy đủ</h3>
-                <p className="text-[--muted] text-sm mb-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-[--fg] font-semibold mb-2 text-sm sm:text-base">Đăng nhập để trải nghiệm đầy đủ</h3>
+                <p className="text-[--muted] text-xs sm:text-sm mb-4">
                   Tạo tài khoản miễn phí để lưu danh sách theo dõi, nhận thông báo và truy cập nhiều tính năng khác.
                 </p>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2 sm:gap-3">
                   <button
                     onClick={() => router.push('/login')}
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-6 py-2 rounded-lg transition-all shadow-lg hover:shadow-blue-600/50 text-sm inline-flex items-center gap-2"
@@ -114,16 +114,16 @@ export default function SignalsPage() {
           </div>
         ) : !isPremium ? (
           // Banner for free logged-in users
-          <div className="mt-8 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="mt-6 sm:mt-8 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-xl p-4 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <div className="flex-1">
-                <h3 className="text-[--fg] font-semibold mb-2">Nâng cấp lên Premium để mở khóa thêm tính năng</h3>
-                <p className="text-[--muted] text-sm mb-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-[--fg] font-semibold mb-2 text-sm sm:text-base">Nâng cấp lên Premium để mở khóa thêm tính năng</h3>
+                <p className="text-[--muted] text-xs sm:text-sm mb-4">
                   Tín hiệu AI nâng cao, cảnh báo thời gian thực, bộ lọc cổ phiếu tiềm năng và hỗ trợ trực tiếp từ đội ngũ admin.
                 </p>
                 <button
