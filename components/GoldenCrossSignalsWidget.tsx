@@ -63,53 +63,68 @@ function GoldenCrossSignalsWidget() {
 
       console.log('🔄 Fetching fresh signals data...')
 
-      // Get stock list from Firebase via API
-      const response = await fetch('/api/signals/golden-cross', {
-        // Add cache headers for browser caching
-        headers: {
-          'Cache-Control': 'public, max-age=120', // 2 minutes
-        },
-      })
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch stocks from Firebase')
-      }
-
-      const data = await response.json()
-
-      // Extract stock data from Firebase
-      const stockList: StockData[] = []
-      if (data.data && typeof data.data === 'object') {
-        // Firebase returns object with keys as stock symbols
-        Object.keys(data.data).forEach(symbol => {
-          const stockInfo = data.data[symbol]
-          stockList.push({
-            ticker: stockInfo.ticker || symbol,
-            price: stockInfo.price,
-            ma10: stockInfo.ma10,
-            ma30: stockInfo.ma30,
-            macdv: stockInfo.macdv,
-            avgNmValue: stockInfo.avgNmValue,
-            note: stockInfo.note,
-            timeCross: stockInfo.crossDate || stockInfo.timeCross
-          })
+      try {
+        // Get stock list from Firebase via API
+        const response = await fetch('/api/signals/golden-cross', {
+          signal: controller.signal,
+          // Add cache headers for browser caching
+          headers: {
+            'Cache-Control': 'public, max-age=120', // 2 minutes
+          },
         })
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch stocks from Firebase')
+        }
+
+        const data = await response.json()
+
+        // Extract stock data from Firebase
+        const stockList: StockData[] = []
+        if (data.data && typeof data.data === 'object') {
+          // Firebase returns object with keys as stock symbols
+          Object.keys(data.data).forEach(symbol => {
+            const stockInfo = data.data[symbol]
+            stockList.push({
+              ticker: stockInfo.ticker || symbol,
+              price: stockInfo.price,
+              ma10: stockInfo.ma10,
+              ma30: stockInfo.ma30,
+              macdv: stockInfo.macdv,
+              avgNmValue: stockInfo.avgNmValue,
+              note: stockInfo.note,
+              timeCross: stockInfo.crossDate || stockInfo.timeCross
+            })
+          })
+        }
+
+        // Sort by timeCross date - newest first
+        stockList.sort((a, b) => {
+          const dateA = a.timeCross ? new Date(a.timeCross).getTime() : 0
+          const dateB = b.timeCross ? new Date(b.timeCross).getTime() : 0
+          return dateB - dateA // Descending order (newest first)
+        })
+
+        // Update cache
+        cachedData = {
+          data: stockList,
+          timestamp: Date.now()
+        }
+
+        setStocks(stockList)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Yêu cầu hết thời gian chờ. Vui lòng thử lại.')
+        }
+        throw fetchError
       }
-
-      // Sort by timeCross date - newest first
-      stockList.sort((a, b) => {
-        const dateA = a.timeCross ? new Date(a.timeCross).getTime() : 0
-        const dateB = b.timeCross ? new Date(b.timeCross).getTime() : 0
-        return dateB - dateA // Descending order (newest first)
-      })
-
-      // Update cache
-      cachedData = {
-        data: stockList,
-        timestamp: Date.now()
-      }
-
-      setStocks(stockList)
     } catch (err: any) {
       console.error('Error fetching stocks:', err)
       setError(err.message || 'Không thể tải danh sách cổ phiếu')
@@ -159,8 +174,14 @@ function GoldenCrossSignalsWidget() {
   if (error) {
     return (
       <div className="bg-[--panel] rounded-none sm:rounded-xl p-4 sm:p-6 border-y sm:border border-gray-800">
-        <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3 sm:p-4 text-red-400 text-sm">
-          {error}
+        <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3 sm:p-4">
+          <p className="text-red-400 text-sm mb-3">{error}</p>
+          <button
+            onClick={() => fetchStocksFromFirebase()}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors"
+          >
+            Thử lại
+          </button>
         </div>
       </div>
     )
