@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { authService } from '@/services/auth.service'
 
 interface UserProfile {
   id: string
@@ -93,8 +94,8 @@ export function useUserProfile(): UseUserProfileReturn {
         return
       }
 
-      // Get current session
-      const { data: { session } } = await supabase.auth.getSession()
+      // Get current session (cached for speed!)
+      const { session } = await authService.getSession()
 
       if (!session) {
         setProfile(null)

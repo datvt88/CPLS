@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { authService } from '@/services/auth.service'
 import { Session, User } from '@supabase/supabase-js'
 
 interface UseSessionReturn {
@@ -22,10 +23,10 @@ export function useSession(): UseSessionReturn {
   useEffect(() => {
     let mounted = true
 
-    // Get initial session
+    // Get initial session (cached for speed!)
     const getInitialSession = async () => {
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession()
+        const { session: initialSession } = await authService.getSession()
 
         if (mounted) {
           setSession(initialSession)

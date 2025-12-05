@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { authService } from '@/services/auth.service'
 import { usePermissions } from '@/contexts/PermissionsContext'
 
 interface ProtectedRouteProps {
@@ -46,8 +46,8 @@ export default function ProtectedRouteOptimized({
       try {
         console.log('🔍 ProtectedRoute: Checking auth...')
 
-        // Step 1: Check session
-        const { data: { session } } = await supabase.auth.getSession()
+        // Step 1: Check session with cached authService (much faster!)
+        const { session } = await authService.getSession()
 
         if (!isMountedRef.current) return
 

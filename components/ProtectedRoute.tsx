@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { authService } from '@/services/auth.service'
 import { useUserProfile } from '@/hooks/useUserProfile'
 
 interface ProtectedRouteProps {
@@ -44,10 +44,9 @@ export default function ProtectedRoute({
           }
         }, AUTH_CHECK_TIMEOUT)
 
-        // Step 1: Check session with timeout wrapper
-        const sessionPromise = supabase.auth.getSession()
-        const { data: { session } } = await Promise.race([
-          sessionPromise,
+        // Step 1: Check session with cached authService (much faster!)
+        const { session, error: sessionError } = await Promise.race([
+          authService.getSession(),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('Session check timeout')), AUTH_CHECK_TIMEOUT)
           )
