@@ -145,7 +145,7 @@ function GoldenCrossSignalsWidget() {
 
   if (loading) {
     return (
-      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-4 sm:p-6 border border-gray-800 mx-2 sm:mx-0">
+      <div className="bg-[--panel] rounded-none sm:rounded-xl p-4 sm:p-6 border-y sm:border border-gray-800">
         <div className="flex items-center justify-center h-60">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
@@ -158,7 +158,7 @@ function GoldenCrossSignalsWidget() {
 
   if (error) {
     return (
-      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-4 sm:p-6 border border-gray-800 mx-2 sm:mx-0">
+      <div className="bg-[--panel] rounded-none sm:rounded-xl p-4 sm:p-6 border-y sm:border border-gray-800">
         <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3 sm:p-4 text-red-400 text-sm">
           {error}
         </div>
@@ -168,7 +168,7 @@ function GoldenCrossSignalsWidget() {
 
   if (stocks.length === 0) {
     return (
-      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-4 sm:p-6 border border-gray-800 mx-2 sm:mx-0">
+      <div className="bg-[--panel] rounded-none sm:rounded-xl p-4 sm:p-6 border-y sm:border border-gray-800">
         <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-2">
           📊 Danh sách mã cổ phiếu
         </h3>
@@ -180,8 +180,8 @@ function GoldenCrossSignalsWidget() {
   }
 
   return (
-    <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-6 border border-gray-800 mx-2 sm:mx-0">
-      <div className="mb-4 sm:mb-6 px-1 sm:px-0">
+    <div className="bg-[--panel] rounded-none sm:rounded-xl p-3 sm:p-6 border-y sm:border border-gray-800">
+      <div className="mb-4 sm:mb-6 px-2 sm:px-0">
         <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
           📊 Danh sách mã cổ phiếu
         </h3>
@@ -190,7 +190,7 @@ function GoldenCrossSignalsWidget() {
         </p>
       </div>
 
-      <div className="overflow-x-auto -mx-3 sm:mx-0">
+      <div className="overflow-x-auto -mx-3 sm:-mx-6">
         <div className="inline-block min-w-full align-middle">
           <table className="min-w-full text-xs sm:text-sm">
             <thead>
