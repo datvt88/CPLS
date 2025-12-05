@@ -49,24 +49,24 @@ export default function SignalsPage() {
 
   // Show signals for all users (logged in, free, premium, anonymous)
   return (
-    <div className="min-h-screen bg-[--bg] p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[--bg] px-2 py-4 sm:px-4 sm:py-6">
+      <div className="w-full mx-auto">
         {/* Header with membership badge */}
-        <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
+        <div className="mb-4 sm:mb-8 flex items-center justify-between flex-wrap gap-2 sm:gap-4 px-2 sm:px-0">
           <div>
-            <h1 className="text-3xl font-bold text-[--fg] mb-2">Tín hiệu</h1>
-            <p className="text-[--muted]">Danh sách mã cổ phiếu từ Firebase Realtime Database</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[--fg] mb-1 sm:mb-2">Tín hiệu</h1>
+            <p className="text-xs sm:text-sm text-[--muted]">Danh sách mã cổ phiếu từ Firebase Realtime Database</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {isPremium && (
-              <span className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm font-semibold">
+              <span className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-xs sm:text-sm font-semibold">
                 ⭐ Premium
               </span>
             )}
             {!isLoggedIn && (
               <button
                 onClick={() => router.push('/login')}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-semibold transition-colors"
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors"
               >
                 Đăng nhập
               </button>
@@ -80,7 +80,7 @@ export default function SignalsPage() {
         {/* Call-to-action banners */}
         {!isLoggedIn ? (
           // Banner for anonymous users
-          <div className="mt-8 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-600/30 rounded-xl p-6">
+          <div className="mt-4 sm:mt-8 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-600/30 rounded-lg sm:rounded-xl p-4 sm:p-6 mx-2 sm:mx-0">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -114,7 +114,7 @@ export default function SignalsPage() {
           </div>
         ) : !isPremium ? (
           // Banner for free logged-in users
-          <div className="mt-8 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-xl p-6">
+          <div className="mt-4 sm:mt-8 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-lg sm:rounded-xl p-4 sm:p-6 mx-2 sm:mx-0">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
