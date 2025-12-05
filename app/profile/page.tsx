@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { authService } from '@/services/auth.service'
+import { useUserProfile } from '@/hooks/useUserProfile'
 import { profileService, type Profile } from '@/services/profile.service'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DeviceManagement from '@/components/DeviceManagement'
@@ -10,8 +10,8 @@ import PasswordManagement from '@/components/PasswordManagement'
 
 function ProfilePageContent() {
   const router = useRouter()
+  const { profile: cachedProfile, loading: profileLoading, refetch } = useUserProfile()
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingTCBS, setSavingTCBS] = useState(false)
   const [message, setMessage] = useState('')
@@ -27,19 +27,16 @@ function ProfilePageContent() {
   const [tcbsApiKey, setTCBSApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
 
+  // Load full profile data when cached profile is available
   useEffect(() => {
-    loadProfile()
-  }, [])
+    if (cachedProfile) {
+      loadFullProfile(cachedProfile.id)
+    }
+  }, [cachedProfile])
 
-  const loadProfile = async () => {
+  const loadFullProfile = async (userId: string) => {
     try {
-      const { user } = await authService.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
-      const { profile: userProfile, error } = await profileService.getProfile(user.id)
+      const { profile: userProfile, error } = await profileService.getProfile(userId)
       if (error) {
         console.error('Error loading profile:', error)
         setMessage('Không thể tải thông tin')
@@ -54,8 +51,6 @@ function ProfilePageContent() {
     } catch (error) {
       console.error('Error:', error)
       setMessage('Đã xảy ra lỗi')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -65,10 +60,9 @@ function ProfilePageContent() {
     setSaving(true)
 
     try {
-      const { user } = await authService.getUser()
-      if (!user) return
+      if (!cachedProfile) return
 
-      const { error } = await profileService.updateProfile(user.id, {
+      const { error } = await profileService.updateProfile(cachedProfile.id, {
         full_name: fullName.trim() || undefined,
         nickname: nickname.trim() || undefined,
         phone_number: phoneNumber.trim() || undefined,
@@ -79,7 +73,8 @@ function ProfilePageContent() {
         setMessage('Lỗi khi cập nhật: ' + error.message)
       } else {
         setMessage('Cập nhật thành công!')
-        await loadProfile()
+        await loadFullProfile(cachedProfile.id)
+        await refetch() // Refresh cached profile
       }
     } catch (error) {
       console.error('Error updating profile:', error)
@@ -95,8 +90,7 @@ function ProfilePageContent() {
     setSavingTCBS(true)
 
     try {
-      const { user } = await authService.getUser()
-      if (!user) return
+      if (!cachedProfile) return
 
       if (!tcbsApiKey.trim()) {
         setTCBSMessage('Vui lòng nhập API Key')
@@ -104,13 +98,13 @@ function ProfilePageContent() {
         return
       }
 
-      const { error } = await profileService.updateTCBSApiKey(user.id, tcbsApiKey.trim())
+      const { error } = await profileService.updateTCBSApiKey(cachedProfile.id, tcbsApiKey.trim())
 
       if (error) {
         setTCBSMessage('Lỗi khi lưu API Key: ' + error.message)
       } else {
         setTCBSMessage('Lưu API Key thành công!')
-        await loadProfile()
+        await loadFullProfile(cachedProfile.id)
       }
     } catch (error) {
       console.error('Error saving TCBS API key:', error)
@@ -127,17 +121,16 @@ function ProfilePageContent() {
     setSavingTCBS(true)
 
     try {
-      const { user } = await authService.getUser()
-      if (!user) return
+      if (!cachedProfile) return
 
-      const { error } = await profileService.removeTCBSApiKey(user.id)
+      const { error } = await profileService.removeTCBSApiKey(cachedProfile.id)
 
       if (error) {
         setTCBSMessage('Lỗi khi xóa: ' + error.message)
       } else {
         setTCBSMessage('Đã xóa kết nối TCBS')
         setTCBSApiKey('')
-        await loadProfile()
+        await loadFullProfile(cachedProfile.id)
       }
     } catch (error) {
       console.error('Error removing TCBS:', error)
@@ -148,16 +141,16 @@ function ProfilePageContent() {
   }
 
   const getMembershipBadge = () => {
-    if (!profile) return null
+    if (!displayProfile) return null
 
-    const isPremium = profile.membership === 'premium'
+    const isPremium = displayProfile.membership === 'premium'
     const badgeClass = isPremium
       ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
       : 'bg-green-500/30 text-green-400 border border-green-500/50'
 
     let expiryText = ''
-    if (isPremium && profile.membership_expires_at) {
-      const expiryDate = new Date(profile.membership_expires_at)
+    if (isPremium && displayProfile.membership_expires_at) {
+      const expiryDate = new Date(displayProfile.membership_expires_at)
       const isExpired = expiryDate < new Date()
       if (!isExpired) {
         expiryText = ` (đến ${expiryDate.toLocaleDateString('vi-VN')})`
@@ -171,16 +164,9 @@ function ProfilePageContent() {
     )
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[--bg]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Đang tải thông tin...</p>
-        </div>
-      </div>
-    )
-  }
+  // Use cached profile for immediate display, full profile for complete data
+  const displayProfile = profile || cachedProfile
+  const isLoading = profileLoading && !displayProfile
 
   return (
     <div className="min-h-screen bg-[--bg] p-6">
@@ -189,31 +175,46 @@ function ProfilePageContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-[--fg]">Cá nhân</h1>
-          {getMembershipBadge()}
+          {isLoading ? (
+            <div className="h-8 w-24 bg-gray-700/50 rounded-full animate-pulse"></div>
+          ) : (
+            getMembershipBadge()
+          )}
         </div>
 
         {/* Section 1: Thông tin người dùng */}
         <div className="bg-[--panel] rounded-lg shadow-lg p-6 border border-gray-800">
           <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[--border]">
-            {profile?.avatar_url ? (
+            {isLoading ? (
+              <div className="w-20 h-20 rounded-full bg-gray-700/50 animate-pulse"></div>
+            ) : displayProfile?.avatar_url ? (
               <img
-                src={profile.avatar_url}
+                src={displayProfile.avatar_url}
                 alt="Avatar"
                 className="w-20 h-20 rounded-full object-cover border-2 border-purple-500"
               />
             ) : (
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white text-2xl font-bold">
-                {profile?.full_name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || 'U'}
+                {displayProfile?.full_name?.[0]?.toUpperCase() || displayProfile?.email?.[0]?.toUpperCase() || 'U'}
               </div>
             )}
-            <div>
-              <p className="text-[--fg] font-semibold text-lg">{profile?.email}</p>
-              <p className="text-[--muted] text-sm">
-                Tham gia: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('vi-VN') : 'N/A'}
-              </p>
-              {profile?.provider && (
+            <div className="flex-1">
+              {isLoading ? (
+                <>
+                  <div className="h-6 w-48 bg-gray-700/50 rounded animate-pulse mb-2"></div>
+                  <div className="h-4 w-32 bg-gray-700/50 rounded animate-pulse"></div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[--fg] font-semibold text-lg">{displayProfile?.email}</p>
+                  <p className="text-[--muted] text-sm">
+                    Tham gia: {displayProfile?.created_at ? new Date(displayProfile.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                  </p>
+                </>
+              )}
+              {displayProfile?.provider && (
                 <p className="text-[--muted] text-sm flex items-center gap-1 mt-1">
-                  {profile.provider === 'google' && (
+                  {displayProfile.provider === 'google' && (
                     <>
                       <svg className="w-4 h-4" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -224,7 +225,7 @@ function ProfilePageContent() {
                       Đăng nhập bằng Google
                     </>
                   )}
-                  {profile.provider === 'zalo' && profile.zalo_id && (
+                  {displayProfile.provider === 'zalo' && displayProfile.zalo_id && (
                     <>
                       <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
                         <circle cx="24" cy="24" r="24" fill="#0068FF"/>
@@ -345,11 +346,13 @@ function ProfilePageContent() {
               <div>
                 <p className="text-[--fg] font-medium">Gói hiện tại</p>
                 <p className="text-[--muted] text-sm mt-1">
-                  {profile?.membership === 'premium' ? (
+                  {isLoading ? (
+                    <span className="inline-block h-4 w-40 bg-gray-700/50 rounded animate-pulse"></span>
+                  ) : displayProfile?.membership === 'premium' ? (
                     <>
                       Bạn đang sử dụng gói Premium
-                      {profile?.membership_expires_at && (
-                        <> - Hết hạn: {new Date(profile.membership_expires_at).toLocaleDateString('vi-VN')}</>
+                      {displayProfile?.membership_expires_at && (
+                        <> - Hết hạn: {new Date(displayProfile.membership_expires_at).toLocaleDateString('vi-VN')}</>
                       )}
                     </>
                   ) : (
@@ -358,11 +361,15 @@ function ProfilePageContent() {
                 </p>
               </div>
               <div>
-                {getMembershipBadge()}
+                {isLoading ? (
+                  <div className="h-8 w-20 bg-gray-700/50 rounded-full animate-pulse"></div>
+                ) : (
+                  getMembershipBadge()
+                )}
               </div>
             </div>
 
-            {profile?.membership === 'free' && (
+            {displayProfile?.membership === 'free' && (
               <div className="p-4 bg-green-500/20 border border-green-500/50 rounded-lg">
                 <h3 className="text-green-400 font-semibold mb-2">Nâng cấp lên Premium</h3>
                 <p className="text-[--muted] text-sm mb-3">
@@ -377,7 +384,7 @@ function ProfilePageContent() {
               </div>
             )}
 
-            {profile?.membership === 'premium' && (
+            {displayProfile?.membership === 'premium' && (
               <div className="p-4 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/50 rounded-lg">
                 <h3 className="text-purple-300 font-semibold mb-2">✓ Bạn đang sử dụng Premium</h3>
                 <ul className="text-[--muted] text-sm space-y-1">
@@ -403,7 +410,7 @@ function ProfilePageContent() {
                 Kết nối với công ty chứng khoán TCBS để tự động đồng bộ tài sản
               </p>
             </div>
-            {profile?.tcbs_api_key && (
+            {displayProfile?.tcbs_api_key && (
               <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
                 ✓ Đã kết nối
               </span>
@@ -411,10 +418,10 @@ function ProfilePageContent() {
           </div>
 
           {/* Status */}
-          {profile?.tcbs_connected_at && (
+          {displayProfile?.tcbs_connected_at && (
             <div className="mb-4 p-3 bg-[--bg] rounded-lg">
               <p className="text-[--muted] text-sm">
-                Kết nối lần cuối: {new Date(profile.tcbs_connected_at).toLocaleString('vi-VN')}
+                Kết nối lần cuối: {new Date(displayProfile.tcbs_connected_at).toLocaleString('vi-VN')}
               </p>
             </div>
           )}
@@ -468,10 +475,10 @@ function ProfilePageContent() {
                 disabled={savingTCBS || !tcbsApiKey.trim()}
                 className="flex-1 bg-[--accent] hover:bg-[--accent]/90 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {savingTCBS ? 'Đang lưu...' : profile?.tcbs_api_key ? 'Cập nhật API Key' : 'Lưu API Key'}
+                {savingTCBS ? 'Đang lưu...' : displayProfile?.tcbs_api_key ? 'Cập nhật API Key' : 'Lưu API Key'}
               </button>
 
-              {profile?.tcbs_api_key && (
+              {displayProfile?.tcbs_api_key && (
                 <button
                   type="button"
                   onClick={handleRemoveTCBS}
