@@ -96,6 +96,13 @@ function GoldenCrossSignalsWidget() {
         })
       }
 
+      // Sort by timeCross date - newest first
+      stockList.sort((a, b) => {
+        const dateA = a.timeCross ? new Date(a.timeCross).getTime() : 0
+        const dateB = b.timeCross ? new Date(b.timeCross).getTime() : 0
+        return dateB - dateA // Descending order (newest first)
+      })
+
       // Update cache
       cachedData = {
         data: stockList,
