@@ -232,47 +232,72 @@ async function cleanupUserSessions(userId: string): Promise<void> {
 }
 
 /**
- * Enforce session limit per user
- * If limit exceeded, delete oldest inactive sessions
+ * Enforce session limit per user (max different devices)
+ * Counts unique devices by fingerprint and deletes oldest sessions if limit exceeded
+ * This ensures each account can only have sessions from max N different devices
  */
-async function enforceSessionLimit(userId: string, maxSessions: number): Promise<void> {
+async function enforceSessionLimit(userId: string, maxDevices: number): Promise<void> {
   try {
-    // Count current sessions
-    const { count } = await supabase
+    // Get all active sessions with their fingerprints
+    const { data: sessions } = await supabase
       .from('user_sessions')
-      .select('*', { count: 'exact', head: true })
+      .select('id, fingerprint, last_activity')
       .eq('user_id', userId)
       .eq('is_active', true)
       .gte('expires_at', new Date().toISOString())
+      .order('last_activity', { ascending: false }) // Newest first
 
-    const sessionCount = count || 0
+    if (!sessions || sessions.length === 0) {
+      return
+    }
 
-    if (sessionCount >= maxSessions) {
-      // Delete oldest sessions to make room
-      const sessionsToDelete = sessionCount - maxSessions + 1
+    // Group sessions by device fingerprint (unique devices)
+    const deviceMap = new Map<string, typeof sessions>()
 
-      // Get oldest sessions
-      const { data: oldSessions } = await supabase
-        .from('user_sessions')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .order('last_activity', { ascending: true })
-        .limit(sessionsToDelete)
+    for (const session of sessions) {
+      const fp = session.fingerprint || 'unknown'
+      if (!deviceMap.has(fp)) {
+        deviceMap.set(fp, [])
+      }
+      deviceMap.get(fp)!.push(session)
+    }
 
-      if (oldSessions && oldSessions.length > 0) {
-        const idsToDelete = oldSessions.map(s => s.id)
+    const uniqueDeviceCount = deviceMap.size
 
-        // Delete them
+    // If we have more than maxDevices, remove oldest devices
+    if (uniqueDeviceCount > maxDevices) {
+      // Get the last activity time for each device (most recent session per device)
+      const deviceActivity = Array.from(deviceMap.entries()).map(([fp, sessions]) => ({
+        fingerprint: fp,
+        lastActivity: sessions[0].last_activity, // Already sorted newest first
+        sessions: sessions
+      }))
+
+      // Sort by last activity (oldest devices first)
+      deviceActivity.sort((a, b) =>
+        new Date(a.lastActivity).getTime() - new Date(b.lastActivity).getTime()
+      )
+
+      // Calculate how many devices to remove
+      const devicesToRemove = uniqueDeviceCount - maxDevices
+
+      // Get sessions from oldest devices to delete
+      const sessionsToDelete: string[] = []
+      for (let i = 0; i < devicesToRemove; i++) {
+        const device = deviceActivity[i]
+        sessionsToDelete.push(...device.sessions.map(s => s.id))
+      }
+
+      if (sessionsToDelete.length > 0) {
         const { error } = await supabase
           .from('user_sessions')
           .delete()
-          .in('id', idsToDelete)
+          .in('id', sessionsToDelete)
 
         if (error) {
-          console.error('Error enforcing session limit:', error)
+          console.error('Error enforcing device limit:', error)
         } else {
-          console.log(`✅ Deleted ${idsToDelete.length} old sessions to enforce limit`)
+          console.log(`✅ Deleted ${sessionsToDelete.length} session(s) from ${devicesToRemove} old device(s) to enforce limit of ${maxDevices} devices`)
         }
       }
     }
@@ -300,8 +325,26 @@ export async function createSessionRecord(
     // OPTIMIZATION 1: Auto-cleanup expired/old sessions for this user before creating new one
     await cleanupUserSessions(userId)
 
-    // OPTIMIZATION 2: Enforce session limit (max 15 active sessions per user)
-    await enforceSessionLimit(userId, 15)
+    // OPTIMIZATION 2: Delete existing session from same device (1 device = 1 session)
+    const { data: existingSessions } = await supabase
+      .from('user_sessions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('fingerprint', deviceFingerprint)
+      .eq('is_active', true)
+
+    if (existingSessions && existingSessions.length > 0) {
+      const idsToDelete = existingSessions.map(s => s.id)
+      await supabase
+        .from('user_sessions')
+        .delete()
+        .in('id', idsToDelete)
+
+      console.log(`✅ Replaced ${idsToDelete.length} old session(s) from same device`)
+    }
+
+    // OPTIMIZATION 3: Enforce session limit (max 3 different devices per account)
+    await enforceSessionLimit(userId, 3)
 
     const { data, error } = await supabase
       .from('user_sessions')

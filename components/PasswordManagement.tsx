@@ -195,7 +195,7 @@ export default function PasswordManagement() {
           onClick={() => setShowForm(true)}
           className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition-colors"
         >
-          {hasPassword ? 'Thay đổi mật khẩu' : 'Thiết lập mật khẩu'}
+          {hasPassword ? 'Thay đổi mật khẩu mới' : 'Thiết lập mật khẩu'}
         </button>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -281,7 +281,7 @@ export default function PasswordManagement() {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  {hasPassword ? 'Cập nhật mật khẩu' : 'Thiết lập mật khẩu'}
+                  {hasPassword ? 'Cập nhật mật khẩu mới' : 'Thiết lập mật khẩu'}
                 </>
               )}
             </button>
