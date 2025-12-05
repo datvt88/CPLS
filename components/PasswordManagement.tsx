@@ -8,6 +8,7 @@ export default function PasswordManagement() {
   const [hasPassword, setHasPassword] = useState<boolean | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   // Form states
   const [currentPassword, setCurrentPassword] = useState('')
@@ -22,10 +23,25 @@ export default function PasswordManagement() {
   }, [])
 
   const checkPasswordStatus = async () => {
+    setLoading(true)
+    setError('')
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      // Add timeout protection (10 seconds)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+      const userPromise = supabase.auth.getUser()
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: Không thể tải thông tin mật khẩu')), 10000)
+      )
+
+      const { data: { user } } = await Promise.race([userPromise, timeoutPromise])
+
+      clearTimeout(timeoutId)
 
       if (!user) {
+        setError('Không tìm thấy thông tin người dùng')
         setLoading(false)
         return
       }
@@ -35,9 +51,14 @@ export default function PasswordManagement() {
       const hasEmailProvider = providers.includes('email')
 
       setHasPassword(hasEmailProvider)
-      setLoading(false)
-    } catch (error) {
-      console.error('Error checking password status:', error)
+      setError('')
+    } catch (err: any) {
+      console.error('Error checking password status:', err)
+      setError(err.message?.includes('Timeout')
+        ? 'Không thể kết nối. Vui lòng kiểm tra kết nối mạng và thử lại.'
+        : 'Không thể tải thông tin mật khẩu. Vui lòng thử lại.'
+      )
+    } finally {
       setLoading(false)
     }
   }
@@ -68,27 +89,24 @@ export default function PasswordManagement() {
     setSaving(true)
 
     try {
+      // Add timeout protection (15 seconds for password update)
+      const updatePromise = supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: Không thể cập nhật mật khẩu')), 15000)
+      )
+
+      const { error } = await Promise.race([updatePromise, timeoutPromise])
+
+      if (error) {
+        throw error
+      }
+
       if (hasPassword) {
-        // Update existing password
-        const { error } = await supabase.auth.updateUser({
-          password: newPassword
-        })
-
-        if (error) {
-          throw error
-        }
-
         setMessage('Cập nhật mật khẩu thành công!')
       } else {
-        // Set password for the first time
-        const { error } = await supabase.auth.updateUser({
-          password: newPassword
-        })
-
-        if (error) {
-          throw error
-        }
-
         setMessage('Thiết lập mật khẩu thành công! Bạn có thể đăng nhập bằng số điện thoại và mật khẩu.')
         setHasPassword(true)
       }
@@ -103,7 +121,11 @@ export default function PasswordManagement() {
       await checkPasswordStatus()
     } catch (error: any) {
       console.error('Error updating password:', error)
-      setMessage(error.message || 'Có lỗi xảy ra khi cập nhật mật khẩu')
+      if (error.message?.includes('Timeout')) {
+        setMessage('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.')
+      } else {
+        setMessage(error.message || 'Có lỗi xảy ra khi cập nhật mật khẩu')
+      }
     } finally {
       setSaving(false)
     }
@@ -112,8 +134,31 @@ export default function PasswordManagement() {
   if (loading) {
     return (
       <div className="bg-[--panel] rounded-lg shadow-lg p-6">
-        <div className="flex items-center justify-center h-40">
-          <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center justify-center h-40">
+          <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-400 text-sm">Đang tải...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-[--panel] rounded-lg shadow-lg p-6">
+        <div className="text-center">
+          <div className="mb-4">
+            <svg className="w-16 h-16 text-red-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-[--fg] mb-2">Không thể tải thông tin</h3>
+          <p className="text-red-400 mb-6">{error}</p>
+          <button
+            onClick={checkPasswordStatus}
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            Thử lại
+          </button>
         </div>
       </div>
     )
