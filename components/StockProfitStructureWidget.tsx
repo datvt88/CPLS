@@ -61,10 +61,10 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
           }
         }
 
-        // If no profit data, fallback to NEW revenue API (MAIN_BUSINESS_OPERATING_REVENUE)
+        // If no profit data, fallback to NEW revenue API (MAIN_BUSINESS_OPERATING_PROFIT)
         console.log('⚠️ No profit data from OLD API, trying NEW revenue API...')
         const revenueResponse = await fetch(
-          `/api/dnse/profit-structure?symbol=${symbol}&code=MAIN_BUSINESS_OPERATING_REVENUE&cycleType=quy&cycleNumber=5`
+          `/api/dnse/profit-structure?symbol=${symbol}&code=MAIN_BUSINESS_OPERATING_PROFIT&cycleType=quy&cycleNumber=5`
         )
 
         if (!revenueResponse.ok) {
