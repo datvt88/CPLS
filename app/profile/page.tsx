@@ -6,6 +6,7 @@ import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DeviceManagement from '@/components/DeviceManagement'
+import PasswordManagement from '@/components/PasswordManagement'
 
 function ProfilePageContent() {
   const router = useRouter()
@@ -389,6 +390,9 @@ function ProfilePageContent() {
             )}
           </div>
         </div>
+
+        {/* Section 2.5: Quản lý mật khẩu */}
+        <PasswordManagement />
 
         {/* Section 3: Tích hợp TCBS */}
         <div className="bg-[--panel] rounded-lg shadow-lg p-6">

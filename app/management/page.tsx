@@ -40,6 +40,12 @@ function ManagementPageContent() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
+  // Password Reset
+  const [resetPassword, setResetPassword] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [resetPasswordMessage, setResetPasswordMessage] = useState('')
+  const [resettingPassword, setResettingPassword] = useState(false)
+
   // Create User Modal
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createForm, setCreateForm] = useState({
@@ -200,6 +206,66 @@ function ManagementPageContent() {
       membership_expires_at: user.membership_expires_at || ''
     })
     setMessage('')
+    setResetPassword('')
+    setShowResetPassword(false)
+    setResetPasswordMessage('')
+  }
+
+  const handleResetPassword = async () => {
+    if (!editingUser) return
+
+    if (!resetPassword || resetPassword.length < 6) {
+      setResetPasswordMessage('Mật khẩu phải có ít nhất 6 ký tự')
+      return
+    }
+
+    if (!confirm(`Bạn có chắc muốn cấp lại mật khẩu cho ${editingUser.email}?`)) {
+      return
+    }
+
+    setResettingPassword(true)
+    setResetPasswordMessage('')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        setResetPasswordMessage('Phiên đăng nhập hết hạn')
+        setResettingPassword(false)
+        return
+      }
+
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          user_id: editingUser.id,
+          new_password: resetPassword
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        setResetPasswordMessage(result.error || 'Có lỗi xảy ra')
+        setResettingPassword(false)
+        return
+      }
+
+      setResetPasswordMessage('✅ Đã cấp lại mật khẩu thành công!')
+      setResetPassword('')
+      setTimeout(() => {
+        setShowResetPassword(false)
+        setResetPasswordMessage('')
+      }, 2000)
+    } catch (error: any) {
+      console.error('Error resetting password:', error)
+      setResetPasswordMessage(error.message || 'Có lỗi xảy ra')
+    } finally {
+      setResettingPassword(false)
+    }
   }
 
   const handleSaveUser = async () => {
@@ -853,6 +919,74 @@ function ManagementPageContent() {
                     />
                   </div>
                 )}
+
+                {/* Password Reset Section */}
+                <div className="pt-4 border-t border-gray-800">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-[--fg] text-sm font-medium">
+                      🔒 Cấp lại mật khẩu
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowResetPassword(!showResetPassword)}
+                      className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                      {showResetPassword ? 'Ẩn' : 'Hiện form'}
+                    </button>
+                  </div>
+
+                  {showResetPassword && (
+                    <div className="space-y-3 p-4 bg-[--bg] rounded-lg border border-yellow-500/30">
+                      <p className="text-xs text-yellow-400">
+                        ⚠️ Mật khẩu mới sẽ được cập nhật ngay lập tức. Hãy lưu mật khẩu và gửi cho người dùng.
+                      </p>
+                      <div>
+                        <input
+                          type="text"
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                          className="w-full p-3 bg-[--panel] border border-[--border] rounded-lg focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 text-[--fg]"
+                          disabled={resettingPassword}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleResetPassword}
+                        disabled={resettingPassword || !resetPassword}
+                        className="w-full px-4 py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {resettingPassword ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Đang cấp lại...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                            </svg>
+                            Cấp lại mật khẩu
+                          </>
+                        )}
+                      </button>
+                      {resetPasswordMessage && (
+                        <div
+                          className={`p-3 rounded-lg text-center text-sm font-medium ${
+                            resetPasswordMessage.includes('thành công')
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                              : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                          }`}
+                        >
+                          {resetPasswordMessage}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Message */}
                 {message && (

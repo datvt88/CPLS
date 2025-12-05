@@ -1,0 +1,275 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabaseClient'
+import { validatePassword } from '@/utils/validation'
+
+export default function PasswordManagement() {
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // Form states
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [showPasswords, setShowPasswords] = useState(false)
+
+  useEffect(() => {
+    checkPasswordStatus()
+  }, [])
+
+  const checkPasswordStatus = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      // Check if user has email provider (means they have password)
+      const providers = user.app_metadata?.providers || []
+      const hasEmailProvider = providers.includes('email')
+
+      setHasPassword(hasEmailProvider)
+      setLoading(false)
+    } catch (error) {
+      console.error('Error checking password status:', error)
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMessage('')
+
+    // Validate new password
+    const passwordValidation = validatePassword(newPassword)
+    if (!passwordValidation.valid) {
+      setMessage(passwordValidation.error || 'Mật khẩu không hợp lệ')
+      return
+    }
+
+    // Check password confirmation
+    if (newPassword !== confirmPassword) {
+      setMessage('Mật khẩu xác nhận không khớp')
+      return
+    }
+
+    // If user has password, require current password
+    if (hasPassword && !currentPassword) {
+      setMessage('Vui lòng nhập mật khẩu hiện tại')
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      if (hasPassword) {
+        // Update existing password
+        const { error } = await supabase.auth.updateUser({
+          password: newPassword
+        })
+
+        if (error) {
+          throw error
+        }
+
+        setMessage('Cập nhật mật khẩu thành công!')
+      } else {
+        // Set password for the first time
+        const { error } = await supabase.auth.updateUser({
+          password: newPassword
+        })
+
+        if (error) {
+          throw error
+        }
+
+        setMessage('Thiết lập mật khẩu thành công! Bạn có thể đăng nhập bằng số điện thoại và mật khẩu.')
+        setHasPassword(true)
+      }
+
+      // Reset form
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowForm(false)
+
+      // Refresh password status
+      await checkPasswordStatus()
+    } catch (error: any) {
+      console.error('Error updating password:', error)
+      setMessage(error.message || 'Có lỗi xảy ra khi cập nhật mật khẩu')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-[--panel] rounded-lg shadow-lg p-6">
+        <div className="flex items-center justify-center h-40">
+          <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-[--panel] rounded-lg shadow-lg p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-semibold text-[--fg]">Mật khẩu đăng nhập</h2>
+          <p className="text-[--muted] text-sm mt-1">
+            Quản lý mật khẩu để đăng nhập bằng số điện thoại
+          </p>
+        </div>
+        {hasPassword && (
+          <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+            ✓ Đã thiết lập
+          </span>
+        )}
+      </div>
+
+      {/* Status */}
+      <div className="mb-4 p-3 bg-[--bg] rounded-lg">
+        <p className="text-[--muted] text-sm">
+          {hasPassword
+            ? '✅ Bạn đã thiết lập mật khẩu và có thể đăng nhập bằng số điện thoại + mật khẩu'
+            : '⚠️ Bạn chưa thiết lập mật khẩu. Thiết lập ngay để có thể đăng nhập bằng số điện thoại'
+          }
+        </p>
+      </div>
+
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition-colors"
+        >
+          {hasPassword ? 'Thay đổi mật khẩu' : 'Thiết lập mật khẩu'}
+        </button>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {hasPassword && (
+            <div>
+              <label className="block text-[--fg] text-sm font-medium mb-2">
+                Mật khẩu hiện tại <span className="text-red-500">*</span>
+              </label>
+              <input
+                type={showPasswords ? 'text' : 'password'}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-[--fg] transition-all"
+                placeholder="Nhập mật khẩu hiện tại"
+                disabled={saving}
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-[--fg] text-sm font-medium mb-2">
+              Mật khẩu mới <span className="text-red-500">*</span>
+            </label>
+            <input
+              type={showPasswords ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-[--fg] transition-all"
+              placeholder="Nhập mật khẩu mới"
+              disabled={saving}
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Tối thiểu 6 ký tự, nên có chữ hoa, chữ thường và số
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[--fg] text-sm font-medium mb-2">
+              Xác nhận mật khẩu mới <span className="text-red-500">*</span>
+            </label>
+            <input
+              type={showPasswords ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full p-3 bg-[--bg] border border-[--border] rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-[--fg] transition-all"
+              placeholder="Nhập lại mật khẩu mới"
+              disabled={saving}
+              required
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="showPasswords"
+              checked={showPasswords}
+              onChange={(e) => setShowPasswords(e.target.checked)}
+              className="w-4 h-4 text-purple-600 bg-[--bg] border-gray-600 rounded focus:ring-purple-500"
+            />
+            <label htmlFor="showPasswords" className="text-sm text-[--muted]">
+              Hiện mật khẩu
+            </label>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Đang lưu...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {hasPassword ? 'Cập nhật mật khẩu' : 'Thiết lập mật khẩu'}
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false)
+                setCurrentPassword('')
+                setNewPassword('')
+                setConfirmPassword('')
+                setMessage('')
+              }}
+              disabled={saving}
+              className="px-6 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Hủy
+            </button>
+          </div>
+
+          {message && (
+            <div
+              className={`p-4 rounded-lg text-center font-medium ${
+                message.includes('thành công')
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                  : 'bg-red-500/20 text-red-400 border border-red-500/50'
+              }`}
+            >
+              {message}
+            </div>
+          )}
+        </form>
+      )}
+    </div>
+  )
+}
