@@ -207,7 +207,7 @@ function GoldenCrossSignalsWidget() {
           📊 Danh sách mã cổ phiếu
         </h3>
         <p className="text-gray-400 text-xs sm:text-sm mt-1">
-          {stocks.length} mã cổ phiếu từ Firebase Realtime Database
+          {stocks.length} mã cổ phiếu từ Realtime Database
         </p>
       </div>
 
