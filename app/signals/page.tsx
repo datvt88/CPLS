@@ -10,9 +10,10 @@ export default function SignalsPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(true) // Renamed to authLoading
 
   useEffect(() => {
+    // Run auth check in background without blocking page render
     checkAuthAndLoadProfile()
   }, [])
 
@@ -30,21 +31,11 @@ export default function SignalsPage() {
     } catch (error) {
       console.error('Error checking auth:', error)
     } finally {
-      setLoading(false)
+      setAuthLoading(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[--bg]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Đang tải...</p>
-        </div>
-      </div>
-    )
-  }
-
+  // Remove blocking loading state - render immediately
   const isPremium = profile?.membership === 'premium'
 
   // Show signals for all users (logged in, free, premium, anonymous)
@@ -58,18 +49,25 @@ export default function SignalsPage() {
             <p className="text-xs sm:text-sm text-[--muted]">Danh sách mã cổ phiếu từ Firebase Realtime Database</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            {isPremium && (
-              <span className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-xs sm:text-sm font-semibold">
-                ⭐ Premium
-              </span>
-            )}
-            {!isLoggedIn && (
-              <button
-                onClick={() => router.push('/login')}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors"
-              >
-                Đăng nhập
-              </button>
+            {authLoading ? (
+              // Skeleton while auth is loading
+              <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-700/50 rounded-lg w-20 h-8 animate-pulse"></div>
+            ) : (
+              <>
+                {isPremium && (
+                  <span className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-xs sm:text-sm font-semibold">
+                    ⭐ Premium
+                  </span>
+                )}
+                {!isLoggedIn && (
+                  <button
+                    onClick={() => router.push('/login')}
+                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors"
+                  >
+                    Đăng nhập
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -77,8 +75,8 @@ export default function SignalsPage() {
         {/* Signals Content - Public access */}
         <GoldenCrossSignalsWidget />
 
-        {/* Call-to-action banners */}
-        {!isLoggedIn ? (
+        {/* Call-to-action banners - only show after auth check completes */}
+        {!authLoading && !isLoggedIn ? (
           // Banner for anonymous users
           <div className="mt-4 sm:mt-8 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-600/30 rounded-lg sm:rounded-xl p-4 sm:p-6 mx-2 sm:mx-4">
             <div className="flex items-start gap-4">
@@ -112,7 +110,7 @@ export default function SignalsPage() {
               </div>
             </div>
           </div>
-        ) : !isPremium ? (
+        ) : !authLoading && !isPremium ? (
           // Banner for free logged-in users
           <div className="mt-4 sm:mt-8 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-lg sm:rounded-xl p-4 sm:p-6 mx-2 sm:mx-4">
             <div className="flex items-start gap-4">
