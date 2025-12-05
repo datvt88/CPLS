@@ -197,7 +197,93 @@ function getCanvasFingerprint(): string {
 }
 
 /**
+ * Cleanup expired and inactive sessions for specific user
+ */
+async function cleanupUserSessions(userId: string): Promise<void> {
+  try {
+    const now = new Date().toISOString()
+
+    // Delete expired sessions
+    const { error: expiredError } = await supabase
+      .from('user_sessions')
+      .delete()
+      .eq('user_id', userId)
+      .lt('expires_at', now)
+
+    if (expiredError) {
+      console.error('Error cleaning expired sessions:', expiredError)
+    }
+
+    // Delete inactive sessions older than 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { error: inactiveError } = await supabase
+      .from('user_sessions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('is_active', false)
+      .lt('created_at', thirtyDaysAgo)
+
+    if (inactiveError) {
+      console.error('Error cleaning inactive sessions:', inactiveError)
+    }
+  } catch (error) {
+    console.error('Error in cleanupUserSessions:', error)
+  }
+}
+
+/**
+ * Enforce session limit per user
+ * If limit exceeded, delete oldest inactive sessions
+ */
+async function enforceSessionLimit(userId: string, maxSessions: number): Promise<void> {
+  try {
+    // Count current sessions
+    const { count } = await supabase
+      .from('user_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .gte('expires_at', new Date().toISOString())
+
+    const sessionCount = count || 0
+
+    if (sessionCount >= maxSessions) {
+      // Delete oldest sessions to make room
+      const sessionsToDelete = sessionCount - maxSessions + 1
+
+      // Get oldest sessions
+      const { data: oldSessions } = await supabase
+        .from('user_sessions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('last_activity', { ascending: true })
+        .limit(sessionsToDelete)
+
+      if (oldSessions && oldSessions.length > 0) {
+        const idsToDelete = oldSessions.map(s => s.id)
+
+        // Delete them
+        const { error } = await supabase
+          .from('user_sessions')
+          .delete()
+          .in('id', idsToDelete)
+
+        if (error) {
+          console.error('Error enforcing session limit:', error)
+        } else {
+          console.log(`✅ Deleted ${idsToDelete.length} old sessions to enforce limit`)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in enforceSessionLimit:', error)
+  }
+}
+
+/**
  * Create session record in database
+ * Auto-cleans up expired sessions before creating new one
  */
 export async function createSessionRecord(
   userId: string,
@@ -210,6 +296,12 @@ export async function createSessionRecord(
 
     // Use provided fingerprint or generate new one
     const deviceFingerprint = fingerprint || await getDeviceFingerprint()
+
+    // OPTIMIZATION 1: Auto-cleanup expired/old sessions for this user before creating new one
+    await cleanupUserSessions(userId)
+
+    // OPTIMIZATION 2: Enforce session limit (max 15 active sessions per user)
+    await enforceSessionLimit(userId, 15)
 
     const { data, error } = await supabase
       .from('user_sessions')
@@ -305,12 +397,12 @@ export async function getActiveSessions(): Promise<SessionInfo[]> {
 }
 
 /**
- * Revoke specific session (logout from device)
+ * Revoke specific session (logout from device) - DELETES session
  */
 export async function revokeSession(sessionId: string): Promise<void> {
   const { error } = await supabase
     .from('user_sessions')
-    .update({ is_active: false })
+    .delete()
     .eq('id', sessionId)
 
   if (error) {
@@ -318,11 +410,11 @@ export async function revokeSession(sessionId: string): Promise<void> {
     throw new Error('Failed to revoke session')
   }
 
-  console.log('✅ Session revoked:', sessionId)
+  console.log('✅ Session revoked (deleted):', sessionId)
 }
 
 /**
- * Revoke all sessions except current one
+ * Revoke all sessions except current one - DELETES sessions
  */
 export async function revokeAllOtherSessions(): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -334,21 +426,20 @@ export async function revokeAllOtherSessions(): Promise<void> {
 
   const { error } = await supabase
     .from('user_sessions')
-    .update({ is_active: false })
+    .delete()
     .eq('user_id', session.user.id)
     .neq('session_token', currentToken)
-    .eq('is_active', true)
 
   if (error) {
     console.error('Failed to revoke other sessions:', error)
     throw new Error('Failed to revoke sessions')
   }
 
-  console.log('✅ All other sessions revoked')
+  console.log('✅ All other sessions revoked (deleted)')
 }
 
 /**
- * Revoke all sessions for current user (logout everywhere)
+ * Revoke all sessions for current user (logout everywhere) - DELETES sessions
  */
 export async function revokeAllSessions(): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -358,9 +449,8 @@ export async function revokeAllSessions(): Promise<void> {
 
   const { error } = await supabase
     .from('user_sessions')
-    .update({ is_active: false })
+    .delete()
     .eq('user_id', session.user.id)
-    .eq('is_active', true)
 
   if (error) {
     console.error('Failed to revoke all sessions:', error)
@@ -370,11 +460,11 @@ export async function revokeAllSessions(): Promise<void> {
   // Also sign out from Supabase
   await supabase.auth.signOut()
 
-  console.log('✅ All sessions revoked and signed out')
+  console.log('✅ All sessions revoked (deleted) and signed out')
 }
 
 /**
- * Cleanup expired sessions for current user
+ * Cleanup expired sessions for current user - DELETES instead of marking inactive
  */
 export async function cleanupExpiredSessions(): Promise<number> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -382,17 +472,16 @@ export async function cleanupExpiredSessions(): Promise<number> {
 
   const { error, count } = await supabase
     .from('user_sessions')
-    .update({ is_active: false })
+    .delete()
     .eq('user_id', session.user.id)
     .lt('expires_at', new Date().toISOString())
-    .eq('is_active', true)
 
   if (error) {
     console.error('Failed to cleanup expired sessions:', error)
     return 0
   }
 
-  console.log(`✅ Cleaned up ${count || 0} expired sessions`)
+  console.log(`✅ Cleaned up (deleted) ${count || 0} expired sessions`)
   return count || 0
 }
 
