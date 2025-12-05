@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { authService } from '@/services/auth.service'
 import { Feature, PREMIUM_FEATURES, FREE_FEATURES } from '@/lib/permissions'
 
 interface Profile {
@@ -30,7 +31,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const loadPermissions = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { session } = await authService.getSession()
 
       if (!session) {
         // Not logged in - free access only
