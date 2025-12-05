@@ -26,6 +26,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
   const [equityLoading, setEquityLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [equityError, setEquityError] = useState<string | null>(null)
+  const [dataType, setDataType] = useState<'profit' | 'revenue'>('profit') // Track which data type we're showing
 
   useEffect(() => {
     if (!symbol) return
@@ -41,22 +42,50 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
       try {
         console.log('📊 Loading profit structure data for:', symbol)
 
-        // Use proxy API route to avoid CORS issues
-        const response = await fetch(
+        // Try OLD profit API first (PROFIT_BEFORE_TAX)
+        const profitResponse = await fetch(
           `/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`
         )
 
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`)
+        if (profitResponse.ok) {
+          const profitResult = await profitResponse.json()
+
+          // Check if we got actual data
+          if (profitResult && profitResult.data && profitResult.data.length > 0) {
+            console.log('✅ Profit structure data loaded (OLD API):', profitResult)
+            setData(profitResult)
+            setDataType('profit')
+            setError(null)
+            setLoading(false)
+            return
+          }
         }
 
-        const result = await response.json()
-        console.log('✅ Profit structure data loaded:', result)
-        setData(result)
-      } catch (err) {
-        console.error('❌ Error loading profit structure data:', err)
+        // If no profit data, fallback to NEW revenue API (MAIN_BUSINESS_OPERATING_PROFIT)
+        console.log('⚠️ No profit data from OLD API, trying NEW revenue API...')
+        const revenueResponse = await fetch(
+          `/api/dnse/profit-structure?symbol=${symbol}&code=MAIN_BUSINESS_OPERATING_PROFIT&cycleType=quy&cycleNumber=5`
+        )
 
-        let errorMessage = 'Không tải được dữ liệu cơ cấu lợi nhuận'
+        if (!revenueResponse.ok) {
+          throw new Error(`API error: ${revenueResponse.status}`)
+        }
+
+        const revenueResult = await revenueResponse.json()
+
+        // Check if we got actual data
+        if (revenueResult && revenueResult.data && revenueResult.data.length > 0) {
+          console.log('✅ Revenue structure data loaded (NEW API fallback):', revenueResult)
+          setData(revenueResult)
+          setDataType('revenue')
+          setError(null)
+        } else {
+          throw new Error('No data available')
+        }
+      } catch (err) {
+        console.error('❌ Error loading structure data:', err)
+
+        let errorMessage = 'Không tải được dữ liệu cơ cấu lợi nhuận/doanh thu'
         if (err instanceof Error) {
           if (err.message.includes('404')) {
             errorMessage = 'DNSE không có dữ liệu cho mã này'
@@ -67,6 +96,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
           }
         }
         setError(errorMessage)
+        setData(null)
       } finally {
         setLoading(false)
       }
@@ -156,20 +186,21 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
     return (
       <div className="bg-[--panel] rounded-xl p-4 border border-gray-800">
         <div className="text-gray-400 text-center py-8">
-          Không có dữ liệu cơ cấu lợi nhuận
+          Không có dữ liệu cơ cấu lợi nhuận/doanh thu
         </div>
       </div>
     )
   }
 
-  // Separate "LN trước thuế" (total) from component profits
-  const profitBeforeTax = data.data.find(m => m.id === 0)
-  const componentProfits = data.data.filter(m => m.id !== 0)
+  // For profit data: Separate "LN trước thuế" (total, id=0) from component profits
+  // For revenue data: All items are components (no total line)
+  const totalLine = data.data.find(m => m.id === 0 && m.label.includes('trước thuế'))
+  const components = totalLine ? data.data.filter(m => m.id !== 0) : data.data
 
-  // Find max value for scaling (use LN trước thuế as reference)
-  const maxTotal = profitBeforeTax
-    ? Math.max(...profitBeforeTax.y.map(v => Math.abs(v)))
-    : 0
+  // Find max value for scaling
+  const maxTotal = totalLine
+    ? Math.max(...totalLine.y.map(v => Math.abs(v)))
+    : Math.max(...data.data.flatMap(m => m.y.map(v => Math.abs(v))))
 
   // Get metric colors
   const getMetricColor = (metricId: number, isNegative: boolean) => {
@@ -212,14 +243,16 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
       </h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Profit Structure Section */}
+        {/* Profit/Revenue Structure Section */}
         <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-        <h4 className="text-sm font-semibold text-white mb-3">💰 Cơ cấu lợi nhuận</h4>
+        <h4 className="text-sm font-semibold text-white mb-3">
+          {dataType === 'profit' ? '💰 Cơ cấu lợi nhuận' : '💵 Cơ cấu doanh thu'}
+        </h4>
         {/* Legend */}
         <div className="flex flex-wrap gap-3 mb-4 pb-3 border-b border-gray-700/50">
           {data.data.map(metric => {
-            // Show circle for LN trước thuế, square for others
-            const isTotal = metric.id === 0
+            // Show circle for total line (if exists), square for components
+            const isTotal = totalLine && metric.id === totalLine.id
             return (
               <div key={metric.id} className="flex items-center gap-2">
                 {isTotal ? (
@@ -246,16 +279,18 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
             {[...data.x].reverse().map((quarter, qIdx) => {
               const originalIdx = data.x.length - 1 - qIdx
 
-              // Get LN trước thuế value for this quarter
-              const totalValue = profitBeforeTax ? profitBeforeTax.y[originalIdx] || 0 : 0
+              // Get total value for this quarter (either from totalLine or sum of all components)
+              const totalValue = totalLine
+                ? (totalLine.y[originalIdx] || 0)
+                : components.reduce((sum, m) => sum + (m.y[originalIdx] || 0), 0)
 
               return (
                 <div key={qIdx} className="flex items-center gap-2">
                   <span className="text-xs text-gray-400 w-16">{quarter}</span>
                   <div className="flex-1 relative">
-                    {/* Stacked bars for component profits only */}
+                    {/* Stacked bars for components */}
                     <div className="flex gap-0.5">
-                      {componentProfits.map(metric => {
+                      {components.map(metric => {
                         const value = metric.y[originalIdx] || 0
                         const isNegative = value < 0
                         const absValue = Math.abs(value)
@@ -284,20 +319,20 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
             })}
           </div>
 
-          {/* Trend line for LN trước thuế */}
-          {profitBeforeTax && (
+          {/* Trend line for total (only shown for profit data with total line) */}
+          {totalLine && (
             <svg
               className="absolute top-0 h-full pointer-events-none"
               style={{ left: '4rem', width: 'calc(100% - 4rem - 5.5rem)' }}
             >
               {/* Draw connecting lines */}
-              {[...profitBeforeTax.y].reverse().map((value, qIdx) => {
-                if (qIdx === profitBeforeTax.y.length - 1) return null
+              {[...totalLine.y].reverse().map((value, qIdx) => {
+                if (qIdx === totalLine.y.length - 1) return null
 
                 const originalIdx = data.x.length - 1 - qIdx
                 const nextOriginalIdx = data.x.length - 2 - qIdx
-                const currentValue = profitBeforeTax.y[originalIdx] || 0
-                const nextValue = profitBeforeTax.y[nextOriginalIdx] || 0
+                const currentValue = totalLine.y[originalIdx] || 0
+                const nextValue = totalLine.y[nextOriginalIdx] || 0
 
                 const y1 = qIdx * 20 + 8 // Center of row (20px height + 8px center)
                 const y2 = (qIdx + 1) * 20 + 8
@@ -319,9 +354,9 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
               })}
 
               {/* Draw dots */}
-              {[...profitBeforeTax.y].reverse().map((value, qIdx) => {
+              {[...totalLine.y].reverse().map((value, qIdx) => {
                 const originalIdx = data.x.length - 1 - qIdx
-                const currentValue = profitBeforeTax.y[originalIdx] || 0
+                const currentValue = totalLine.y[originalIdx] || 0
                 const absValue = Math.abs(currentValue)
                 const xPercent = maxTotal > 0 ? (absValue / maxTotal) * 100 : 0
                 const y = qIdx * 20 + 8 // Center of row
@@ -337,7 +372,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
                       strokeWidth="2"
                     >
                       <title>
-                        {profitBeforeTax.label}: {formatBillion(absValue)} nghìn tỷ
+                        {totalLine.label}: {formatBillion(absValue)} nghìn tỷ
                       </title>
                     </circle>
                   </g>
