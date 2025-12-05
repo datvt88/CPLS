@@ -12,6 +12,37 @@ export interface ZaloAuthOptions {
   scopes?: string
 }
 
+// Session cache to avoid repeated API calls
+let sessionCache: {
+  session: any | null
+  user: any | null
+  timestamp: number
+} | null = null
+
+const SESSION_CACHE_TTL = 60 * 1000 // 1 minute cache
+
+// Clear cache helper
+function clearSessionCache() {
+  sessionCache = null
+}
+
+// Initialize auth state listener (runs once)
+if (typeof window !== 'undefined') {
+  supabase.auth.onAuthStateChange((event, session) => {
+    console.log('🔔 Auth state changed:', event)
+    // Update cache when auth state changes
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      sessionCache = {
+        session,
+        user: session?.user || null,
+        timestamp: Date.now()
+      }
+    } else if (event === 'SIGNED_OUT') {
+      clearSessionCache()
+    }
+  })
+}
+
 export const authService = {
   /**
    * Sign up a new user with email and password
@@ -201,18 +232,54 @@ export const authService = {
   },
 
   /**
-   * Get current session
+   * Get current session (with caching)
    */
   async getSession() {
+    // Check cache first
+    if (sessionCache && (Date.now() - sessionCache.timestamp < SESSION_CACHE_TTL)) {
+      console.log('✨ [Auth] Using cached session')
+      return { session: sessionCache.session, error: null }
+    }
+
+    // Cache miss or expired - fetch fresh
+    console.log('🔄 [Auth] Fetching fresh session')
     const { data, error } = await supabase.auth.getSession()
+
+    // Update cache
+    if (!error && data.session) {
+      sessionCache = {
+        session: data.session,
+        user: data.session.user,
+        timestamp: Date.now()
+      }
+    }
+
     return { session: data.session, error }
   },
 
   /**
-   * Get current user
+   * Get current user (with caching)
    */
   async getUser() {
+    // Check cache first
+    if (sessionCache && (Date.now() - sessionCache.timestamp < SESSION_CACHE_TTL)) {
+      console.log('✨ [Auth] Using cached user')
+      return { user: sessionCache.user, error: null }
+    }
+
+    // Cache miss or expired - fetch fresh
+    console.log('🔄 [Auth] Fetching fresh user')
     const { data, error } = await supabase.auth.getUser()
+
+    // Update cache
+    if (!error && data.user) {
+      sessionCache = {
+        session: null, // We don't have full session from getUser
+        user: data.user,
+        timestamp: Date.now()
+      }
+    }
+
     return { user: data.user, error }
   },
 
