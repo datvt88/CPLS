@@ -11,6 +11,8 @@ interface ProtectedRouteProps {
   requireVIP?: boolean
 }
 
+const AUTH_CHECK_TIMEOUT = 10000 // 10 seconds
+
 export default function ProtectedRoute({
   children,
   requirePremium = false,
@@ -18,8 +20,10 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps){
   const [allowed, setAllowed] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const { profile, loading: profileLoading, isPremium } = useUserProfile()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const needsPremium = requirePremium || requireVIP
   const loading = checkingSession || profileLoading
@@ -31,10 +35,31 @@ export default function ProtectedRoute({
       try {
         console.log('🔍 [ProtectedRoute] Checking auth...')
 
-        // Step 1: Check session
-        const { data: { session } } = await supabase.auth.getSession()
+        // Set timeout to prevent infinite loading
+        timeoutRef.current = setTimeout(() => {
+          if (mounted && checkingSession) {
+            console.error('⏱️ [ProtectedRoute] Auth check timeout')
+            setError('Kiểm tra quyền truy cập quá lâu. Vui lòng thử lại.')
+            setCheckingSession(false)
+          }
+        }, AUTH_CHECK_TIMEOUT)
+
+        // Step 1: Check session with timeout wrapper
+        const sessionPromise = supabase.auth.getSession()
+        const { data: { session } } = await Promise.race([
+          sessionPromise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Session check timeout')), AUTH_CHECK_TIMEOUT)
+          )
+        ])
 
         if (!mounted) return
+
+        // Clear timeout on success
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
 
         if (!session) {
           console.log('❌ [ProtectedRoute] No session found')
@@ -49,11 +74,15 @@ export default function ProtectedRoute({
         // Wait for profile to load (handled by useUserProfile hook)
         // Hook will cache and return quickly on subsequent calls
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ [ProtectedRoute] Auth check error:', error)
         if (mounted) {
           setCheckingSession(false)
-          router.push('/login')
+          if (error.message === 'Session check timeout') {
+            setError('Kiểm tra quyền truy cập quá lâu. Vui lòng thử lại.')
+          } else {
+            router.push('/login')
+          }
         }
       }
     }
@@ -62,6 +91,9 @@ export default function ProtectedRoute({
 
     return () => {
       mounted = false
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
     }
   }, [router])
 
@@ -94,6 +126,31 @@ export default function ProtectedRoute({
     }
 
   }, [checkingSession, profileLoading, profile, isPremium, needsPremium, router])
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[--bg]">
+        <div className="text-center max-w-md p-6">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null)
+              setCheckingSession(true)
+              window.location.reload()
+            }}
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
