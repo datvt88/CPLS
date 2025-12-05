@@ -28,6 +28,7 @@ export function withFeatureAccess<P extends object>(
     const pathname = usePathname()
     const [hasAccess, setHasAccess] = useState<boolean | null>(null)
     const [isChecking, setIsChecking] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
       checkAccess()
@@ -35,32 +36,77 @@ export function withFeatureAccess<P extends object>(
 
     const checkAccess = async () => {
       setIsChecking(true)
+      setError(null)
 
-      // Determine feature to check
-      let feature = options.feature
-      if (!feature) {
-        feature = getFeatureForRoute(pathname)
-      }
+      try {
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Permission check timeout')), 10000)
+        )
 
-      // If no feature detected, allow access by default
-      if (!feature) {
-        setHasAccess(true)
+        const checkPromise = (async () => {
+          // Determine feature to check
+          let feature = options.feature
+          if (!feature) {
+            feature = getFeatureForRoute(pathname)
+          }
+
+          // If no feature detected, allow access by default
+          if (!feature) {
+            return true
+          }
+
+          // Check access
+          return await canAccessFeature(feature)
+        })()
+
+        const access = await Promise.race([checkPromise, timeoutPromise])
+
+        setHasAccess(access)
         setIsChecking(false)
-        return
-      }
 
-      // Check access
-      const access = await canAccessFeature(feature)
-      setHasAccess(access)
-      setIsChecking(false)
-
-      // Redirect if no access
-      if (!access) {
-        const redirectUrl = options.redirectTo || '/pricing'
-        setTimeout(() => {
-          router.push(redirectUrl)
-        }, 1500)
+        // Redirect if no access
+        if (!access) {
+          const redirectUrl = options.redirectTo || '/pricing'
+          setTimeout(() => {
+            router.push(redirectUrl)
+          }, 1500)
+        }
+      } catch (err: any) {
+        console.error('Error checking feature access:', err)
+        setIsChecking(false)
+        if (err.message === 'Permission check timeout') {
+          setError('Kiểm tra quyền truy cập quá lâu. Vui lòng thử lại.')
+        } else {
+          setError('Không thể kiểm tra quyền truy cập.')
+        }
       }
+    }
+
+    // Error state
+    if (error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[--bg] p-4">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-red-400 mb-4">{error}</p>
+            <button
+              onClick={() => {
+                setError(null)
+                setIsChecking(true)
+                checkAccess()
+              }}
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              Thử lại
+            </button>
+          </div>
+        </div>
+      )
     }
 
     // Loading state
