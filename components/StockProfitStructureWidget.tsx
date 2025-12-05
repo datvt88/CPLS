@@ -42,9 +42,9 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
       try {
         console.log('📊 Loading profit structure data for:', symbol)
 
-        // Try profit structure first (MAIN_BUSINESS_OPERATING_PROFIT)
+        // Try OLD profit API first (PROFIT_BEFORE_TAX)
         const profitResponse = await fetch(
-          `/api/dnse/profit-structure?symbol=${symbol}&code=MAIN_BUSINESS_OPERATING_PROFIT&cycleType=quy&cycleNumber=5`
+          `/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`
         )
 
         if (profitResponse.ok) {
@@ -52,7 +52,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
 
           // Check if we got actual data
           if (profitResult && profitResult.data && profitResult.data.length > 0) {
-            console.log('✅ Profit structure data loaded:', profitResult)
+            console.log('✅ Profit structure data loaded (OLD API):', profitResult)
             setData(profitResult)
             setDataType('profit')
             setError(null)
@@ -61,8 +61,8 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
           }
         }
 
-        // If no profit data, fallback to revenue structure (MAIN_BUSINESS_OPERATING_REVENUE)
-        console.log('⚠️ No profit data, trying revenue structure...')
+        // If no profit data, fallback to NEW revenue API (MAIN_BUSINESS_OPERATING_REVENUE)
+        console.log('⚠️ No profit data from OLD API, trying NEW revenue API...')
         const revenueResponse = await fetch(
           `/api/dnse/profit-structure?symbol=${symbol}&code=MAIN_BUSINESS_OPERATING_REVENUE&cycleType=quy&cycleNumber=5`
         )
@@ -75,7 +75,7 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
 
         // Check if we got actual data
         if (revenueResult && revenueResult.data && revenueResult.data.length > 0) {
-          console.log('✅ Revenue structure data loaded (fallback):', revenueResult)
+          console.log('✅ Revenue structure data loaded (NEW API fallback):', revenueResult)
           setData(revenueResult)
           setDataType('revenue')
           setError(null)
