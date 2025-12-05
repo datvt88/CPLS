@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { database, storage } from '@/lib/firebaseClient'
 import { ref as dbRef, push, onValue, off, serverTimestamp, query, orderByChild, limitToLast, update, get } from 'firebase/database'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { authService } from '@/services/auth.service'
+import { useUserProfile } from '@/hooks/useUserProfile'
 import { profileService, type Profile } from '@/services/profile.service'
 
 interface Reaction {
@@ -28,6 +28,8 @@ interface Message {
   }
   reactions?: { [key: string]: Reaction }
   readBy?: { [userId: string]: number }
+  editedAt?: number
+  deleted?: boolean
 }
 
 const EMOJI_LIST = ['😀', '😂', '😍', '🥰', '😎', '🤔', '👍', '👏', '🎉', '🔥', '💯', '❤️', '🚀', '💪', '🙏', '✅']
@@ -39,9 +41,11 @@ const REACTION_TYPES = [
 ] as const
 
 export default function ChatRoom() {
+  // Use cached profile hook for instant user data
+  const { profile: cachedProfile, loading: profileLoading } = useUserProfile()
+
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
-  const [currentUser, setCurrentUser] = useState<{ id: string; profile: Profile } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -51,15 +55,21 @@ export default function ChatRoom() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [pinnedMessageId, setPinnedMessageId] = useState<string | null>(null)
+  const [typingUsers, setTypingUsers] = useState<{ [userId: string]: string }>({})
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  const [editText, setEditText] = useState('')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
   const messageInputRef = useRef<HTMLInputElement>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Derived user object from cached profile
+  const currentUser = cachedProfile ? { id: cachedProfile.id, profile: cachedProfile } : null
 
   useEffect(() => {
-    loadCurrentUser()
     loadPinnedMessage()
   }, [])
 
@@ -91,7 +101,9 @@ export default function ChatRoom() {
               imageUrl: msg.imageUrl,
               replyTo: msg.replyTo,
               reactions: msg.reactions || {},
-              readBy: msg.readBy || {}
+              readBy: msg.readBy || {},
+              editedAt: msg.editedAt,
+              deleted: msg.deleted
             }))
             setMessages(messagesList.sort((a, b) => a.timestamp - b.timestamp))
 
@@ -186,18 +198,63 @@ export default function ChatRoom() {
     }
   }, [])
 
-  const loadCurrentUser = async () => {
-    try {
-      const { user } = await authService.getUser()
-      if (user) {
-        const { profile } = await profileService.getProfile(user.id)
-        if (profile) {
-          setCurrentUser({ id: user.id, profile })
-        }
+  // Typing indicator functionality
+  useEffect(() => {
+    if (!currentUser) return
+
+    const typingRef = dbRef(database, 'typing')
+    const unsubscribe = onValue(typingRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        const typingData: { [userId: string]: string } = {}
+        Object.entries(data).forEach(([userId, username]) => {
+          if (userId !== currentUser.id) {
+            typingData[userId] = username as string
+          }
+        })
+        setTypingUsers(typingData)
+      } else {
+        setTypingUsers({})
       }
-    } catch (error) {
-      console.error('Error loading user:', error)
+    })
+
+    return () => {
+      off(typingRef)
     }
+  }, [currentUser])
+
+  const updateTypingStatus = (isTyping: boolean) => {
+    if (!currentUser) return
+
+    const typingRef = dbRef(database, `typing/${currentUser.id}`)
+    const displayName = getDisplayName(currentUser.profile)
+
+    if (isTyping) {
+      update(dbRef(database, 'typing'), {
+        [currentUser.id]: displayName
+      })
+    } else {
+      update(dbRef(database, 'typing'), {
+        [currentUser.id]: null
+      })
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value)
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    // Show typing indicator
+    updateTypingStatus(true)
+
+    // Hide typing indicator after 2 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      updateTypingStatus(false)
+    }, 2000)
   }
 
   const markMessagesAsRead = async (messagesList: Message[]) => {
@@ -264,10 +321,17 @@ export default function ChatRoom() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Handle edit mode
+    if (editingMessage) {
+      await handleSaveEdit()
+      return
+    }
+
     if ((!newMessage.trim() && !selectedImage) || !currentUser) return
 
     try {
       setUploading(true)
+      updateTypingStatus(false) // Stop typing indicator when sending
 
       let imageUrl: string | undefined = undefined
 
@@ -359,6 +423,59 @@ export default function ChatRoom() {
       // Pin the message
       await update(dbRef(database, 'chatRoomSettings'), { pinnedMessageId: messageId })
     }
+  }
+
+  const handleEditMessage = (message: Message) => {
+    if (!currentUser || message.userId !== currentUser.id) return
+    setEditingMessage(message)
+    setEditText(message.text)
+    messageInputRef.current?.focus()
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingMessage || !editText.trim()) return
+
+    try {
+      const messageRef = dbRef(database, `messages/${editingMessage.id}`)
+      await update(messageRef, {
+        text: editText.trim(),
+        editedAt: Date.now()
+      })
+
+      setEditingMessage(null)
+      setEditText('')
+    } catch (error) {
+      console.error('Error editing message:', error)
+      alert('Có lỗi xảy ra khi sửa tin nhắn!')
+    }
+  }
+
+  const handleDeleteMessage = async (messageId: string, userId: string) => {
+    if (!currentUser) return
+
+    // Only allow deleting own messages or if admin/mod
+    if (userId !== currentUser.id && !isAdminOrMod()) {
+      alert('Bạn chỉ có thể xóa tin nhắn của mình!')
+      return
+    }
+
+    if (!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return
+
+    try {
+      const messageRef = dbRef(database, `messages/${messageId}`)
+      await update(messageRef, {
+        deleted: true,
+        text: '[Tin nhắn đã bị xóa]'
+      })
+    } catch (error) {
+      console.error('Error deleting message:', error)
+      alert('Có lỗi xảy ra khi xóa tin nhắn!')
+    }
+  }
+
+  const cancelEdit = () => {
+    setEditingMessage(null)
+    setEditText('')
   }
 
   const isAdminOrMod = () => {
@@ -609,40 +726,69 @@ export default function ChatRoom() {
                         </div>
                       )}
 
+                      {/* Edited indicator */}
+                      {message.editedAt && !message.deleted && (
+                        <div className="text-xs text-gray-500 mt-1">Đã chỉnh sửa</div>
+                      )}
+
                       {/* Action Buttons - Below message for all screens */}
-                      <div className="flex gap-3 mt-2 opacity-70 hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setReplyingTo(message)}
-                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
-                          title="Trả lời"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
-                          className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
-                          title="Thả cảm xúc"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </button>
-                        {isAdminOrMod() && (
+                      {!message.deleted && (
+                        <div className="flex gap-3 mt-2 opacity-70 hover:opacity-100 transition-opacity">
                           <button
-                            onClick={() => handlePinMessage(message.id)}
-                            className={`text-xs flex items-center gap-1 transition-colors ${
-                              pinnedMessageId === message.id
-                                ? 'text-amber-400 hover:text-amber-300'
-                                : 'text-gray-400 hover:text-white'
-                            }`}
-                            title={pinnedMessageId === message.id ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'}
+                            onClick={() => setReplyingTo(message)}
+                            className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
+                            title="Trả lời"
                           >
-                            {pinnedMessageId === message.id ? '📌' : '📍'}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={() => setShowReactions(showReactions === message.id ? null : message.id)}
+                            className="text-gray-400 hover:text-white text-xs flex items-center gap-1 transition-colors"
+                            title="Thả cảm xúc"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </button>
+                          {isOwnMessage && !message.imageUrl && (
+                            <button
+                              onClick={() => handleEditMessage(message)}
+                              className="text-gray-400 hover:text-blue-400 text-xs flex items-center gap-1 transition-colors"
+                              title="Sửa tin nhắn"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                          )}
+                          {(isOwnMessage || isAdminOrMod()) && (
+                            <button
+                              onClick={() => handleDeleteMessage(message.id, message.userId)}
+                              className="text-gray-400 hover:text-red-400 text-xs flex items-center gap-1 transition-colors"
+                              title="Xóa tin nhắn"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                          {isAdminOrMod() && (
+                            <button
+                              onClick={() => handlePinMessage(message.id)}
+                              className={`text-xs flex items-center gap-1 transition-colors ${
+                                pinnedMessageId === message.id
+                                  ? 'text-amber-400 hover:text-amber-300'
+                                  : 'text-gray-400 hover:text-white'
+                              }`}
+                              title={pinnedMessageId === message.id ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'}
+                            >
+                              {pinnedMessageId === message.id ? '📌' : '📍'}
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       {/* Reaction Picker */}
                       {showReactions === message.id && (
@@ -702,6 +848,46 @@ export default function ChatRoom() {
             >
               ✕
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Editing Bar */}
+      {editingMessage && (
+        <div className="px-4 sm:px-5 py-3 bg-[#1a2634] border-t border-blue-500/30 flex items-center justify-between gap-3 flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-blue-400 mb-1 font-medium flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              Đang sửa tin nhắn
+            </div>
+            <div className="text-sm text-gray-300 truncate">{editingMessage.text}</div>
+          </div>
+          <button
+            onClick={cancelEdit}
+            className="text-gray-400 hover:text-white transition-colors p-1 flex-shrink-0"
+            title="Hủy (ESC)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Typing Indicator */}
+      {Object.keys(typingUsers).length > 0 && (
+        <div className="px-4 sm:px-5 py-2 bg-[#1a1a1a] border-t border-gray-800 flex-shrink-0">
+          <div className="text-xs text-gray-400 flex items-center gap-2">
+            <span className="inline-flex gap-1">
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            </span>
+            <span>
+              {Object.values(typingUsers).slice(0, 3).join(', ')}
+              {Object.keys(typingUsers).length > 3 && ` và ${Object.keys(typingUsers).length - 3} người khác`}
+              {' '}đang nhập...
+            </span>
           </div>
         </div>
       )}
@@ -766,25 +952,38 @@ export default function ChatRoom() {
           <input
             ref={messageInputRef}
             type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Nhập tin nhắn của bạn..."
+            value={editingMessage ? editText : newMessage}
+            onChange={(e) => editingMessage ? setEditText(e.target.value) : handleInputChange(e)}
+            placeholder={editingMessage ? "Sửa tin nhắn..." : "Nhập tin nhắn của bạn..."}
             className="flex-1 min-w-0 bg-[#2a2a2a] text-gray-100 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-gray-500 shadow-lg transition-all text-sm sm:text-base"
             maxLength={1000}
             disabled={uploading}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && editingMessage) {
+                cancelEdit()
+              }
+            }}
           />
 
-          {/* Send Button */}
+          {/* Send/Save Button */}
           <button
             type="submit"
-            disabled={(!newMessage.trim() && !selectedImage) || uploading}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-700 disabled:to-gray-700 text-white p-3 sm:p-3.5 rounded-xl transition-all disabled:cursor-not-allowed shadow-lg hover:scale-105 hover:shadow-blue-500/30"
-            title="Gửi tin nhắn"
+            disabled={editingMessage ? !editText.trim() : ((!newMessage.trim() && !selectedImage) || uploading)}
+            className={`${
+              editingMessage
+                ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'
+            } disabled:from-gray-700 disabled:to-gray-700 text-white p-3 sm:p-3.5 rounded-xl transition-all disabled:cursor-not-allowed shadow-lg hover:scale-105 hover:shadow-blue-500/30`}
+            title={editingMessage ? "Lưu (Enter)" : "Gửi tin nhắn (Enter)"}
           >
             {uploading ? (
               <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : editingMessage ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
