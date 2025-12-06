@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, memo } from 'react'
 import { database, storage } from '@/lib/firebaseClient'
-import { ref as dbRef, push, onValue, off, serverTimestamp, query, orderByChild, limitToLast, update, get } from 'firebase/database'
+import { ref as dbRef, push, onValue, off, serverTimestamp, query, orderByChild, limitToLast, update, get, remove } from 'firebase/database'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
@@ -22,6 +22,7 @@ interface Message {
   avatar?: string
   timestamp: number
   imageUrl?: string
+  isEdited?: boolean // New field
   replyTo?: {
     messageId: string
     text: string
@@ -41,9 +42,23 @@ const REACTION_TYPES = [
   { type: 'angry', emoji: '😡' }
 ] as const
 
-// --- Helper Components ---
+// --- Component: Lightbox (Xem ảnh phóng to) ---
+const Lightbox = ({ src, onClose }: { src: string, onClose: () => void }) => {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose])
 
-// 1. Message Bubble Component (Tối ưu render với memo)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 animate-fadeIn" onClick={onClose}>
+      <img src={src} alt="Full view" className="max-w-[95vw] max-h-[95vh] rounded-lg shadow-2xl object-contain" />
+      <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white bg-white/10 rounded-full p-2">✕</button>
+    </div>
+  )
+}
+
+// --- Component: Message Bubble ---
 const MessageBubble = memo(({ 
   message, 
   isOwn, 
@@ -51,15 +66,21 @@ const MessageBubble = memo(({
   onReply, 
   onReact, 
   onPin, 
+  onDelete, // New
+  onEdit,   // New
+  onViewImage, // New
   isAdminOrMod, 
   pinnedMessageId 
 }: { 
   message: Message, 
   isOwn: boolean, 
-  isChain: boolean, // Có phải tin nhắn liên tiếp của cùng 1 người không
+  isChain: boolean,
   onReply: (msg: Message) => void,
   onReact: (id: string, type: any) => void,
   onPin: (id: string) => void,
+  onDelete: (id: string) => void,
+  onEdit: (msg: Message) => void,
+  onViewImage: (url: string) => void,
   isAdminOrMod: boolean,
   pinnedMessageId: string | null
 }) => {
@@ -67,7 +88,6 @@ const MessageBubble = memo(({
 
   const formatTime = (ts: number) => new Date(ts).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 
-  // Đếm reaction
   const reactionCounts = useMemo(() => {
     if (!message.reactions) return {}
     const counts: { [key: string]: number } = {}
@@ -83,7 +103,6 @@ const MessageBubble = memo(({
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* Avatar (Chỉ hiện cho người khác và không phải tin nhắn chuỗi) */}
       {!isOwn && (
         <div className={`flex-shrink-0 w-8 mr-2 flex items-end ${isChain ? 'invisible' : ''}`}>
           <img 
@@ -95,7 +114,6 @@ const MessageBubble = memo(({
       )}
 
       <div className={`relative max-w-[85%] sm:max-w-[70%] min-w-[80px]`}>
-        {/* Bong bóng chat */}
         <div className={`
           relative px-3 py-2 text-sm shadow-md break-words
           ${isOwn 
@@ -103,7 +121,6 @@ const MessageBubble = memo(({
             : 'bg-[#182533] text-white rounded-r-2xl rounded-tl-2xl rounded-bl-md'}
         `}>
           
-          {/* Reply Context inside Bubble */}
           {message.replyTo && (
             <div className={`mb-2 pl-2 border-l-2 ${isOwn ? 'border-blue-300' : 'border-[#64d2ff]'} bg-black/10 rounded cursor-pointer p-1`}>
               <p className="text-xs font-bold opacity-80">{message.replyTo.username}</p>
@@ -111,38 +128,29 @@ const MessageBubble = memo(({
             </div>
           )}
 
-          {/* Sender Name (Only for others, first in chain) */}
           {!isOwn && !isChain && (
             <p className="text-xs font-bold text-[#64d2ff] mb-1 cursor-pointer hover:underline">
               {message.username}
             </p>
           )}
 
-          {/* Image Content */}
           {message.imageUrl && (
-            <div className="mb-2 rounded-lg overflow-hidden cursor-pointer" onClick={() => window.open(message.imageUrl, '_blank')}>
-              <img src={message.imageUrl} alt="Shared" className="max-w-full max-h-[300px] object-cover hover:scale-105 transition-transform duration-300" />
+            <div className="mb-2 rounded-lg overflow-hidden cursor-pointer group/img" onClick={() => onViewImage(message.imageUrl!)}>
+              <img src={message.imageUrl} alt="Shared" className="max-w-full max-h-[300px] object-cover group-hover/img:scale-105 transition-transform duration-300" />
             </div>
           )}
 
-          {/* Text Content */}
           {message.text && message.text !== '[Hình ảnh]' && (
             <p className="whitespace-pre-wrap leading-relaxed">{message.text}</p>
           )}
 
-          {/* Timestamp & Read Status */}
           <div className={`text-[10px] mt-1 flex items-center justify-end space-x-1 opacity-60`}>
+            {message.isEdited && <span className="italic mr-1">(đã sửa)</span>}
             {message.id === pinnedMessageId && <span>📌</span>}
             <span>{formatTime(message.timestamp)}</span>
-            {isOwn && (
-              <span>
-                 {/* Biểu tượng "Đã xem" đơn giản */}
-                 ✓
-              </span>
-            )}
+            {isOwn && <span>✓</span>}
           </div>
 
-          {/* Reactions Floating Bubble */}
           {Object.keys(reactionCounts).length > 0 && (
             <div className={`absolute -bottom-3 ${isOwn ? 'left-0' : 'right-0'} bg-[#24303c] rounded-full px-1.5 py-0.5 shadow border border-gray-700 flex gap-1 z-10`}>
                {Object.entries(reactionCounts).map(([type, count]) => (
@@ -152,23 +160,33 @@ const MessageBubble = memo(({
           )}
         </div>
 
-        {/* Quick Actions (Hover) - Telegram style context menu */}
+        {/* Action Menu */}
         <div className={`
-          absolute top-0 bottom-0 ${isOwn ? '-left-24 pr-2' : '-right-24 pl-2'} 
-          flex items-center gap-2 transition-opacity duration-200
+          absolute top-0 bottom-0 ${isOwn ? '-left-32 pr-2' : '-right-32 pl-2'} 
+          flex items-center gap-1.5 transition-opacity duration-200
           ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}
         `}>
            <button onClick={() => onReply(message)} className="p-1.5 bg-gray-700 rounded-full hover:bg-gray-600 text-gray-300" title="Trả lời">↩️</button>
            
-           {/* Reaction Trigger */}
+           {/* Reaction */}
            <div className="group/react relative">
               <button className="p-1.5 bg-gray-700 rounded-full hover:bg-gray-600 text-gray-300">❤️</button>
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex bg-[#1c2e3e] rounded-full p-1 shadow-lg gap-1 invisible group-hover/react:visible transition-all">
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex bg-[#1c2e3e] rounded-full p-1 shadow-lg gap-1 invisible group-hover/react:visible transition-all z-20 w-max">
                 {REACTION_TYPES.map(r => (
-                  <button key={r.type} onClick={() => onReact(message.id, r.type)} className="hover:scale-125 transition text-lg">{r.emoji}</button>
+                  <button key={r.type} onClick={() => onReact(message.id, r.type)} className="hover:scale-125 transition text-lg px-1">{r.emoji}</button>
                 ))}
               </div>
            </div>
+
+           {/* Edit & Delete (Own message or Admin) */}
+           {(isOwn || isAdminOrMod) && (
+             <>
+               {isOwn && !message.imageUrl && (
+                  <button onClick={() => onEdit(message)} className="p-1.5 bg-gray-700 rounded-full hover:bg-blue-600 text-gray-300" title="Sửa">✏️</button>
+               )}
+               <button onClick={() => onDelete(message.id)} className="p-1.5 bg-gray-700 rounded-full hover:bg-red-600 text-gray-300" title="Xóa">🗑️</button>
+             </>
+           )}
 
            {isAdminOrMod && (
              <button onClick={() => onPin(message.id)} className={`p-1.5 bg-gray-700 rounded-full hover:bg-gray-600 ${message.id === pinnedMessageId ? 'text-blue-400' : 'text-gray-300'}`}>📌</button>
@@ -186,22 +204,24 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState<Message[]>([])
   const [currentUser, setCurrentUser] = useState<{ id: string; profile: Profile } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
   const [pinnedMessageId, setPinnedMessageId] = useState<string | null>(null)
   
-  // Input states
+  // Interaction States
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null) // State cho việc sửa
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null) // State cho Lightbox
+
+  // Input States
   const [newMessage, setNewMessage] = useState('')
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
 
-  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // --- Logic Load Data ---
   useEffect(() => {
     loadCurrentUser()
     loadPinnedMessage()
@@ -217,20 +237,22 @@ export default function ChatRoom() {
         const messagesList: Message[] = Object.entries(data).map(([id, msg]: [string, any]) => ({
           id, ...msg, reactions: msg.reactions || {}, readBy: msg.readBy || {}
         }))
-        // Sort đảm bảo đúng thứ tự
         setMessages(messagesList.sort((a, b) => a.timestamp - b.timestamp))
+      } else {
+        setMessages([])
       }
       setLoading(false)
     })
     return () => off(messagesRef)
   }, [])
 
-  // Auto scroll to bottom on new message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Chỉ scroll xuống dưới nếu không đang sửa tin nhắn để tránh nhảy
+    if (!editingMessage) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages.length, imagePreview, replyingTo])
 
-  // --- Helpers Logic ---
   const loadCurrentUser = async () => {
     try {
       const { user } = await authService.getUser()
@@ -274,12 +296,26 @@ export default function ChatRoom() {
     }
   }
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
+  const handleSendOrUpdateMessage = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if ((!newMessage.trim() && !selectedImage) || !currentUser) return
 
     setUploading(true)
     try {
+      // 1. Trường hợp UPDATE tin nhắn
+      if (editingMessage) {
+         if (newMessage.trim() !== editingMessage.text) {
+             await update(dbRef(database, `messages/${editingMessage.id}`), {
+                 text: newMessage.trim(),
+                 isEdited: true
+             })
+         }
+         setEditingMessage(null)
+         setNewMessage('')
+         return
+      }
+
+      // 2. Trường hợp GỬI tin nhắn mới
       let imageUrl
       if (selectedImage) {
         const fileName = `chat/${currentUser.id}/${Date.now()}_${selectedImage.name}`
@@ -307,17 +343,39 @@ export default function ChatRoom() {
 
       await push(dbRef(database, 'messages'), msgData)
       
-      // Reset
       setNewMessage('')
       setImagePreview(null)
       setSelectedImage(null)
       setReplyingTo(null)
     } catch (err) {
       console.error(err)
-      alert('Gửi thất bại')
+      alert('Thao tác thất bại')
     } finally {
       setUploading(false)
     }
+  }
+
+  const handleDeleteMessage = async (msgId: string) => {
+      if(!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return
+      try {
+          await remove(dbRef(database, `messages/${msgId}`))
+          // Nếu xóa tin đang ghim thì bỏ ghim luôn
+          if (pinnedMessageId === msgId) {
+             await update(dbRef(database, 'chatRoomSettings'), { pinnedMessageId: null })
+          }
+      } catch (error) {
+          console.error(error)
+          alert('Không thể xóa tin nhắn')
+      }
+  }
+
+  const handleStartEdit = (msg: Message) => {
+      setEditingMessage(msg)
+      setNewMessage(msg.text)
+      setReplyingTo(null)
+      setImagePreview(null)
+      setSelectedImage(null)
+      inputRef.current?.focus()
   }
 
   const handleReaction = async (msgId: string, type: string) => {
@@ -343,17 +401,19 @@ export default function ChatRoom() {
     await update(dbRef(database, 'chatRoomSettings'), { pinnedMessageId: newPin })
   }
 
-  // --- Render ---
-  
   const pinnedMsg = useMemo(() => messages.find(m => m.id === pinnedMessageId), [messages, pinnedMessageId])
+  const isAdminOrMod = useMemo(() => ['admin', 'mod'].includes(currentUser?.profile.role || ''), [currentUser])
 
   if (loading) return <div className="h-[600px] flex items-center justify-center bg-[#0e1621] text-white">Đang tải...</div>
 
   return (
-    <div className="flex flex-col h-[600px] md:h-[700px] w-full max-w-4xl mx-auto bg-[#0e1621] border border-gray-800 rounded-lg overflow-hidden font-sans shadow-2xl">
+    <div className="flex flex-col h-[600px] md:h-[700px] w-full max-w-4xl mx-auto bg-[#0e1621] border border-gray-800 rounded-lg overflow-hidden font-sans shadow-2xl relative">
       
-      {/* 1. Header */}
-      <div className="flex items-center justify-between p-3 bg-[#17212b] border-b border-[#0e1621]">
+      {/* Lightbox Overlay */}
+      {lightboxUrl && <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 bg-[#17212b] border-b border-[#0e1621] shrink-0">
         <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold">
               💰
@@ -365,35 +425,33 @@ export default function ChatRoom() {
         </div>
       </div>
 
-      {/* 2. Pinned Message Bar */}
+      {/* Pinned Message */}
       {pinnedMsg && (
-        <div className="bg-[#17212b] px-4 py-2 flex items-center gap-3 border-b border-[#0e1621] cursor-pointer hover:bg-[#202b36] transition-colors"
+        <div className="bg-[#17212b] px-4 py-2 flex items-center gap-3 border-b border-[#0e1621] cursor-pointer hover:bg-[#202b36] transition-colors shrink-0"
              onClick={() => document.getElementById(`msg-${pinnedMsg.id}`)?.scrollIntoView({behavior: 'smooth', block: 'center'})}>
           <div className="w-1 h-8 bg-blue-500 rounded-full"></div>
           <div className="flex-1 min-w-0">
             <p className="text-blue-400 text-xs font-semibold">Tin nhắn được ghim</p>
             <p className="text-white text-sm truncate opacity-90">{pinnedMsg.text}</p>
           </div>
-          {['admin', 'mod'].includes(currentUser?.profile.role || '') && (
+          {isAdminOrMod && (
              <button onClick={(e) => { e.stopPropagation(); handlePin(pinnedMsg.id) }} className="text-gray-400 hover:text-white">✕</button>
           )}
         </div>
       )}
 
-      {/* 3. Messages List */}
+      {/* Messages List */}
       <div 
         className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-1 bg-[#0e1621] scroll-smooth"
-        style={{ backgroundImage: 'url("https://web.telegram.org/img/bg_0.png")', backgroundBlendMode: 'overlay' }} // Telegram classic pattern
+        style={{ backgroundImage: 'url("https://web.telegram.org/img/bg_0.png")', backgroundBlendMode: 'overlay' }}
       >
         {messages.map((msg, idx) => {
           const isOwn = msg.userId === currentUser?.id
           const prevMsg = messages[idx - 1]
-          // Logic gộp tin nhắn: Cùng người gửi + cách nhau dưới 1 phút
           const isChain = prevMsg && prevMsg.userId === msg.userId && (msg.timestamp - prevMsg.timestamp < 60000)
           
           return (
             <div id={`msg-${msg.id}`} key={msg.id}>
-              {/* Date Separator (nếu ngày khác tin trước) */}
               {(!prevMsg || new Date(msg.timestamp).getDate() !== new Date(prevMsg.timestamp).getDate()) && (
                 <div className="flex justify-center my-4">
                   <span className="bg-[#00000060] text-gray-300 text-xs px-3 py-1 rounded-full backdrop-blur-sm">
@@ -409,7 +467,10 @@ export default function ChatRoom() {
                 onReply={setReplyingTo}
                 onReact={handleReaction}
                 onPin={handlePin}
-                isAdminOrMod={['admin', 'mod'].includes(currentUser?.profile.role || '')}
+                onDelete={handleDeleteMessage}
+                onEdit={handleStartEdit}
+                onViewImage={setLightboxUrl}
+                isAdminOrMod={isAdminOrMod}
                 pinnedMessageId={pinnedMessageId}
               />
             </div>
@@ -418,20 +479,23 @@ export default function ChatRoom() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 4. Input Area */}
-      <div className="bg-[#17212b] p-2 sm:p-3 pb-4">
-        {/* Reply Preview */}
-        {replyingTo && (
+      {/* Input Area */}
+      <div className="bg-[#17212b] p-2 sm:p-3 pb-4 shrink-0">
+        {/* Helper Bar: Reply OR Edit */}
+        {(replyingTo || editingMessage) && (
           <div className="flex items-center justify-between bg-[#0e1621] p-2 rounded-t-lg border-l-4 border-blue-500 mb-2 animate-slideUp">
             <div className="overflow-hidden">
-               <p className="text-blue-400 text-xs font-bold">Trả lời {replyingTo.username}</p>
-               <p className="text-gray-300 text-sm truncate">{replyingTo.text}</p>
+               <p className="text-blue-400 text-xs font-bold">
+                   {editingMessage ? 'Đang sửa tin nhắn' : `Trả lời ${replyingTo?.username}`}
+               </p>
+               <p className="text-gray-300 text-sm truncate">
+                   {editingMessage ? editingMessage.text : replyingTo?.text}
+               </p>
             </div>
-            <button onClick={() => setReplyingTo(null)} className="text-gray-500 hover:text-white p-2">✕</button>
+            <button onClick={() => { setReplyingTo(null); setEditingMessage(null); setNewMessage('') }} className="text-gray-500 hover:text-white p-2">✕</button>
           </div>
         )}
 
-        {/* Image Preview */}
         {imagePreview && (
           <div className="relative inline-block mb-2 animate-fadeIn">
             <img src={imagePreview} className="h-20 rounded-lg border border-gray-600" alt="preview" />
@@ -441,26 +505,23 @@ export default function ChatRoom() {
 
         {/* Input Controls */}
         <div className="flex items-end gap-2 bg-[#0e1621] p-1 rounded-xl border border-gray-700">
-           {/* Attach Button */}
-           <button onClick={() => fileInputRef.current?.click()} className="p-3 text-gray-400 hover:text-blue-400 transition-colors">
+           <button onClick={() => fileInputRef.current?.click()} className="p-3 text-gray-400 hover:text-blue-400 transition-colors" disabled={!!editingMessage}>
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
            </button>
            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileSelect} />
 
-           {/* Text Input */}
            <input 
              ref={inputRef}
              type="text" 
              value={newMessage}
              onChange={(e) => setNewMessage(e.target.value)}
-             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+             onKeyDown={(e) => e.key === 'Enter' && handleSendOrUpdateMessage()}
              onPaste={handlePaste}
-             placeholder="Nhập tin nhắn..." 
+             placeholder={editingMessage ? "Sửa tin nhắn..." : "Nhập tin nhắn..."}
              className="flex-1 bg-transparent text-white p-3 focus:outline-none placeholder-gray-500"
              disabled={uploading}
            />
 
-           {/* Emoji Trigger (Simple) */}
            <div className="relative">
               <button onClick={() => setShowEmoji(!showEmoji)} className="p-3 text-gray-400 hover:text-yellow-400 transition-colors">😊</button>
               {showEmoji && (
@@ -472,14 +533,17 @@ export default function ChatRoom() {
               )}
            </div>
 
-           {/* Send Button */}
            {newMessage.trim() || selectedImage ? (
              <button 
-                onClick={() => handleSendMessage()} 
+                onClick={() => handleSendOrUpdateMessage()} 
                 disabled={uploading}
                 className="p-3 text-blue-500 hover:text-blue-400 transition-transform transform active:scale-90"
              >
-                <svg className="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                {editingMessage ? (
+                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                ) : (
+                     <svg className="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                )}
              </button>
            ) : (
              <div className="p-3 text-gray-600">
