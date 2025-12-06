@@ -6,6 +6,8 @@ import { ref as dbRef, push, onValue, off, serverTimestamp, query, orderByChild,
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { authService } from '@/services/auth.service'
 import { profileService, type Profile } from '@/services/profile.service'
+// Import Server Action để gọi Bot
+import { askGemini } from '@/app/chat/chat-gemini'
 
 // --- Types ---
 interface Reaction {
@@ -22,7 +24,7 @@ interface Message {
   avatar?: string
   timestamp: number
   imageUrl?: string
-  isEdited?: boolean // New field
+  isEdited?: boolean
   replyTo?: {
     messageId: string
     text: string
@@ -42,7 +44,15 @@ const REACTION_TYPES = [
   { type: 'angry', emoji: '😡' }
 ] as const
 
-// --- Component: Lightbox (Xem ảnh phóng to) ---
+const BOT_PROFILE = {
+  id: 'alpha-bot-id',
+  username: 'Alpha 🤖',
+  avatar: 'https://ui-avatars.com/api/?name=Alpha&background=0D8ABC&color=fff&rounded=true&bold=true'
+}
+
+// --- Helper Components ---
+
+// 1. Lightbox (Xem ảnh full màn hình)
 const Lightbox = ({ src, onClose }: { src: string, onClose: () => void }) => {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -58,7 +68,7 @@ const Lightbox = ({ src, onClose }: { src: string, onClose: () => void }) => {
   )
 }
 
-// --- Component: Message Bubble ---
+// 2. Message Bubble (Bong bóng chat)
 const MessageBubble = memo(({ 
   message, 
   isOwn, 
@@ -66,9 +76,9 @@ const MessageBubble = memo(({
   onReply, 
   onReact, 
   onPin, 
-  onDelete, // New
-  onEdit,   // New
-  onViewImage, // New
+  onDelete, 
+  onEdit,   
+  onViewImage, 
   isAdminOrMod, 
   pinnedMessageId 
 }: { 
@@ -168,7 +178,6 @@ const MessageBubble = memo(({
         `}>
            <button onClick={() => onReply(message)} className="p-1.5 bg-gray-700 rounded-full hover:bg-gray-600 text-gray-300" title="Trả lời">↩️</button>
            
-           {/* Reaction */}
            <div className="group/react relative">
               <button className="p-1.5 bg-gray-700 rounded-full hover:bg-gray-600 text-gray-300">❤️</button>
               <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex bg-[#1c2e3e] rounded-full p-1 shadow-lg gap-1 invisible group-hover/react:visible transition-all z-20 w-max">
@@ -178,7 +187,6 @@ const MessageBubble = memo(({
               </div>
            </div>
 
-           {/* Edit & Delete (Own message or Admin) */}
            {(isOwn || isAdminOrMod) && (
              <>
                {isOwn && !message.imageUrl && (
@@ -208,8 +216,8 @@ export default function ChatRoom() {
   
   // Interaction States
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null) // State cho việc sửa
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null) // State cho Lightbox
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   // Input States
   const [newMessage, setNewMessage] = useState('')
@@ -247,7 +255,6 @@ export default function ChatRoom() {
   }, [])
 
   useEffect(() => {
-    // Chỉ scroll xuống dưới nếu không đang sửa tin nhắn để tránh nhảy
     if (!editingMessage) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
@@ -300,22 +307,25 @@ export default function ChatRoom() {
     e?.preventDefault()
     if ((!newMessage.trim() && !selectedImage) || !currentUser) return
 
+    const userMessageText = newMessage.trim()
+
     setUploading(true)
     try {
-      // 1. Trường hợp UPDATE tin nhắn
+      // 1. UPDATE MESSAGE
       if (editingMessage) {
-         if (newMessage.trim() !== editingMessage.text) {
+         if (userMessageText !== editingMessage.text) {
              await update(dbRef(database, `messages/${editingMessage.id}`), {
-                 text: newMessage.trim(),
+                 text: userMessageText,
                  isEdited: true
              })
          }
          setEditingMessage(null)
          setNewMessage('')
+         setUploading(false)
          return
       }
 
-      // 2. Trường hợp GỬI tin nhắn mới
+      // 2. SEND NEW MESSAGE
       let imageUrl
       if (selectedImage) {
         const fileName = `chat/${currentUser.id}/${Date.now()}_${selectedImage.name}`
@@ -325,7 +335,7 @@ export default function ChatRoom() {
       }
 
       const msgData: any = {
-        text: newMessage.trim() || (imageUrl ? '[Hình ảnh]' : ''),
+        text: userMessageText || (imageUrl ? '[Hình ảnh]' : ''),
         userId: currentUser.id,
         username: getDisplayName(currentUser.profile),
         avatar: currentUser.profile.avatar_url,
@@ -347,6 +357,41 @@ export default function ChatRoom() {
       setImagePreview(null)
       setSelectedImage(null)
       setReplyingTo(null)
+
+      // ===============================================
+      // --- LOGIC BOT ALPHA TRIGGER ---
+      // ===============================================
+      const lowerText = userMessageText.toLowerCase()
+      if (lowerText.startsWith('@alpha') || lowerText.startsWith('!bot')) {
+        
+        // Tách câu hỏi
+        const prompt = userMessageText.replace(/^(@alpha|!bot)/i, '').trim()
+        
+        if (prompt) {
+           // Gọi Server Action
+           askGemini(prompt).then(async (res) => {
+             if (res.text) {
+               // Bot trả lời -> Push tin nhắn bot
+               const botMsgData = {
+                 text: res.text,
+                 userId: BOT_PROFILE.id,
+                 username: BOT_PROFILE.username,
+                 avatar: BOT_PROFILE.avatar,
+                 timestamp: Date.now(),
+                 createdAt: serverTimestamp(),
+                 replyTo: { 
+                   messageId: 'bot-reply',
+                   text: userMessageText,
+                   username: getDisplayName(currentUser.profile)
+                 }
+               }
+               await push(dbRef(database, 'messages'), botMsgData)
+             }
+           })
+        }
+      }
+      // ===============================================
+
     } catch (err) {
       console.error(err)
       alert('Thao tác thất bại')
@@ -359,7 +404,6 @@ export default function ChatRoom() {
       if(!confirm('Bạn có chắc muốn xóa tin nhắn này?')) return
       try {
           await remove(dbRef(database, `messages/${msgId}`))
-          // Nếu xóa tin đang ghim thì bỏ ghim luôn
           if (pinnedMessageId === msgId) {
              await update(dbRef(database, 'chatRoomSettings'), { pinnedMessageId: null })
           }
