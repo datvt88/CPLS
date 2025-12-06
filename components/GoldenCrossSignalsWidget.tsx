@@ -191,7 +191,7 @@ function GoldenCrossSignalsWidget() {
     return (
       <div className="bg-[--panel] rounded-none sm:rounded-xl p-4 sm:p-6 border-y sm:border border-gray-800">
         <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          📊 Danh sách mã cổ phiếu
+          📊 Golden Cross Signals
         </h3>
         <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-3 sm:p-4 text-blue-400 text-sm">
           Chưa có mã cổ phiếu nào trong danh sách
