@@ -1,33 +1,40 @@
+// File: app/chat/chat-gemini.ts
 'use server'
 
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
-
 export async function askGemini(prompt: string) {
-  try {
-    if (!process.env.GEMINI_API_KEY) {
-      return { error: 'Chưa cấu hình API Key trên Vercel.' }
-    }
+  // 1. Kiểm tra Key (Lấy từ Vercel Environment Variables)
+  const apiKey = process.env.GEMINI_API_KEY
+  
+  if (!apiKey) {
+    console.error("❌ Lỗi: Chưa tìm thấy GEMINI_API_KEY trong biến môi trường.")
+    return { error: 'Server chưa cấu hình API Key. Hãy kiểm tra cài đặt Vercel.' }
+  }
 
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({ model: "gemini-pro" })
     
-    // Cấu hình nhân cách cho Bot Alpha
-    const chatPrompt = `Bạn tên là Alpha. Bạn là một trợ lý ảo am hiểu thị trường chứng khoán Việt Nam, hữu ích và vui tính trong một phòng chat chung.
-    - Luôn xưng hô là "Alpha" hoặc "mình/tôi".
-    - Trả lời ngắn gọn như 1 twist, đi vào trọng tâm nhưng giữ giọng điệu thân thiện.
-    - Không trả lời quá dài dòng trừ khi được yêu cầu chi tiết.
-    - Nếu ai đó hỏi bạn là ai, hãy nói bạn là Alpha.
+    // 2. Tạo tính cách cho Alpha
+    const chatPrompt = `Bạn tên là Alpha (ký hiệu 🤖). 
+    Vai trò: Chuyên gia đầu tư chứng khoán Việt Nam. Trợ lý ảo trong nhóm chat.
+    Tính cách: Thông minh, ngắn gọn, hài hước và rất "tỉnh".
+    Nhiệm vụ: Trả lời câu hỏi của người dùng một cách ngắn gọn và tự nhiên nhất.
     
-    Câu hỏi của người dùng: ${prompt}`
+    Câu hỏi: "${prompt}"
+    
+    Trả lời:`
 
+    // 3. Gọi Google AI
     const result = await model.generateContent(chatPrompt)
-    const response = result.response
+    const response = await result.response
     const text = response.text()
     
     return { text }
-  } catch (error) {
-    console.error('Gemini Error:', error)
-    return { error: 'Alpha đang gặp chút sự cố kết nối, thử lại sau nhé!' }
+
+  } catch (error: any) {
+    console.error('🔥 Gemini API Error:', error)
+    return { error: 'Alpha đang bị quá tải, thử lại sau nhé!' }
   }
 }
