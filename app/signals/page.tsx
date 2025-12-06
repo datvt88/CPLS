@@ -46,7 +46,7 @@ export default function SignalsPage() {
         <div className="mb-4 sm:mb-8 flex items-center justify-between flex-wrap gap-2 sm:gap-4 px-2 sm:px-4">
           <div>
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[--fg] mb-1 sm:mb-2">Tín hiệu</h1>
-            <p className="text-xs sm:text-sm text-[--muted]">Danh sách mã cổ phiếu từ Realtime Database</p>
+            <p className="text-xs sm:text-sm text-[--muted]">Danh sách các tín hiệu kỹ thuật</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             {authLoading ? (
