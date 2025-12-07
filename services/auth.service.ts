@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabaseClient'
-import { deviceService } from './device.service' 
-import { clearDeviceFingerprintCache } from '@/lib/session-manager' 
+import { deviceService } from './device.service'
+import { clearDeviceFingerprintCache } from '@/lib/session-manager'
 
 export interface AuthCredentials {
   email: string
@@ -65,10 +65,70 @@ export const authService = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     
     if (data.user && !error) {
-      // Non-blocking device tracking
       this.trackUserDevice(data.user.id).catch(console.error)
     }
     return { data, error }
+  },
+
+  /**
+   * Đăng nhập bằng SỐ ĐIỆN THOẠI (Logic chuyển đổi Phone -> Email)
+   */
+  async signInWithPhone({ phoneNumber, password }: { phoneNumber: string; password: string }) {
+    try {
+      console.log('🔐 [Auth] Starting phone login for:', phoneNumber)
+      clearSessionCache()
+
+      // 1. Lookup email từ số điện thoại qua API
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+
+      try {
+        const response = await fetch('/api/auth/signin-phone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber }),
+          signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+        const data = await response.json()
+
+        if (!response.ok) {
+          console.error('❌ [Auth] Phone lookup failed:', data.error)
+          return { data: null, error: { message: data.error || 'Số điện thoại không tồn tại' } }
+        }
+
+        console.log('✅ [Auth] Phone lookup successful, email:', data.email)
+
+        // 2. Đăng nhập Supabase bằng Email tìm được
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: password,
+        })
+
+        if (error) {
+          console.error('❌ [Auth] Password verification failed:', error.message)
+          return { data: authData, error: { message: 'Số điện thoại hoặc mật khẩu không đúng' } }
+        }
+
+        // 3. Track device
+        if (authData.user) {
+          this.trackUserDevice(authData.user.id).catch(console.error)
+        }
+
+        return { data: authData, error: null }
+
+      } catch (fetchErr) {
+        clearTimeout(timeoutId)
+        if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+          return { data: null, error: { message: 'Hết thời gian chờ. Kiểm tra kết nối mạng.' } }
+        }
+        throw fetchErr
+      }
+    } catch (err) {
+      console.error('❌ [Auth] Unexpected error:', err)
+      return { data: null, error: { message: 'Đã có lỗi xảy ra khi đăng nhập.' } }
+    }
   },
 
   /**
@@ -92,6 +152,35 @@ export const authService = {
   },
 
   /**
+   * Đăng nhập Zalo
+   */
+  async signInWithZalo(options?: ZaloAuthOptions) {
+    clearSessionCache()
+    const redirectTo = options?.redirectTo || `${window.location.origin}/auth/callback`
+    const scopes = options?.scopes || 'id,name,picture,phone'
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'zalo' as any, 
+      options: {
+        redirectTo,
+        scopes,
+        queryParams: {
+          app_id: process.env.NEXT_PUBLIC_ZALO_APP_ID || '',
+        },
+      },
+    })
+    return { data, error }
+  },
+
+  /**
+   * Xử lý OAuth Callback
+   */
+  async handleOAuthCallback() {
+    const { data, error } = await supabase.auth.getSession()
+    return { session: data.session, error }
+  },
+
+  /**
    * Đăng xuất an toàn
    */
   async signOut() {
@@ -100,7 +189,6 @@ export const authService = {
     deviceService.clearDeviceId()
     
     try {
-      // Lấy user hiện tại để xóa device (nếu cần)
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const deviceId = deviceService.getOrCreateDeviceId()
@@ -169,12 +257,12 @@ export const authService = {
     return supabase.auth.onAuthStateChange(callback)
   },
 
-  // --- CÁC HÀM DEVICE MANAGEMENT (Bổ sung để sửa lỗi) ---
+  // --- CÁC HÀM DEVICE MANAGEMENT ---
 
   async trackUserDevice(userId: string) {
     try {
       const deviceId = deviceService.getOrCreateDeviceId()
-      const { can_add, removed_device, error } = await deviceService.enforceDeviceLimit(userId, 3)
+      const { error } = await deviceService.enforceDeviceLimit(userId, 3) // Check limit but ignore removed device return
 
       if (error) return { error }
 
