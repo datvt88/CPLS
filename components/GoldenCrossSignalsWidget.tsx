@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, memo } from 'react'
 
-// --- Types ---
+// ... (Giữ nguyên phần Types, Constants & Utility Functions như cũ)
 interface StockData {
   ticker: string
   price?: number
@@ -19,12 +19,9 @@ interface CachedData {
   timestamp: number
 }
 
-// --- Constants & Utilities ---
-// Cache duration: 2 minutes
 const CACHE_DURATION = 2 * 60 * 1000
 let globalCachedData: CachedData | null = null
 
-// Pure utility functions (moved outside component to avoid recreation/useCallback overhead)
 const formatNumber = (num: number | undefined): string => {
   if (num === undefined || num === null) return '-'
   return num.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
@@ -34,7 +31,6 @@ const formatDate = (dateString: string | undefined): string => {
   if (!dateString) return '-'
   try {
     const d = new Date(dateString)
-    // Check if date is valid
     if (isNaN(d.getTime())) return '-'
     return d.toLocaleDateString('vi-VN', {
       year: 'numeric',
@@ -48,41 +44,85 @@ const formatDate = (dateString: string | undefined): string => {
 
 // --- Sub-components ---
 
-// Memoized Row Component
-const StockRow = memo(({ stock }: { stock: StockData }) => (
+// 1. Desktop Row (Dạng bảng cho màn hình lớn)
+const DesktopRow = memo(({ stock }: { stock: StockData }) => (
   <tr className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors group">
     <td className="py-3 px-4">
-      <span className="font-bold text-white text-sm sm:text-base group-hover:text-blue-400 transition-colors">
+      <span className="font-bold text-white text-base group-hover:text-blue-400 transition-colors">
         {stock.ticker}
       </span>
     </td>
-    <td className="py-3 px-4 text-right text-green-400 font-semibold text-sm sm:text-base">
+    <td className="py-3 px-4 text-right text-green-400 font-semibold text-base">
       {formatNumber(stock.ma30)}
     </td>
     <td className="py-3 px-4 text-yellow-400">
       <div className="inline-flex items-center gap-2 px-2 py-1 rounded bg-yellow-400/10 border border-yellow-400/20">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </svg>
-        <span className="hidden sm:inline font-medium">Golden Cross</span>
-        <span className="sm:hidden text-xs font-medium">GC</span>
+        <span className="font-medium text-sm">Golden Cross</span>
       </div>
     </td>
-    <td className="py-3 px-4 text-gray-400 text-xs sm:text-sm">
+    <td className="py-3 px-4 text-gray-400 text-sm text-right">
       {formatDate(stock.timeCross)}
     </td>
   </tr>
 ))
-StockRow.displayName = 'StockRow'
+DesktopRow.displayName = 'DesktopRow'
 
-// Skeleton Loading Component for better UX
-const SkeletonRow = () => (
-  <tr className="border-b border-gray-800/50 animate-pulse">
-    <td className="py-3 px-4"><div className="h-5 w-12 bg-gray-700 rounded" /></td>
-    <td className="py-3 px-4"><div className="h-5 w-16 bg-gray-700 rounded ml-auto" /></td>
-    <td className="py-3 px-4"><div className="h-6 w-24 bg-gray-700 rounded" /></td>
-    <td className="py-3 px-4"><div className="h-5 w-20 bg-gray-700 rounded" /></td>
-  </tr>
+// 2. Mobile Card (Dạng thẻ cho điện thoại)
+const MobileCard = memo(({ stock }: { stock: StockData }) => (
+  <div className="border-b border-gray-800 p-3 flex justify-between items-center bg-[#111] last:border-0">
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-white text-lg">{stock.ticker}</span>
+        <span className="text-[10px] px-1.5 py-0.5 bg-yellow-900/30 text-yellow-400 rounded border border-yellow-700/30 font-medium">
+          GC
+        </span>
+      </div>
+      <span className="text-xs text-gray-500">{formatDate(stock.timeCross)}</span>
+    </div>
+    
+    <div className="text-right">
+      <div className="text-xs text-gray-400 mb-0.5">Vùng mua (MA30)</div>
+      <div className="text-green-400 font-bold text-base font-mono">
+        {formatNumber(stock.ma30)}
+      </div>
+    </div>
+  </div>
+))
+MobileCard.displayName = 'MobileCard'
+
+// 3. Skeleton Loading (Responsive)
+const SkeletonLoader = () => (
+  <>
+    {/* Mobile Skeleton */}
+    <div className="sm:hidden space-y-0 divide-y divide-gray-800">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="p-3 flex justify-between animate-pulse">
+          <div className="space-y-2">
+            <div className="h-6 w-12 bg-gray-800 rounded"></div>
+            <div className="h-3 w-16 bg-gray-800 rounded"></div>
+          </div>
+          <div className="space-y-2">
+            <div className="h-3 w-20 bg-gray-800 rounded ml-auto"></div>
+            <div className="h-5 w-24 bg-gray-800 rounded ml-auto"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+    
+    {/* Desktop Skeleton */}
+    <table className="hidden sm:table w-full">
+      <tbody>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <tr key={i} className="border-b border-gray-800 animate-pulse">
+            <td className="py-4 px-4"><div className="h-5 w-16 bg-gray-800 rounded"></div></td>
+            <td className="py-4 px-4"><div className="h-5 w-20 bg-gray-800 rounded ml-auto"></div></td>
+            <td className="py-4 px-4"><div className="h-6 w-32 bg-gray-800 rounded"></div></td>
+            <td className="py-4 px-4"><div className="h-5 w-24 bg-gray-800 rounded ml-auto"></div></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </>
 )
 
 // --- Main Component ---
@@ -92,9 +132,7 @@ function GoldenCrossSignalsWidget() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchStocks = useCallback(async () => {
-    // Cache check immediately inside the function
     if (globalCachedData && Date.now() - globalCachedData.timestamp < CACHE_DURATION) {
-      console.log('✅ Using cached signals data')
       setStocks(globalCachedData.data)
       setLoading(false)
       return
@@ -102,7 +140,6 @@ function GoldenCrossSignalsWidget() {
 
     setLoading(true)
     setError(null)
-    console.log('🔄 Fetching fresh signals data...')
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)
@@ -111,7 +148,7 @@ function GoldenCrossSignalsWidget() {
       const response = await fetch('/api/signals/golden-cross', {
         signal: controller.signal,
         headers: { 'Cache-Control': 'public, max-age=120' },
-        next: { revalidate: 120 } // Optimization for Next.js App Router
+        next: { revalidate: 120 }
       })
 
       clearTimeout(timeoutId)
@@ -120,7 +157,6 @@ function GoldenCrossSignalsWidget() {
 
       const data = await response.json()
       
-      // Transform Data
       const rawData = data.data || {}
       const stockList: StockData[] = Object.keys(rawData).map(symbol => {
         const info = rawData[symbol]
@@ -136,14 +172,12 @@ function GoldenCrossSignalsWidget() {
         }
       })
 
-      // Sort: Newest first
       stockList.sort((a, b) => {
         const tA = a.timeCross ? new Date(a.timeCross).getTime() : 0
         const tB = b.timeCross ? new Date(b.timeCross).getTime() : 0
         return tB - tA
       })
 
-      // Update Cache & State
       globalCachedData = { data: stockList, timestamp: Date.now() }
       setStocks(stockList)
     } catch (err: any) {
@@ -152,13 +186,9 @@ function GoldenCrossSignalsWidget() {
         setError(err.message || 'Không thể tải dữ liệu')
       }
     } finally {
-      // Only unset loading if not aborted (prevents flicker on strict mode double invoke)
-      if (!controller.signal.aborted) {
-        setLoading(false)
-      }
+      if (!controller.signal.aborted) setLoading(false)
     }
 
-    // Cleanup function for useEffect
     return () => {
       clearTimeout(timeoutId)
       controller.abort()
@@ -167,59 +197,55 @@ function GoldenCrossSignalsWidget() {
 
   useEffect(() => {
     const cleanup = fetchStocks()
-    // Handle the promise returned by useCallback if needed, 
-    // but here we primarily need the cleanup logic returned inside fetchStocks logic if we were calling it directly.
-    // However, since fetchStocks is async, we need a slightly different pattern for pure cleanup:
-    
-    // The simplified pattern for useEffect calling an async function:
-    const controller = new AbortController() 
-    // Note: The logic inside fetchStocks handles its own controller, 
-    // but simply calling it here is sufficient. 
-    return () => controller.abort() // Placeholder for standard cleanup
+    // No-op cleanup for useEffect calling async func pattern
+    const controller = new AbortController()
+    return () => controller.abort()
   }, [fetchStocks])
-
-  // --- Render Helpers ---
 
   const renderContent = () => {
     if (error) {
       return (
-        <div className="bg-red-900/10 border border-red-500/20 rounded-lg p-6 text-center animate-fadeIn">
-          <p className="text-red-400 mb-3">{error}</p>
-          <button
-            onClick={() => fetchStocks()}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-red-900/20"
-          >
-            Thử lại
-          </button>
+        <div className="bg-red-900/10 border border-red-500/20 rounded-lg p-6 text-center">
+          <p className="text-red-400 mb-3 text-sm">{error}</p>
+          <button onClick={() => fetchStocks()} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold">Thử lại</button>
         </div>
       )
     }
 
     if (!loading && stocks.length === 0) {
       return (
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-6 text-center text-blue-400">
-          Chưa có mã cổ phiếu nào có tín hiệu Golden Cross hôm nay.
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-6 text-center text-blue-400 text-sm">
+          Chưa có mã cổ phiếu nào có tín hiệu hôm nay.
         </div>
       )
     }
 
+    if (loading) return <SkeletonLoader />
+
     return (
-      <div className="overflow-hidden rounded-lg border border-gray-800 bg-[#111]">
-        <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-lg sm:border border-gray-800 bg-transparent sm:bg-[#111]">
+        {/* MOBILE VIEW (Cards) */}
+        <div className="block sm:hidden divide-y divide-gray-800 border-t border-b border-gray-800">
+          {stocks.map((stock) => (
+            <MobileCard key={stock.ticker} stock={stock} />
+          ))}
+        </div>
+
+        {/* DESKTOP VIEW (Table) */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-800/50 text-gray-400 uppercase text-xs">
               <tr>
                 <th className="py-3 px-4 font-semibold whitespace-nowrap">Mã CP</th>
                 <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Vùng Mua (MA30)</th>
-                <th className="py-3 px-4 font-semibold whitespace-nowrap text-center sm:text-left">Tín hiệu</th>
-                <th className="py-3 px-4 font-semibold whitespace-nowrap">Ngày</th>
+                <th className="py-3 px-4 font-semibold whitespace-nowrap text-left">Tín hiệu</th>
+                <th className="py-3 px-4 font-semibold whitespace-nowrap text-right">Ngày</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {loading 
-                ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-                : stocks.map((stock) => <StockRow key={stock.ticker} stock={stock} />)
-              }
+              {stocks.map((stock) => (
+                <DesktopRow key={stock.ticker} stock={stock} />
+              ))}
             </tbody>
           </table>
         </div>
@@ -228,17 +254,17 @@ function GoldenCrossSignalsWidget() {
   }
 
   return (
-    <div className="bg-[--panel] sm:rounded-xl p-4 sm:p-6 border-y sm:border border-gray-800 shadow-xl">
-      <div className="flex items-center justify-between mb-6">
+    // Tối ưu padding: Trên mobile p-0 để tràn viền, trên PC có padding và bo góc
+    <div className="bg-transparent sm:bg-[--panel] sm:rounded-xl sm:p-6 sm:border border-gray-800 sm:shadow-xl">
+      <div className="flex items-center justify-between mb-4 sm:mb-6 px-2 sm:px-0">
         <div>
-          <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+          <h3 className="text-lg sm:text-2xl font-bold text-white flex items-center gap-2">
             <span className="text-yellow-400">⚡</span> Golden Cross Signals
           </h3>
           <p className="text-gray-400 text-xs sm:text-sm mt-1">
-            {loading ? 'Đang cập nhật...' : `${stocks.length} mã tiềm năng từ hệ thống`}
+            {loading ? 'Đang cập nhật...' : `${stocks.length} mã tiềm năng`}
           </p>
         </div>
-        {/* Optional: Add Refresh Button or Last Updated Time here */}
       </div>
 
       {renderContent()}
