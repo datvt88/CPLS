@@ -28,7 +28,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const loadPermissions = useCallback(async () => {
     try {
-      // 1. Lấy session an toàn từ service
+      // 1. Gọi authService (đã có cơ chế cache và try-catch an toàn)
       const { session, error: sessionError } = await authService.getSession()
 
       if (sessionError || !session?.user) {
@@ -37,16 +37,16 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         return
       }
 
-      // 2. Lấy thông tin Membership
+      // 2. Lấy thông tin Profile Membership từ DB
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('membership, membership_expires_at')
         .eq('id', session.user.id)
         .single<Profile>()
 
-      // Xử lý lỗi không tìm thấy profile (vẫn cho dùng tính năng Free)
       if (error || !profile) {
-        console.warn('⚠️ Profile not found, fallback to Free')
+        // Nếu lỗi lấy profile, fallback về Free để không crash app
+        console.warn('⚠️ [Permissions] Profile not found, defaulting to Free')
         setIsPremium(false)
         setAccessibleFeatures(FREE_FEATURES)
         return
@@ -63,15 +63,16 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         }
       }
 
+      // 4. Cập nhật State
       setIsPremium(userIsPremium)
       setAccessibleFeatures(userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES)
 
     } catch (error) {
-      console.error('❌ Permissions Error:', error)
-      // Fallback an toàn khi có lỗi hệ thống
+      console.error('❌ [Permissions] Error:', error)
       setIsPremium(false)
       setAccessibleFeatures(FREE_FEATURES)
     } finally {
+      // Luôn tắt loading dù thành công hay thất bại
       setIsLoading(false)
     }
   }, [])
@@ -79,6 +80,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     loadPermissions()
 
+    // Lắng nghe sự kiện từ authService
     const { data: authListener } = authService.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         loadPermissions()
