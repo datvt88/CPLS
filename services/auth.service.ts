@@ -12,20 +12,21 @@ export interface ZaloAuthOptions {
   scopes?: string
 }
 
-// Cache session để tránh spam request
+// Session cache to avoid repeated API calls
 let sessionCache: {
   session: any | null
   user: any | null
   timestamp: number
 } | null = null
 
-const SESSION_CACHE_TTL = 60 * 1000 // 1 phút
+const SESSION_CACHE_TTL = 60 * 1000 // 1 minute cache
 
+// Clear cache helper
 function clearSessionCache() {
   sessionCache = null
 }
 
-// Listener: Cập nhật cache khi trạng thái auth thay đổi
+// Initialize auth state listener (runs once)
 if (typeof window !== 'undefined') {
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
@@ -42,7 +43,8 @@ if (typeof window !== 'undefined') {
 
 export const authService = {
   /**
-   * Đăng ký
+   * Sign up a new user with email and password
+   * Includes email verification redirect
    */
   async signUp({ email, password }: AuthCredentials) {
     const redirectUrl = typeof window !== 'undefined'
@@ -58,27 +60,32 @@ export const authService = {
   },
 
   /**
-   * Đăng nhập Email/Password
+   * Sign in with email and password
    */
   async signIn({ email, password }: AuthCredentials) {
-    clearSessionCache()
+    clearSessionCache() // Clear cache before login
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    
+
+    // Track device after successful login (non-blocking)
     if (data.user && !error) {
-      this.trackUserDevice(data.user.id).catch(console.error)
+      this.trackUserDevice(data.user.id).catch(err => {
+        console.error('⚠️ Device tracking failed (non-critical):', err)
+      })
     }
+
     return { data, error }
   },
 
   /**
-   * Đăng nhập bằng SỐ ĐIỆN THOẠI (Logic chuyển đổi Phone -> Email)
+   * Sign in with phone number and password
+   * Converts phone number to email, then authenticates with Supabase
    */
   async signInWithPhone({ phoneNumber, password }: { phoneNumber: string; password: string }) {
     try {
       console.log('🔐 [Auth] Starting phone login for:', phoneNumber)
-      clearSessionCache()
+      clearSessionCache() // Clear cache before login
 
-      // 1. Lookup email từ số điện thoại qua API
+      // Lookup email by phone number with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
 
@@ -91,6 +98,7 @@ export const authService = {
         })
 
         clearTimeout(timeoutId)
+
         const data = await response.json()
 
         if (!response.ok) {
@@ -100,7 +108,7 @@ export const authService = {
 
         console.log('✅ [Auth] Phone lookup successful, email:', data.email)
 
-        // 2. Đăng nhập Supabase bằng Email tìm được
+        // Sign in with the retrieved email
         const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: data.email,
           password: password,
@@ -111,28 +119,39 @@ export const authService = {
           return { data: authData, error: { message: 'Số điện thoại hoặc mật khẩu không đúng' } }
         }
 
-        // 3. Track device
+        console.log('✅ [Auth] Login successful for user:', authData.user?.id)
+
+        // Track device after successful login (non-blocking)
         if (authData.user) {
-          this.trackUserDevice(authData.user.id).catch(console.error)
+          this.trackUserDevice(authData.user.id).catch(err => {
+            console.error('⚠️ Device tracking failed (non-critical):', err)
+          })
         }
 
         return { data: authData, error: null }
-
       } catch (fetchErr) {
         clearTimeout(timeoutId)
         if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
-          return { data: null, error: { message: 'Hết thời gian chờ. Kiểm tra kết nối mạng.' } }
+          console.error('❌ [Auth] Request timeout')
+          return {
+            data: null,
+            error: { message: 'Yêu cầu hết thời gian chờ. Vui lòng kiểm tra kết nối mạng.' }
+          }
         }
         throw fetchErr
       }
     } catch (err) {
       console.error('❌ [Auth] Unexpected error:', err)
-      return { data: null, error: { message: 'Đã có lỗi xảy ra khi đăng nhập.' } }
+      return {
+        data: null,
+        error: { message: err instanceof Error ? err.message : 'Đã có lỗi xảy ra' }
+      }
     }
   },
 
   /**
-   * Đăng nhập Google
+   * Sign in with Google OAuth
+   * Uses Supabase's built-in Google OAuth provider
    */
   async signInWithGoogle(options?: { redirectTo?: string }) {
     clearSessionCache()
@@ -148,11 +167,13 @@ export const authService = {
         },
       },
     })
+
     return { data, error }
   },
 
   /**
-   * Đăng nhập Zalo
+   * Sign in with Zalo OAuth
+   * Requires Zalo OAuth to be configured in Supabase
    */
   async signInWithZalo(options?: ZaloAuthOptions) {
     clearSessionCache()
@@ -160,7 +181,7 @@ export const authService = {
     const scopes = options?.scopes || 'id,name,picture,phone'
 
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'zalo' as any, 
+      provider: 'zalo' as any, // Custom provider
       options: {
         redirectTo,
         scopes,
@@ -169,11 +190,13 @@ export const authService = {
         },
       },
     })
+
     return { data, error }
   },
 
   /**
-   * Xử lý OAuth Callback
+   * Handle OAuth callback
+   * This should be called in the callback page after OAuth redirect
    */
   async handleOAuthCallback() {
     const { data, error } = await supabase.auth.getSession()
@@ -181,37 +204,51 @@ export const authService = {
   },
 
   /**
-   * Đăng xuất an toàn
+   * Sign out the current user
    */
   async signOut() {
+    // Clear caches immediately for responsive UI
     clearSessionCache()
-    clearDeviceFingerprintCache() 
+    clearDeviceFingerprintCache()
     deviceService.clearDeviceId()
-    
+
     try {
+      // Get current user before signing out (to remove device from DB)
+      // Note: We use supabase.auth directly to avoid cache interactions here if needed, 
+      // but getUser() with cache check is fine as we want the ID.
+      // However, to be safe and get fresh state before logout:
       const { data: { user } } = await supabase.auth.getUser()
+
       if (user) {
         const deviceId = deviceService.getOrCreateDeviceId()
+        // Non-blocking device removal
         deviceService.removeDevice(user.id, deviceId).catch(console.error)
       }
+
       const { error } = await supabase.auth.signOut()
       return { error }
     } catch (err) {
+      console.error("Error during sign out:", err)
       return { error: err }
     }
   },
 
   /**
-   * Lấy Session an toàn (Không bao giờ throw error)
+   * Get current session (with caching)
    */
   async getSession() {
     try {
+      // Check cache first
       if (sessionCache && (Date.now() - sessionCache.timestamp < SESSION_CACHE_TTL)) {
+        // console.log('✨ [Auth] Using cached session') // Optional logging
         return { session: sessionCache.session, error: null }
       }
 
+      // Cache miss or expired - fetch fresh
+      // console.log('🔄 [Auth] Fetching fresh session') // Optional logging
       const { data, error } = await supabase.auth.getSession()
 
+      // Update cache
       if (!error && data.session) {
         sessionCache = {
           session: data.session,
@@ -219,6 +256,7 @@ export const authService = {
           timestamp: Date.now()
         }
       }
+
       return { session: data.session, error }
     } catch (error) {
       console.error("🔥 [AuthService] Session Error:", error)
@@ -227,25 +265,31 @@ export const authService = {
   },
 
   /**
-   * Lấy User an toàn
+   * Get current user (with caching)
    */
   async getUser() {
     try {
+      // Check cache first
       if (sessionCache && (Date.now() - sessionCache.timestamp < SESSION_CACHE_TTL)) {
+        // console.log('✨ [Auth] Using cached user') // Optional logging
         return { user: sessionCache.user, error: null }
       }
 
+      // Cache miss or expired - fetch fresh
+      // console.log('🔄 [Auth] Fetching fresh user') // Optional logging
       const { data, error } = await supabase.auth.getUser()
-      
+
+      // Update cache
       if (!error && data.user) {
         sessionCache = {
-          session: null, 
+          session: null, // We don't have full session from getUser
           user: data.user,
           timestamp: Date.now()
         }
       } else if (error) {
         clearSessionCache()
       }
+
       return { user: data.user, error }
     } catch (error) {
       console.error("🔥 [AuthService] User Error:", error)
@@ -253,42 +297,99 @@ export const authService = {
     }
   },
 
+  /**
+   * Subscribe to auth state changes
+   */
   onAuthStateChange(callback: (event: string, session: any) => void) {
     return supabase.auth.onAuthStateChange(callback)
   },
 
-  // --- CÁC HÀM DEVICE MANAGEMENT ---
+  /**
+   * Get user metadata (includes OAuth provider data)
+   */
+  async getUserMetadata() {
+    const { user, error } = await this.getUser()
+    if (error || !user) return { metadata: null, error }
 
+    return {
+      metadata: {
+        email: user.email,
+        fullName: user.user_metadata?.full_name || user.user_metadata?.name,
+        avatarUrl: user.user_metadata?.avatar_url || user.user_metadata?.picture,
+        phoneNumber: user.user_metadata?.phone_number || user.user_metadata?.phone,
+        provider: user.app_metadata?.provider,
+        providerId: user.user_metadata?.sub || user.user_metadata?.provider_id,
+      },
+      error: null,
+    }
+  },
+
+  /**
+   * Track user device (max 3 devices)
+   * Automatically removes oldest device if limit is reached
+   */
   async trackUserDevice(userId: string) {
     try {
       const deviceId = deviceService.getOrCreateDeviceId()
-      const { error } = await deviceService.enforceDeviceLimit(userId, 3) // Check limit but ignore removed device return
 
-      if (error) return { error }
+      // Enforce device limit (max 3)
+      const { can_add, removed_device, error } = await deviceService.enforceDeviceLimit(userId, 3)
 
+      if (error) {
+        console.error('Error enforcing device limit:', error)
+        return { error }
+      }
+
+      if (removed_device) {
+        console.log('⚠️ Device limit reached. Removed oldest device:', removed_device.device_name)
+      }
+
+      // Register current device
       const { device, error: registerError } = await deviceService.registerDevice(userId, deviceId)
-      return { device, error: registerError }
+
+      if (registerError) {
+        console.error('Error registering device:', registerError)
+        return { error: registerError }
+      }
+
+      console.log('✅ Device tracked:', device?.device_name)
+      return { device, removed_device }
     } catch (err) {
+      console.error('Error tracking device:', err)
       return { error: err }
     }
   },
 
+  /**
+   * Update device activity (call periodically to keep device active)
+   */
+  async updateDeviceActivity() {
+    // Avoid using this.getUser() here to prevent potential recursive loops or unnecessary cache checks if called frequently
+    // Direct call is safer for background activity updates
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) return
+
+    const deviceId = deviceService.getOrCreateDeviceId()
+    await deviceService.updateDeviceActivity(data.user.id, deviceId)
+  },
+
+  /**
+   * Get user's active devices
+   */
   async getUserDevices() {
     const { user } = await this.getUser()
     if (!user) return { devices: null, error: new Error('No user logged in') }
+
     return await deviceService.getUserDevices(user.id)
   },
 
+  /**
+   * Remove a specific device (logout from another device)
+   */
   async removeUserDevice(deviceId: string) {
     const { user } = await this.getUser()
     if (!user) return { error: new Error('No user logged in') }
+
     return await deviceService.removeDevice(user.id, deviceId)
   },
-
-  async updateDeviceActivity() {
-    const { data } = await supabase.auth.getUser()
-    if (!data.user) return
-    const deviceId = deviceService.getOrCreateDeviceId()
-    await deviceService.updateDeviceActivity(data.user.id, deviceId)
-  }
 }
