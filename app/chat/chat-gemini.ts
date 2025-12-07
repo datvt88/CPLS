@@ -18,7 +18,7 @@ export async function checkConnection() {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-live" })
 
     // Test một prompt cực ngắn để check ping
 
@@ -50,7 +50,7 @@ export async function askGemini(prompt: string) {
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" }) // Dùng bản Flash cho nhanh
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-live" }) // Dùng bản Flash cho nhanh
 
     
 
