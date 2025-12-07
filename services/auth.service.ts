@@ -1,7 +1,6 @@
-// services/auth.service.ts
 import { supabase } from '@/lib/supabaseClient'
-import { deviceService } from './device.service' // Giả định bạn có file này
-import { clearDeviceFingerprintCache } from '@/lib/session-manager' // Giả định bạn có file này
+import { deviceService } from './device.service' 
+import { clearDeviceFingerprintCache } from '@/lib/session-manager' 
 
 export interface AuthCredentials {
   email: string
@@ -42,6 +41,9 @@ if (typeof window !== 'undefined') {
 }
 
 export const authService = {
+  /**
+   * Đăng ký
+   */
   async signUp({ email, password }: AuthCredentials) {
     const redirectUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/auth/callback`
@@ -55,6 +57,9 @@ export const authService = {
     return { data, error }
   },
 
+  /**
+   * Đăng nhập Email/Password
+   */
   async signIn({ email, password }: AuthCredentials) {
     clearSessionCache()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -66,17 +71,40 @@ export const authService = {
     return { data, error }
   },
 
-  // ... (Giữ lại các hàm signInWithPhone, signInWithGoogle, signInWithZalo như cũ, nhớ thêm clearSessionCache đầu hàm) ...
+  /**
+   * Đăng nhập Google
+   */
+  async signInWithGoogle(options?: { redirectTo?: string }) {
+    clearSessionCache()
+    const redirectTo = options?.redirectTo || `${window.location.origin}/auth/callback`
 
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    })
+    return { data, error }
+  },
+
+  /**
+   * Đăng xuất an toàn
+   */
   async signOut() {
     clearSessionCache()
-    clearDeviceFingerprintCache() // Nếu có
+    clearDeviceFingerprintCache() 
+    deviceService.clearDeviceId()
     
     try {
+      // Lấy user hiện tại để xóa device (nếu cần)
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Xóa device nếu cần (non-blocking)
-        // deviceService.removeDevice(...)
+        const deviceId = deviceService.getOrCreateDeviceId()
+        deviceService.removeDevice(user.id, deviceId).catch(console.error)
       }
       const { error } = await supabase.auth.signOut()
       return { error }
@@ -123,7 +151,7 @@ export const authService = {
       
       if (!error && data.user) {
         sessionCache = {
-          session: null, // getUser ko trả full session
+          session: null, 
           user: data.user,
           timestamp: Date.now()
         }
@@ -141,6 +169,38 @@ export const authService = {
     return supabase.auth.onAuthStateChange(callback)
   },
 
-  // Dummy implementation nếu chưa có file device.service
-  async trackUserDevice(userId: string) { return { error: null } } 
+  // --- CÁC HÀM DEVICE MANAGEMENT (Bổ sung để sửa lỗi) ---
+
+  async trackUserDevice(userId: string) {
+    try {
+      const deviceId = deviceService.getOrCreateDeviceId()
+      const { can_add, removed_device, error } = await deviceService.enforceDeviceLimit(userId, 3)
+
+      if (error) return { error }
+
+      const { device, error: registerError } = await deviceService.registerDevice(userId, deviceId)
+      return { device, error: registerError }
+    } catch (err) {
+      return { error: err }
+    }
+  },
+
+  async getUserDevices() {
+    const { user } = await this.getUser()
+    if (!user) return { devices: null, error: new Error('No user logged in') }
+    return await deviceService.getUserDevices(user.id)
+  },
+
+  async removeUserDevice(deviceId: string) {
+    const { user } = await this.getUser()
+    if (!user) return { error: new Error('No user logged in') }
+    return await deviceService.removeDevice(user.id, deviceId)
+  },
+
+  async updateDeviceActivity() {
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) return
+    const deviceId = deviceService.getOrCreateDeviceId()
+    await deviceService.updateDeviceActivity(data.user.id, deviceId)
+  }
 }
