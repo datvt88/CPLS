@@ -1,12 +1,12 @@
 // lib/permissions.ts
 
 export const FEATURES = {
-  // Free features
+  // Free tier features
   DASHBOARD: 'dashboard',
   STOCKS: 'stocks',
   MARKET: 'market',
   PROFILE: 'profile',
-  SIGNALS: 'signals', // Bạn để Signals là Free ở code trước
+  SIGNALS: 'signals', 
 
   // Premium only features
   AI_ANALYSIS: 'ai-analysis',
@@ -35,6 +35,7 @@ export const ALL_FEATURES: Feature[] = [
   ...PREMIUM_FEATURES,
 ]
 
+// Mapping đường dẫn router với Feature tương ứng
 export const ROUTE_FEATURES: Record<string, Feature> = {
   '/dashboard': FEATURES.DASHBOARD,
   '/stocks': FEATURES.STOCKS,
@@ -46,6 +47,7 @@ export const ROUTE_FEATURES: Record<string, Feature> = {
   '/alerts': FEATURES.ALERTS,
 }
 
+// Tên hiển thị tiếng Việt
 export const FEATURE_NAMES: Record<Feature, string> = {
   [FEATURES.DASHBOARD]: 'Tổng quan',
   [FEATURES.STOCKS]: 'Cổ phiếu',
@@ -57,12 +59,17 @@ export const FEATURE_NAMES: Record<Feature, string> = {
   [FEATURES.ALERTS]: 'Cảnh báo',
 }
 
-export function isPremiumFeature(feature: Feature): boolean {
-  return PREMIUM_FEATURES.includes(feature)
-}
-
+// Helper lấy feature từ URL
 export function getFeatureForRoute(pathname: string): Feature | null {
   if (ROUTE_FEATURES[pathname]) return ROUTE_FEATURES[pathname]
-  const matchingRoute = Object.keys(ROUTE_FEATURES).find(route => pathname.startsWith(route))
+  
+  // Tìm kiếm gần đúng (ví dụ /stocks/AAPL khớp với /stocks)
+  const matchingRoute = Object.keys(ROUTE_FEATURES).find(route => 
+    pathname.startsWith(route)
+  )
   return matchingRoute ? ROUTE_FEATURES[matchingRoute] : null
+}
+
+export function isPremiumFeature(feature: Feature): boolean {
+  return PREMIUM_FEATURES.includes(feature)
 }
