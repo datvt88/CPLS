@@ -8,18 +8,14 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import DeviceManagement from '@/components/DeviceManagement'
 import PasswordManagement from '@/components/PasswordManagement'
 
-// --- QUAN TRỌNG: ĐỊNH NGHĨA LẠI KIỂU PROFILE ---
-// Bạn cần đảm bảo rằng trong database (bảng profiles) và file services/profile.service.ts
-// đã có trường 'role' (ví dụ: kiểu text/varchar).
-// Đoạn này mở rộng kiểu Profile hiện tại để TypeScript không báo lỗi.
-interface Profile extends BaseProfile {
-  role?: 'admin' | 'mod' | 'user' | string | null; // Thêm trường role
+// --- FIX LỖI TYPE: Sử dụng Intersection Type thay vì interface extends ---
+type Profile = BaseProfile & {
+  role?: string | null; 
 }
 
 function ProfilePageContent() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
-  // ... (các state khác giữ nguyên)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingTCBS, setSavingTCBS] = useState(false)
@@ -41,7 +37,6 @@ function ProfilePageContent() {
   }, [])
 
   const loadProfile = async () => {
-    // ... (giữ nguyên logic loadProfile)
     try {
       const { user } = await authService.getUser()
       if (!user) {
@@ -49,13 +44,13 @@ function ProfilePageContent() {
         return
       }
 
-      // Ép kiểu kết quả trả về sang interface Profile mới có chứa 'role'
       const { profile: userProfile, error } = await profileService.getProfile(user.id)
       if (error) {
         console.error('Error loading profile:', error)
         setMessage('Không thể tải thông tin')
       } else if (userProfile) {
-        setProfile(userProfile as Profile) // Ép kiểu ở đây
+        // Ép kiểu an toàn
+        setProfile(userProfile as unknown as Profile)
         setFullName(userProfile.full_name || '')
         setNickname(userProfile.nickname || '')
         setPhoneNumber(userProfile.phone_number || '')
@@ -70,7 +65,6 @@ function ProfilePageContent() {
     }
   }
 
-  // ... (giữ nguyên các hàm handleSubmit, handleRemoveTCBS)
   const handleSubmitUserInfo = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage('')
@@ -159,7 +153,6 @@ function ProfilePageContent() {
     }
   }
 
-  // Hàm hiển thị huy hiệu Membership (PRO/FREE) - Giữ nguyên
   const getMembershipBadge = () => {
     if (!profile) return null
 
@@ -184,12 +177,12 @@ function ProfilePageContent() {
     )
   }
 
-  // --- MỚI: Hàm hiển thị huy hiệu Role (Admin/Mod) ---
+  // Hàm hiển thị huy hiệu Role (Admin/Mod)
   const getRoleBadge = () => {
-    // Nếu không có profile hoặc không có role, không hiển thị gì
     if (!profile || !profile.role) return null;
 
-    const role = profile.role.toLowerCase();
+    // Ép kiểu về string để so sánh an toàn
+    const role = String(profile.role).toLowerCase();
 
     if (role === 'admin' || role === 'administrator') {
       return (
@@ -207,14 +200,10 @@ function ProfilePageContent() {
       );
     }
 
-    // User bình thường không hiển thị gì
     return null;
   };
-  // --------------------------------------------------
-
 
   if (loading) {
-    // ... (giữ nguyên loading state)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#121212]">
         <div className="text-center">
@@ -244,7 +233,6 @@ function ProfilePageContent() {
           {/* Avatar Section */}
           <div className="flex items-center gap-5 mb-8">
             <div className="relative group cursor-pointer">
-               {/* ... (giữ nguyên phần hiển thị avatar) */}
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -262,19 +250,15 @@ function ProfilePageContent() {
             </div>
             
             <div>
-              {/* --- CẬP NHẬT TẠI ĐÂY: Thêm flex container để chứa email và role badge --- */}
               <div className="flex items-center flex-wrap">
                   <p className="text-white font-semibold text-lg mr-1">{profile?.email}</p>
-                  {getRoleBadge()} {/* Gọi hàm hiển thị badge ở đây */}
+                  {getRoleBadge()}
               </div>
-              {/* ----------------------------------------------------------------------- */}
-              
               <p className="text-gray-500 text-sm mt-1">Thành viên từ {profile?.created_at ? new Date(profile.created_at).getFullYear() : '...'}</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmitUserInfo} className="space-y-5">
-            {/* ... (giữ nguyên phần form inputs) */}
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="block text-gray-400 text-sm font-semibold mb-2">Họ và Tên</label>
@@ -363,7 +347,6 @@ function ProfilePageContent() {
 
         {/* Section 2: Gói đăng ký */}
         <div className="bg-[#1E1E1E] rounded-xl shadow-xl p-6 sm:p-8 border border-[#2C2C2C]">
-           {/* ... (giữ nguyên phần gói đăng ký) */}
           <h2 className="text-xl font-bold mb-4 text-white">Gói dịch vụ</h2>
           <div className="p-4 bg-[#2C2C2C] rounded-lg border border-[#3E3E3E] flex items-center justify-between">
              <div>
@@ -383,7 +366,6 @@ function ProfilePageContent() {
         <PasswordManagement />
         
         <div className="bg-[#1E1E1E] rounded-xl shadow-xl p-6 sm:p-8 border border-[#2C2C2C]">
-           {/* ... (giữ nguyên phần TCBS) */}
            <h2 className="text-xl font-bold mb-4 text-white">Kết nối TCBS</h2>
            <form onSubmit={handleSubmitTCBS} className="space-y-4">
               <div>
