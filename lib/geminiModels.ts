@@ -27,7 +27,7 @@ export const GEMINI_MODELS: GeminiModel[] = [
 ]
 
 // Default model
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash-live'
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite'
 
 // Get active models only
 export function getActiveModels(): GeminiModel[] {
