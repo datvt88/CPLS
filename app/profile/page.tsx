@@ -3,14 +3,23 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { authService } from '@/services/auth.service'
-import { profileService, type Profile } from '@/services/profile.service'
+import { profileService, type Profile as BaseProfile } from '@/services/profile.service'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DeviceManagement from '@/components/DeviceManagement'
 import PasswordManagement from '@/components/PasswordManagement'
 
+// --- QUAN TRỌNG: ĐỊNH NGHĨA LẠI KIỂU PROFILE ---
+// Bạn cần đảm bảo rằng trong database (bảng profiles) và file services/profile.service.ts
+// đã có trường 'role' (ví dụ: kiểu text/varchar).
+// Đoạn này mở rộng kiểu Profile hiện tại để TypeScript không báo lỗi.
+interface Profile extends BaseProfile {
+  role?: 'admin' | 'mod' | 'user' | string | null; // Thêm trường role
+}
+
 function ProfilePageContent() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
+  // ... (các state khác giữ nguyên)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingTCBS, setSavingTCBS] = useState(false)
@@ -32,6 +41,7 @@ function ProfilePageContent() {
   }, [])
 
   const loadProfile = async () => {
+    // ... (giữ nguyên logic loadProfile)
     try {
       const { user } = await authService.getUser()
       if (!user) {
@@ -39,12 +49,13 @@ function ProfilePageContent() {
         return
       }
 
+      // Ép kiểu kết quả trả về sang interface Profile mới có chứa 'role'
       const { profile: userProfile, error } = await profileService.getProfile(user.id)
       if (error) {
         console.error('Error loading profile:', error)
         setMessage('Không thể tải thông tin')
       } else if (userProfile) {
-        setProfile(userProfile)
+        setProfile(userProfile as Profile) // Ép kiểu ở đây
         setFullName(userProfile.full_name || '')
         setNickname(userProfile.nickname || '')
         setPhoneNumber(userProfile.phone_number || '')
@@ -59,6 +70,7 @@ function ProfilePageContent() {
     }
   }
 
+  // ... (giữ nguyên các hàm handleSubmit, handleRemoveTCBS)
   const handleSubmitUserInfo = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage('')
@@ -147,11 +159,11 @@ function ProfilePageContent() {
     }
   }
 
+  // Hàm hiển thị huy hiệu Membership (PRO/FREE) - Giữ nguyên
   const getMembershipBadge = () => {
     if (!profile) return null
 
     const isPremium = profile.membership === 'premium'
-    // Giữ nguyên badge màu sắc vì nó giúp phân biệt rõ ràng
     const badgeClass = isPremium
       ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30'
       : 'bg-gray-700 text-gray-300 border border-gray-600'
@@ -172,7 +184,37 @@ function ProfilePageContent() {
     )
   }
 
+  // --- MỚI: Hàm hiển thị huy hiệu Role (Admin/Mod) ---
+  const getRoleBadge = () => {
+    // Nếu không có profile hoặc không có role, không hiển thị gì
+    if (!profile || !profile.role) return null;
+
+    const role = profile.role.toLowerCase();
+
+    if (role === 'admin' || role === 'administrator') {
+      return (
+        <span className="ml-2 px-2 py-0.5 rounded animate-pulse text-[10px] font-extrabold uppercase bg-red-600 text-white border border-red-400 shadow-sm shadow-red-500/50 tracking-wider">
+          ADMIN
+        </span>
+      );
+    }
+
+    if (role === 'mod' || role === 'moderator') {
+      return (
+        <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-600 text-white border border-blue-400 shadow-sm shadow-blue-500/50 tracking-wider">
+          MOD
+        </span>
+      );
+    }
+
+    // User bình thường không hiển thị gì
+    return null;
+  };
+  // --------------------------------------------------
+
+
   if (loading) {
+    // ... (giữ nguyên loading state)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#121212]">
         <div className="text-center">
@@ -184,17 +226,16 @@ function ProfilePageContent() {
   }
 
   return (
-    // Nền trang tổng thể tối màu (#121212)
     <div className="min-h-screen bg-[#121212] p-4 sm:p-8 text-white font-sans">
       <div className="max-w-3xl mx-auto space-y-8">
 
-        {/* Header đơn giản */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Cài đặt tài khoản</h1>
           {getMembershipBadge()}
         </div>
 
-        {/* Section 1: Thông tin người dùng (Style giống ảnh: Card tối màu, bo góc, input xám) */}
+        {/* Section 1: Thông tin người dùng */}
         <div className="bg-[#1E1E1E] rounded-xl shadow-2xl p-6 sm:p-8 border border-[#2C2C2C]">
           <h2 className="text-xl font-bold mb-6 text-white border-b border-[#2C2C2C] pb-4">
             Thông Tin Hồ Sơ
@@ -203,6 +244,7 @@ function ProfilePageContent() {
           {/* Avatar Section */}
           <div className="flex items-center gap-5 mb-8">
             <div className="relative group cursor-pointer">
+               {/* ... (giữ nguyên phần hiển thị avatar) */}
               {profile?.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -214,20 +256,26 @@ function ProfilePageContent() {
                   {profile?.full_name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || 'U'}
                 </div>
               )}
-              {/* Nút edit avatar giả lập (UI only) */}
               <div className="absolute bottom-0 right-0 bg-[#00C805] p-1.5 rounded-full border-2 border-[#1E1E1E]">
                 <svg className="w-3 h-3 text-black" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
               </div>
             </div>
             
             <div>
-              <p className="text-white font-semibold text-lg">{profile?.email}</p>
-              <p className="text-gray-500 text-sm">Thành viên từ {profile?.created_at ? new Date(profile.created_at).getFullYear() : '2024'}</p>
+              {/* --- CẬP NHẬT TẠI ĐÂY: Thêm flex container để chứa email và role badge --- */}
+              <div className="flex items-center flex-wrap">
+                  <p className="text-white font-semibold text-lg mr-1">{profile?.email}</p>
+                  {getRoleBadge()} {/* Gọi hàm hiển thị badge ở đây */}
+              </div>
+              {/* ----------------------------------------------------------------------- */}
+              
+              <p className="text-gray-500 text-sm mt-1">Thành viên từ {profile?.created_at ? new Date(profile.created_at).getFullYear() : '...'}</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmitUserInfo} className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {/* ... (giữ nguyên phần form inputs) */}
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
                 <label className="block text-gray-400 text-sm font-semibold mb-2">Họ và Tên</label>
                 <input
@@ -276,7 +324,6 @@ function ProfilePageContent() {
               />
             </div>
 
-            {/* Nút Lưu màu xanh lá nổi bật giống ảnh */}
             <button
               type="submit"
               disabled={saving}
@@ -316,8 +363,8 @@ function ProfilePageContent() {
 
         {/* Section 2: Gói đăng ký */}
         <div className="bg-[#1E1E1E] rounded-xl shadow-xl p-6 sm:p-8 border border-[#2C2C2C]">
+           {/* ... (giữ nguyên phần gói đăng ký) */}
           <h2 className="text-xl font-bold mb-4 text-white">Gói dịch vụ</h2>
-          {/* ... (Phần nội dung gói dịch vụ có thể giữ nguyên logic, chỉ thay class màu nền như trên nếu muốn đồng bộ) */}
           <div className="p-4 bg-[#2C2C2C] rounded-lg border border-[#3E3E3E] flex items-center justify-between">
              <div>
                 <p className="text-gray-300 font-medium">Trạng thái hiện tại</p>
@@ -333,10 +380,10 @@ function ProfilePageContent() {
           </div>
         </div>
 
-        {/* Các section khác như PasswordManagement, DeviceManagement... cũng sẽ tự động đẹp hơn nhờ nền tối của trang cha */}
         <PasswordManagement />
         
         <div className="bg-[#1E1E1E] rounded-xl shadow-xl p-6 sm:p-8 border border-[#2C2C2C]">
+           {/* ... (giữ nguyên phần TCBS) */}
            <h2 className="text-xl font-bold mb-4 text-white">Kết nối TCBS</h2>
            <form onSubmit={handleSubmitTCBS} className="space-y-4">
               <div>
