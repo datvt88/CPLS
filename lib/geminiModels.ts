@@ -13,8 +13,8 @@ export interface GeminiModel {
 
 export const GEMINI_MODELS: GeminiModel[] = [
   {
-    id: 'gemini-2.0-flash-live',
-    name: 'Gemini 2.0 Flash Live',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
     description: 'Cân bằng tốc độ và hiệu suất',
     status: 'active',
   },
