@@ -2,7 +2,7 @@
 'use server'
 
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import { fetchGoldenCrossSignals } from '@/services/signals.service' // Import hàm lấy dữ liệu
+import { fetchGoldenCrossSignals } from '@/services/signal.service' // Import hàm lấy dữ liệu
 
 // 1. Hàm kiểm tra kết nối
 export async function checkConnection() {
