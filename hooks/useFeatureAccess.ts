@@ -17,10 +17,7 @@ export function useFeatureAccess(options: UseFeatureAccessOptions = {}) {
   const pathname = usePathname()
   const { canAccess, isLoading, isPremium } = usePermissions()
 
-  // Tự động xác định feature từ URL nếu không truyền vào
   const targetFeature = options.feature || getFeatureForRoute(pathname)
-
-  // Nếu route không thuộc feature nào (trang public), mặc định cho phép
   const hasAccess = targetFeature ? canAccess(targetFeature) : true
 
   useEffect(() => {
