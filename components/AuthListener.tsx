@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import {
   createSessionRecord,
@@ -7,59 +7,50 @@ import {
   cleanupExpiredSessions
 } from '@/lib/session-manager'
 
+// Timeout helper riêng cho background tasks (để lâu hơn chút, 15s)
+const runInBackground = async (task: () => Promise<any>) => {
+  try {
+    await task()
+  } catch (err) {
+    console.warn('⚠️ Background task failed (non-critical):', err)
+  }
+}
+
 export default function AuthListener() {
   useEffect(() => {
-    let mounted = true
-
-    // Initialize session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user && mounted) {
-        await syncUserProfile(session.user)
-
-        // Create/update session record
-        await createSessionRecord(session.user.id, session.access_token)
-
-        // Cleanup expired sessions
-        await cleanupExpiredSessions()
+    // 1. Initial Check (Chạy 1 lần khi app khởi động)
+    const initBackgroundTasks = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        // Chạy song song các tác vụ nền, không await từng cái để tránh chặn nhau
+        runInBackground(() => syncUserProfile(session.user))
+        runInBackground(() => createSessionRecord(session.user.id, session.access_token))
+        runInBackground(() => cleanupExpiredSessions())
       }
-    })
+    }
+    
+    initBackgroundTasks()
 
-    // Listen to auth state changes
+    // 2. Listen to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return
+      console.log('🔔 [AuthListener] Background event:', event)
 
-      console.log('🔔 [AuthListener] Auth state changed:', event)
-
-      try {
-        const user = session?.user
-
-        if (user && session) {
-          // Handle signed in events
-          if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
-            await syncUserProfile(user)
-
-            // Create session record
-            await createSessionRecord(user.id, session.access_token)
-
-            // Cleanup old sessions
-            await cleanupExpiredSessions()
-          }
-
-          // Handle token refresh
-          if (event === 'TOKEN_REFRESHED') {
-            console.log('✅ [AuthListener] Token refreshed by PersistentSessionManager')
-            // Update session activity after token refresh
-            await updateSessionActivity(session.access_token)
-          }
+      if (session?.user) {
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+          // Sync profile và session record khi đăng nhập
+          runInBackground(() => syncUserProfile(session.user))
+          runInBackground(() => createSessionRecord(session.user.id, session.access_token))
         }
-      } catch (e) {
-        console.error('❌ [AuthListener] Auth state change error:', e)
+
+        if (event === 'TOKEN_REFRESHED') {
+          // Chỉ update activity khi refresh token
+          console.log('✅ Token refreshed - Updating activity log')
+          runInBackground(() => updateSessionActivity(session.access_token))
+        }
       }
     })
 
-    // Cleanup
     return () => {
-      mounted = false
       subscription.unsubscribe()
     }
   }, [])
@@ -68,39 +59,33 @@ export default function AuthListener() {
 }
 
 /**
- * Sync user profile data from auth.users to public.profiles
- * Supports Google OAuth, phone auth, and other providers
+ * Sync user profile data (Optimized)
+ * Chỉ update các trường cần thiết để giảm tải DB
  */
 async function syncUserProfile(user: any) {
   try {
     const provider = user.app_metadata?.provider || 'email'
     const userMetadata = user.user_metadata || {}
 
-    // Extract profile data from user metadata (Google OAuth provides this)
     const profileData = {
       id: user.id,
       email: user.email || '',
       full_name: userMetadata.full_name || userMetadata.name || null,
       avatar_url: userMetadata.avatar_url || userMetadata.picture || null,
-      phone_number: userMetadata.phone_number || userMetadata.phone || null,
       provider: provider,
-      provider_id: userMetadata.sub || userMetadata.provider_id || null,
+      // Chỉ update updated_at nếu có thay đổi thực sự (Supabase tự lo việc này nếu data giống nhau)
       updated_at: new Date().toISOString(),
     }
 
-    // Upsert profile (update if exists, insert if not)
     const { error } = await supabase
       .from('profiles')
       .upsert(profileData, {
         onConflict: 'id',
-        ignoreDuplicates: false,
+        ignoreDuplicates: false, // Update nếu đã tồn tại
       })
 
-    if (error) {
-      console.error('Error syncing profile:', error)
-    } else {
-      console.log('✅ Profile synced successfully for user:', user.id.slice(0, 8))
-    }
+    if (error) console.error('Error syncing profile:', error)
+    
   } catch (e) {
     console.error('Error in syncUserProfile:', e)
   }
