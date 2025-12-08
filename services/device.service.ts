@@ -17,7 +17,6 @@ export const deviceService = {
    * Generate a unique device ID based on browser fingerprint
    */
   generateDeviceId(): string {
-    // Use a combination of browser info to create a semi-unique ID
     const nav = navigator as any
     const screen = window.screen
 
@@ -32,7 +31,6 @@ export const deviceService = {
       nav.deviceMemory || 'unknown',
     ].join('|')
 
-    // Create a hash-like string
     let hash = 0
     for (let i = 0; i < fingerprint.length; i++) {
       const char = fingerprint.charCodeAt(i)
@@ -48,8 +46,6 @@ export const deviceService = {
    */
   getDeviceInfo(): { device_name: string; browser: string; os: string } {
     const ua = navigator.userAgent
-
-    // Detect browser
     let browser = 'Unknown'
     if (ua.indexOf('Firefox') > -1) browser = 'Firefox'
     else if (ua.indexOf('Chrome') > -1) browser = 'Chrome'
@@ -57,7 +53,6 @@ export const deviceService = {
     else if (ua.indexOf('Edge') > -1) browser = 'Edge'
     else if (ua.indexOf('Opera') > -1 || ua.indexOf('OPR') > -1) browser = 'Opera'
 
-    // Detect OS
     let os = 'Unknown'
     if (ua.indexOf('Win') > -1) os = 'Windows'
     else if (ua.indexOf('Mac') > -1) os = 'macOS'
@@ -66,7 +61,6 @@ export const deviceService = {
     else if (ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) os = 'iOS'
 
     const device_name = `${browser} on ${os}`
-
     return { device_name, browser, os }
   },
 
@@ -121,23 +115,6 @@ export const deviceService = {
   },
 
   /**
-   * Get device count for a user
-   */
-  async getDeviceCount(userId: string): Promise<number> {
-    const { count, error } = await supabase
-      .from('user_devices')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-
-    if (error) {
-      console.error('Error counting devices:', error)
-      return 0
-    }
-
-    return count || 0
-  },
-
-  /**
    * Remove a specific device
    */
   async removeDevice(userId: string, deviceId: string) {
@@ -154,7 +131,6 @@ export const deviceService = {
    * Remove oldest device (by last_active_at)
    */
   async removeOldestDevice(userId: string) {
-    // Get the oldest device
     const { data: devices, error: fetchError } = await supabase
       .from('user_devices')
       .select('*')
@@ -168,7 +144,6 @@ export const deviceService = {
 
     const oldestDevice = devices[0]
 
-    // Delete it
     const { error: deleteError } = await supabase
       .from('user_devices')
       .delete()
@@ -182,24 +157,46 @@ export const deviceService = {
 
   /**
    * Check if device limit is reached (max 3 devices)
-   * If limit reached, remove oldest device
+   * ✨ TỐI ƯU HÓA: Kiểm tra xem thiết bị hiện tại đã tồn tại chưa trước khi xóa
    */
   async enforceDeviceLimit(userId: string, maxDevices: number = 3): Promise<{
     can_add: boolean
     removed_device?: UserDevice
     error?: any
   }> {
-    const count = await this.getDeviceCount(userId)
+    const currentDeviceId = this.getOrCreateDeviceId()
 
-    if (count < maxDevices) {
+    // 1. Lấy danh sách tất cả thiết bị
+    const { data: devices, error } = await supabase
+      .from('user_devices')
+      .select('device_id')
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('Error counting devices:', error)
+      return { can_add: false, error }
+    }
+
+    const deviceCount = devices?.length || 0
+    
+    // 2. Kiểm tra xem thiết bị hiện tại có trong danh sách không
+    const isCurrentDeviceRegistered = devices?.some(d => d.device_id === currentDeviceId)
+
+    // Nếu thiết bị đã đăng ký -> Cho phép update (không tính là thêm mới)
+    if (isCurrentDeviceRegistered) {
+        return { can_add: true }
+    }
+
+    // 3. Nếu chưa đăng ký và chưa đầy slot -> Cho phép thêm
+    if (deviceCount < maxDevices) {
       return { can_add: true }
     }
 
-    // Limit reached, remove oldest device
-    const { removed_device, error } = await this.removeOldestDevice(userId)
+    // 4. Nếu đầy slot -> Xóa thiết bị cũ nhất để nhường chỗ
+    const { removed_device, error: removeError } = await this.removeOldestDevice(userId)
 
-    if (error) {
-      return { can_add: false, error }
+    if (removeError) {
+      return { can_add: false, error: removeError }
     }
 
     return {
