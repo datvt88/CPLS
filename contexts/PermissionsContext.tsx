@@ -121,10 +121,22 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   )
 }
 
+// 👇 ĐOẠN ĐÃ SỬA: Thêm fallback an toàn khi không tìm thấy Provider
 export function usePermissions() {
   const context = useContext(PermissionsContext)
+  
   if (context === undefined) {
-    throw new Error('usePermissions must be used within a PermissionsProvider')
+    // Trả về giá trị mặc định thay vì ném lỗi, giúp Build/Prerender không bị chết
+    return {
+      isAuthenticated: false,
+      isPremium: false,
+      accessibleFeatures: FREE_FEATURES,
+      canAccess: () => false,
+      isLoading: true, // Giả lập đang loading để UI không crash
+      isError: false,
+      refresh: async () => {}
+    }
   }
+  
   return context
 }
