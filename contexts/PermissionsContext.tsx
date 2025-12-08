@@ -1,14 +1,10 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createContext, useContext, useMemo, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { authService } from '@/services/auth.service'
 import { Feature, PREMIUM_FEATURES, FREE_FEATURES } from '@/lib/permissions'
-
-interface Profile {
-  membership: string
-  membership_expires_at: string | null
-}
+import useSWR, { useSWRConfig } from 'swr' 
 
 interface PermissionsContextValue {
   isPremium: boolean
@@ -21,125 +17,104 @@ interface PermissionsContextValue {
 
 const PermissionsContext = createContext<PermissionsContextValue | undefined>(undefined)
 
-export function PermissionsProvider({ children }: { children: React.ReactNode }) {
-  const [isPremium, setIsPremium] = useState(false)
-  const [accessibleFeatures, setAccessibleFeatures] = useState<Feature[]>(FREE_FEATURES)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isError, setIsError] = useState(false)
+// --- FETCHER FUNCTION ---
+const fetchPermissions = async () => {
+  const { session, error: sessionError } = await authService.getSession()
   
-  const mounted = useRef(true)
+  if (sessionError || !session?.user) {
+    return { isPremium: false, features: FREE_FEATURES }
+  }
 
-  const loadPermissions = useCallback(async (isSilent = false) => {
-    if (!isSilent) setIsLoading(true)
-    setIsError(false)
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('membership, membership_expires_at')
+    .eq('id', session.user.id)
+    .single()
 
-    try {
-      // 1. Lấy Session (Có cache từ authService)
-      const { session, error: sessionError } = await authService.getSession()
+  if (error || !profile) {
+    return { isPremium: false, features: FREE_FEATURES }
+  }
 
-      if (!mounted.current) return
+  let userIsPremium = false
+  if (profile.membership === 'premium') {
+    if (profile.membership_expires_at) {
+      const expiresAt = new Date(profile.membership_expires_at)
+      userIsPremium = expiresAt.getTime() > Date.now()
+    } else {
+      userIsPremium = true
+    }
+  }
 
-      // Nếu lỗi mạng, giữ nguyên state cũ
-      if (sessionError && (sessionError as any).message === 'Request timeout') {
-        if (!isSilent) console.warn('⚠️ [Permissions] Network timeout - Keeping previous state')
-        return 
-      }
+  return {
+    isPremium: userIsPremium,
+    features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES
+  }
+}
 
-      // Nếu mất session -> Về Free
-      if (sessionError || !session?.user) {
-        setIsPremium(false)
-        setAccessibleFeatures(FREE_FEATURES)
-        return
-      }
+export function PermissionsProvider({ children }: { children: React.ReactNode }) {
+  const { mutate } = useSWRConfig()
 
-      // 2. Lấy thông tin Profile Membership
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('membership, membership_expires_at')
-        .eq('id', session.user.id)
-        .single<Profile>()
+  // 1. CẤU HÌNH SWR: TẮT HẾT TỰ ĐỘNG
+  const { data, error, isLoading } = useSWR('user-permissions', fetchPermissions, {
+    revalidateOnFocus: false, // TẮT: Không tự check khi focus tab
+    revalidateOnReconnect: false, // TẮT: Không tự check khi có mạng lại
+    refreshInterval: 0, // TẮT: Không tự refresh định kỳ
+    shouldRetryOnError: false,
+    fallbackData: { isPremium: false, features: FREE_FEATURES } 
+  })
 
-      if (!mounted.current) return
+  // 2. LOGIC KIỂM TRA THỜI GIAN RỜI ĐI
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // A. Khi người dùng ẩn app (Home, chuyển tab)
+      if (document.visibilityState === 'hidden') {
+        // Lưu thời điểm rời đi
+        sessionStorage.setItem('last_background_time', Date.now().toString())
+      } 
+      // B. Khi người dùng quay lại
+      else if (document.visibilityState === 'visible') {
+        const lastTime = sessionStorage.getItem('last_background_time')
+        
+        if (lastTime) {
+          const timeAway = Date.now() - parseInt(lastTime)
+          const RELOAD_THRESHOLD = 60 * 1000 // 60 giây
 
-      if (error || !profile) {
-        console.warn('⚠️ [Permissions] Profile not found, defaulting to Free')
-        setIsPremium(false)
-        setAccessibleFeatures(FREE_FEATURES)
-        return
-      }
-
-      // 3. Logic kiểm tra hạn Premium
-      let userIsPremium = false
-      if (profile.membership === 'premium') {
-        if (profile.membership_expires_at) {
-          const expiresAt = new Date(profile.membership_expires_at)
-          userIsPremium = expiresAt.getTime() > Date.now()
-        } else {
-          userIsPremium = true 
+          if (timeAway > RELOAD_THRESHOLD) {
+            // Trường hợp 1: Rời đi > 60s -> Reload trang
+            console.log(`⏳ Đã rời đi ${timeAway/1000}s (>60s). Tải lại trang...`)
+            window.location.reload()
+          } else {
+            // Trường hợp 2: Rời đi < 60s -> KHÔNG LÀM GÌ CẢ
+            // Giữ nguyên data cũ của SWR, không gọi API, không check quyền.
+            console.log(`⚡ Quay lại nhanh (${timeAway/1000}s). Giữ nguyên trạng thái.`)
+          }
         }
       }
-
-      setIsPremium(userIsPremium)
-      setAccessibleFeatures(userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES)
-
-    } catch (error) {
-      console.error('❌ [Permissions] Critical Error:', error)
-      if (!isSilent) setIsError(true)
-    } finally {
-      if (mounted.current && !isSilent) setIsLoading(false)
     }
-  }, [])
 
-  useEffect(() => {
-    mounted.current = true
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     
-    // 1. Load lần đầu tiên khi F5 (BẮT BUỘC)
-    loadPermissions(false)
-
-    // 2. Chỉ lắng nghe sự kiện Auth quan trọng (Login/Logout)
-    // KHÔNG lắng nghe focus/visibilitychange nữa -> Quay lại app sẽ không check lại
-    const { data: authListener } = authService.onAuthStateChange((event) => {
-      if (!mounted.current) return
-      
-      // Nếu user đăng nhập mới hoặc đăng xuất thì mới cập nhật
-      if (event === 'SIGNED_IN') {
-        loadPermissions(false) 
-      } else if (event === 'SIGNED_OUT') {
-        setIsPremium(false)
-        setAccessibleFeatures(FREE_FEATURES)
-        setIsLoading(false)
-      }
-      // Lưu ý: Bỏ qua 'TOKEN_REFRESHED' nếu bạn muốn "lì" nhất có thể
-      // Nhưng nên giữ để nếu token hết hạn thực sự thì hệ thống tự xử lý ngầm
-      else if (event === 'TOKEN_REFRESHED') {
-         // loadPermissions(true) // Có thể comment dòng này nếu muốn tuyệt đối không check lại
-      }
-    })
-
     return () => {
-      mounted.current = false
-      authListener.subscription.unsubscribe()
-      // Đã xóa các event listener focus/visibilitychange
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [loadPermissions])
+  }, []) // Dependency array rỗng để chỉ chạy logic này, không phụ thuộc SWR
 
-  // ... (Phần còn lại giữ nguyên)
-  const canAccess = useCallback((feature: Feature): boolean => {
-    return accessibleFeatures.includes(feature)
-  }, [accessibleFeatures])
+  const canAccess = (feature: Feature): boolean => {
+    return data?.features.includes(feature) ?? false
+  }
 
-  const refresh = useCallback(async () => {
-    await loadPermissions(false)
-  }, [loadPermissions])
+  const refresh = async () => {
+    await mutate('user-permissions')
+  }
 
   const value = useMemo(() => ({
-    isPremium,
-    accessibleFeatures,
+    isPremium: data?.isPremium ?? false,
+    accessibleFeatures: data?.features ?? FREE_FEATURES,
     canAccess,
-    isLoading,
-    isError,
+    isLoading, 
+    isError: !!error,
     refresh
-  }), [isPremium, accessibleFeatures, canAccess, isLoading, isError, refresh])
+  }), [data, isLoading, error])
 
   return (
     <PermissionsContext.Provider value={value}>
