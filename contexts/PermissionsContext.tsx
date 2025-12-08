@@ -1,4 +1,3 @@
-// contexts/PermissionsContext.tsx
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react'
@@ -31,9 +30,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const mounted = useRef(true)
 
   const loadPermissions = useCallback(async (isSilent = false) => {
-    // Nếu là silent check (khi quay lại tab), không bật loading để tránh nháy màn hình
+    // Nếu không phải silent check, bật loading để UI biết đang xử lý
     if (!isSilent) setIsLoading(true)
-    setIsError(false)
+    
+    // Reset lỗi chỉ khi reload thủ công (không reset khi silent check để tránh nháy lỗi)
+    if (!isSilent) setIsError(false)
 
     try {
       // 1. Gọi authService
@@ -41,12 +42,20 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
       if (!mounted.current) return
 
-      // TRƯỜNG HỢP MẤT MẠNG / TIMEOUT: Giữ nguyên state cũ
+      // --- SỬA LOGIC TIMEOUT Ở ĐÂY ---
+      // Nếu lỗi Timeout:
+      // - Nếu là Silent Check: Bỏ qua, giữ nguyên state cũ (Return luôn)
+      // - Nếu là Load lần đầu: Phải throw error xuống dưới để tắt loading và hiện màn hình lỗi
       if (sessionError && (sessionError as any).message === 'Request timeout') {
-        console.warn('⚠️ [Permissions] Network timeout - Keeping previous state')
-        return 
+        console.warn('⚠️ [Permissions] Network timeout')
+        if (isSilent) {
+           return // Giữ nguyên trải nghiệm, không làm gì cả
+        } else {
+           throw sessionError // Ném lỗi để hiện màn hình "Thử lại"
+        }
       }
 
+      // Xử lý không có session (Chưa đăng nhập hoặc lỗi khác)
       if (sessionError || !session?.user) {
         setIsPremium(false)
         setAccessibleFeatures(FREE_FEATURES)
@@ -85,14 +94,18 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
     } catch (error) {
       console.error('❌ [Permissions] Critical Error:', error)
+      // Chỉ hiện lỗi khi load lần đầu, để user có nút bấm thử lại
       if (!isSilent) setIsError(true)
     } finally {
+      // Luôn tắt loading trong mọi trường hợp (trừ khi silent check thì vốn dĩ ko bật)
       if (mounted.current && !isSilent) setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
     mounted.current = true
+    
+    // Load lần đầu (có loading)
     loadPermissions(false)
 
     const { data: authListener } = authService.onAuthStateChange((event) => {
@@ -106,7 +119,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       }
     })
 
-    // Tự động check lại khi User quay lại Tab
+    // Tự động check lại khi User quay lại Tab (Silent Mode)
     const handleFocus = () => {
       console.log('👀 Window focused - Silent revalidating permissions...')
       loadPermissions(true)
