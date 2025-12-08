@@ -14,7 +14,6 @@ export default function withFeatureAccess<P extends object>(
   options: WithFeatureAccessOptions = {}
 ) {
   return function WithFeatureAccessWrapper(props: P) {
-    // Bắt buộc redirect nếu không có quyền
     const { hasAccess, isLoading } = useFeatureAccess({
       feature: options.feature,
       redirectUrl: options.redirectUrl,
