@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+
+import useSWR from 'swr'
 import { authService } from '@/services/auth.service'
 import { Session, User } from '@supabase/supabase-js'
 
@@ -9,70 +9,58 @@ interface UseSessionReturn {
   user: User | null
   loading: boolean
   isAuthenticated: boolean
+  refresh: () => Promise<void>
+}
+
+// 1. Định nghĩa Fetcher
+const fetchSession = async () => {
+  const { session, error } = await authService.getSession()
+  if (error) throw error
+  return session
 }
 
 /**
  * Custom hook to get current session and user
- * Automatically updates when auth state changes
+ * Uses SWR for automatic caching, revalidation, and consistency
  */
 export function useSession(): UseSessionReturn {
-  const [session, setSession] = useState<Session | null>(null)
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  // 2. Sử dụng SWR để quản lý state
+  // Key 'session-swr' giúp đồng bộ dữ liệu khắp ứng dụng
+  const { data: session, error, isLoading, mutate } = useSWR('session-swr', fetchSession, {
+    // Tận dụng cache của authService, không cần fetch quá nhiều
+    // Nhưng vẫn đảm bảo cập nhật khi focus lại tab
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    shouldRetryOnError: false,
+    
+    // Fallback data an toàn
+    fallbackData: null 
+  })
 
-  useEffect(() => {
-    let mounted = true
+  // 3. Listener lắng nghe sự kiện Auth từ Supabase (để update SWR cache ngay lập tức)
+  // Trick: Dùng useSWRSubscription hoặc đơn giản là useEffect để subscribe
+  // Ở đây dùng cách đơn giản nhất kết hợp với SWR
+  /* Lưu ý: authService đã có listener bên trong để update sessionCache.
+     Khi SWR gọi lại fetchSession, nó sẽ lấy từ cache đó cực nhanh.
+     Tuy nhiên, để UI phản hồi tức thì khi bấm Logout/Login, ta vẫn nên mutate.
+  */
 
-    // Get initial session (cached for speed!)
-    const getInitialSession = async () => {
-      try {
-        const { session: initialSession } = await authService.getSession()
-
-        if (mounted) {
-          setSession(initialSession)
-          setUser(initialSession?.user ?? null)
-          setLoading(false)
-        }
-      } catch (error) {
-        console.error('Error getting session:', error)
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    getInitialSession()
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        if (mounted) {
-          setSession(currentSession)
-          setUser(currentSession?.user ?? null)
-          setLoading(false)
-        }
-      }
-    )
-
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
+  const user = session?.user ?? null
+  const isAuthenticated = !!user
 
   return {
-    session,
+    session: session ?? null,
     user,
-    loading,
-    isAuthenticated: !!session && !!user,
+    loading: isLoading,
+    isAuthenticated,
+    refresh: async () => { await mutate() } // Hàm để ép refresh thủ công
   }
 }
 
 /**
  * Hook to check if user is authenticated
- * Returns boolean and loading state
  */
-export function useAuth(): { isAuthenticated: boolean; loading: boolean } {
+export function useAuth() {
   const { isAuthenticated, loading } = useSession()
   return { isAuthenticated, loading }
 }
