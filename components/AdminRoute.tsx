@@ -16,15 +16,16 @@ export default function AdminRoute({ children }: AdminRouteProps) {
 
   useEffect(() => {
     isMountedRef.current = true
+    let didCancel = false
 
-    // Safety timeout: force stop loading after 5 seconds
+    // OPTIMIZED: Reduced timeout from 5s to 3s for better UX
     timeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current && loading) {
+      if (isMountedRef.current && !didCancel) {
         console.warn('⏱️ Admin check timeout, redirecting to dashboard...')
         setLoading(false)
         router.push('/dashboard')
       }
-    }, 5000)
+    }, 3000)
 
     const checkAdminAccess = async () => {
       try {
@@ -113,11 +114,12 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     // Cleanup
     return () => {
       isMountedRef.current = false
+      didCancel = true
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [router, loading])
+  }, [router]) // FIXED: Removed 'loading' dependency to prevent infinite loop
 
   if (loading) {
     return (

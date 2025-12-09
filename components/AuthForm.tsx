@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { authService } from '@/services/auth.service';
 import { profileService } from '@/services/profile.service';
 import { validatePassword, sanitizeInput } from '@/utils/validation';
@@ -22,6 +22,48 @@ export function AuthForm() {
     email?: string;
   }>({});
   const [loading, setLoading] = useState(false);
+
+  // OPTIMIZED: Debounce timers for validation
+  const validationTimers = useRef<{
+    phoneNumber?: NodeJS.Timeout;
+    password?: NodeJS.Timeout;
+    email?: NodeJS.Timeout;
+  }>({});
+
+  // OPTIMIZED: Debounced validation
+  const debouncedValidateField = useCallback((field: string, value: string, delay: number = 500) => {
+    if (validationTimers.current[field as keyof typeof validationTimers.current]) {
+      clearTimeout(validationTimers.current[field as keyof typeof validationTimers.current]);
+    }
+
+    validationTimers.current[field as keyof typeof validationTimers.current] = setTimeout(() => {
+      const newErrors = { ...errors };
+
+      if (field === 'phoneNumber') {
+        const phoneRegex = /^(0|\+84)[3|5|7|8|9][0-9]{8}$/;
+        if (value && !phoneRegex.test(value)) {
+          newErrors.phoneNumber = 'Số điện thoại không hợp lệ';
+        } else {
+          delete newErrors.phoneNumber;
+        }
+      } else if (field === 'password') {
+        const passwordValidation = validatePassword(value);
+        if (value && !passwordValidation.valid) {
+          newErrors.password = passwordValidation.error;
+        } else {
+          delete newErrors.password;
+        }
+      } else if (field === 'email') {
+        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          newErrors.email = 'Email không hợp lệ';
+        } else {
+          delete newErrors.email;
+        }
+      }
+
+      setErrors(newErrors);
+    }, delay);
+  }, [errors]);
 
   const validateForm = (): boolean => {
     const newErrors: {
@@ -186,8 +228,10 @@ export function AuthForm() {
             placeholder="Số điện thoại"
             value={phoneNumber}
             onChange={(e) => {
-              setPhoneNumber(e.target.value);
-              if (errors.phoneNumber) setErrors({ ...errors, phoneNumber: undefined });
+              const value = e.target.value;
+              setPhoneNumber(value);
+              // OPTIMIZED: Debounced validation
+              debouncedValidateField('phoneNumber', value);
             }}
             disabled={loading}
             autoComplete="tel"
@@ -208,8 +252,10 @@ export function AuthForm() {
               placeholder="Email"
               value={email}
               onChange={(e) => {
-                setEmail(e.target.value);
-                if (errors.email) setErrors({ ...errors, email: undefined });
+                const value = e.target.value;
+                setEmail(value);
+                // OPTIMIZED: Debounced validation
+                debouncedValidateField('email', value);
               }}
               disabled={loading}
               autoComplete="email"
@@ -230,8 +276,10 @@ export function AuthForm() {
             placeholder="Password"
             value={password}
             onChange={(e) => {
-              setPassword(e.target.value);
-              if (errors.password) setErrors({ ...errors, password: undefined });
+              const value = e.target.value;
+              setPassword(value);
+              // OPTIMIZED: Debounced validation
+              debouncedValidateField('password', value);
             }}
             disabled={loading}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}

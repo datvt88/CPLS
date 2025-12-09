@@ -28,66 +28,70 @@ export default function PersistentSessionManager() {
     console.log('🔐 [PersistentSessionManager] Initializing...')
 
     const initializeSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
-        console.log('ℹ️ [PersistentSessionManager] No active session')
-        return
-      }
-
-      // Get device fingerprint
-      const fingerprint = await getDeviceFingerprint()
-
-      // Check if session exists for this device
-      const { data: existingSession, error: checkError } = await supabase
-        .from('user_sessions')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('fingerprint', fingerprint)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (checkError) {
-        console.error('❌ [PersistentSessionManager] Error checking session:', checkError)
-        return
-      }
-
-      if (existingSession) {
-        console.log('✅ [PersistentSessionManager] Found existing session for this device')
-        sessionIdRef.current = existingSession.id
-
-        // Check if inactive for > 30 days
-        const lastActivity = new Date(existingSession.last_activity).getTime()
-        const daysSinceActivity = (Date.now() - lastActivity) / (24 * 60 * 60 * 1000)
-
-        if (daysSinceActivity > 30) {
-          console.log(`⏰ [PersistentSessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
-          await handleInactivityLogout(existingSession.id)
+        if (!session) {
+          console.log('ℹ️ [PersistentSessionManager] No active session')
           return
         }
 
-        // Update activity timestamp
-        await updateSessionActivity(session.access_token)
-      } else {
-        console.log('🆕 [PersistentSessionManager] New device detected - creating session record')
+        // Get device fingerprint
+        const fingerprint = await getDeviceFingerprint()
 
-        // Create new session record for this device
-        const sessionId = await createSessionRecord(
-          session.user.id,
-          session.access_token,
-          fingerprint
-        )
+        // Check if session exists for this device
+        const { data: existingSession, error: checkError } = await supabase
+          .from('user_sessions')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('fingerprint', fingerprint)
+          .eq('is_active', true)
+          .maybeSingle()
 
-        if (sessionId) {
-          sessionIdRef.current = sessionId
+        if (checkError) {
+          console.error('❌ [PersistentSessionManager] Error checking session:', checkError)
+          return
         }
+
+        if (existingSession) {
+          console.log('✅ [PersistentSessionManager] Found existing session for this device')
+          sessionIdRef.current = existingSession.id
+
+          // Check if inactive for > 30 days
+          const lastActivity = new Date(existingSession.last_activity).getTime()
+          const daysSinceActivity = (Date.now() - lastActivity) / (24 * 60 * 60 * 1000)
+
+          if (daysSinceActivity > 30) {
+            console.log(`⏰ [PersistentSessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
+            await handleInactivityLogout(existingSession.id)
+            return
+          }
+
+          // Update activity timestamp
+          await updateSessionActivity(session.access_token)
+        } else {
+          console.log('🆕 [PersistentSessionManager] New device detected - creating session record')
+
+          // Create new session record for this device
+          const sessionId = await createSessionRecord(
+            session.user.id,
+            session.access_token,
+            fingerprint
+          )
+
+          if (sessionId) {
+            sessionIdRef.current = sessionId
+          }
+        }
+
+        // Schedule token refresh
+        scheduleRefresh()
+
+        // Start inactivity checker
+        startInactivityChecker()
+      } catch (error) {
+        console.error('❌ [PersistentSessionManager] Initialization error:', error)
       }
-
-      // Schedule token refresh
-      scheduleRefresh()
-
-      // Start inactivity checker
-      startInactivityChecker()
     }
 
     const scheduleRefresh = async () => {
@@ -204,9 +208,17 @@ export default function PersistentSessionManager() {
       }
     }
 
-    // Track user activity
+    // Track user activity (Throttled to once per minute to reduce overhead)
+    let activityThrottleTimer: NodeJS.Timeout | null = null
     const updateActivity = () => {
       lastActivityRef.current = Date.now()
+
+      // Throttle: only update once per minute
+      if (!activityThrottleTimer) {
+        activityThrottleTimer = setTimeout(() => {
+          activityThrottleTimer = null
+        }, 60000) // 1 minute
+      }
     }
 
     // Subscribe to auth state changes
@@ -236,13 +248,13 @@ export default function PersistentSessionManager() {
     // Initial setup
     initializeSession()
 
-    // Add event listeners
+    // OPTIMIZED: Only track meaningful user interactions
+    // Removed: mousemove, scroll (too frequent, cause performance issues)
+    // Kept: visibilitychange, focus, click, keypress (more meaningful signals)
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', updateActivity)
-    document.addEventListener('click', updateActivity)
-    document.addEventListener('keypress', updateActivity)
-    document.addEventListener('scroll', updateActivity)
-    document.addEventListener('mousemove', updateActivity)
+    document.addEventListener('click', updateActivity, { passive: true })
+    document.addEventListener('keypress', updateActivity, { passive: true })
 
     // Cleanup
     return () => {
@@ -256,12 +268,14 @@ export default function PersistentSessionManager() {
         clearInterval(checkIntervalRef.current)
       }
 
+      if (activityThrottleTimer) {
+        clearTimeout(activityThrottleTimer)
+      }
+
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', updateActivity)
       document.removeEventListener('click', updateActivity)
       document.removeEventListener('keypress', updateActivity)
-      document.removeEventListener('scroll', updateActivity)
-      document.removeEventListener('mousemove', updateActivity)
 
       authListener.subscription.unsubscribe()
     }

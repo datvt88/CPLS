@@ -76,7 +76,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     } 
   })
 
-  // --- LOGIC RELOAD SAU 60s ---
+  // --- OPTIMIZED: Soft refresh instead of hard reload ---
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
@@ -85,12 +85,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         const lastTime = sessionStorage.getItem('last_background_time')
         if (lastTime) {
           const timeAway = Date.now() - parseInt(lastTime)
-          // Nếu rời đi > 60s -> Reload trang để làm mới hoàn toàn
+          // OPTIMIZED: Removed hard reload - use soft refresh for better UX
+          // Only refresh permissions data, no full page reload
           if (timeAway > 60 * 1000) {
-            console.log('⏳ Away > 60s. Reloading...')
-            window.location.reload()
-          } else {
-            // Nếu < 60s -> Chỉ gọi mutate nhẹ để check ngầm, không hiện loading
+            console.log('⏳ Away > 60s. Soft refreshing permissions...')
+            mutate('user-permissions')
+          } else if (timeAway > 30 * 1000) {
+            // Soft refresh even after 30s for fresher data
             mutate('user-permissions')
           }
         }

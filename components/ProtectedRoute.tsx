@@ -72,15 +72,30 @@ export default function ProtectedRoute({
   }
 
   // --- TRƯỜNG HỢP 2: ĐANG TẢI ---
+  // OPTIMIZED: Faster perceived load with skeleton UI instead of blocking spinner
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#121212]">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto mb-4">
-            <div className="absolute inset-0 border-4 border-[#2C2C2C] rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[#121212] p-6 animate-[fadeIn_0.2s_ease-out]">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Skeleton Header */}
+          <div className="h-8 bg-gradient-to-r from-[#2C2C2C] via-[#383838] to-[#2C2C2C] rounded-lg w-64 animate-pulse"></div>
+
+          {/* Skeleton Content Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-[#1E1E1E] rounded-xl p-6 space-y-3 animate-pulse">
+                <div className="h-6 bg-[#2C2C2C] rounded w-3/4"></div>
+                <div className="h-4 bg-[#2C2C2C] rounded w-full"></div>
+                <div className="h-4 bg-[#2C2C2C] rounded w-5/6"></div>
+              </div>
+            ))}
           </div>
-          <p className="text-gray-400 font-medium animate-pulse">Đang kiểm tra quyền...</p>
+
+          {/* Small loading indicator */}
+          <div className="fixed bottom-4 right-4 bg-purple-600/20 backdrop-blur-sm border border-purple-500/30 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
+            <div className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-sm text-purple-300 font-medium">Đang xác thực...</span>
+          </div>
         </div>
       </div>
     )
