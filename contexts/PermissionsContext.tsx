@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useMemo, useEffect } from 'react'
+import { createContext, useContext, useMemo, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { authService } from '@/services/auth.service'
 import { Feature, PREMIUM_FEATURES, FREE_FEATURES } from '@/lib/permissions'
@@ -41,75 +41,106 @@ interface PermissionsContextValue {
 
 const PermissionsContext = createContext<PermissionsContextValue | undefined>(undefined)
 
-// --- FETCHER ---
+// Default permissions (guest/unauthenticated)
+const DEFAULT_PERMISSIONS: PermissionData = {
+  isAuthenticated: false,
+  isPremium: false,
+  features: FREE_FEATURES,
+  role: 'user',
+  userId: null
+}
+
+// --- FETCHER with timeout ---
 const fetchPermissions = async (): Promise<PermissionData> => {
-  // authService đã có timeout, nên hàm này sẽ luôn trả về kết quả hoặc lỗi sau 7s
-  const { session, error: sessionError } = await authService.getSession()
+  try {
+    // authService đã có timeout 7s
+    const { session, error: sessionError } = await authService.getSession()
 
-  if (sessionError || !session?.user) {
-    return {
-      isAuthenticated: false,
-      isPremium: false,
-      features: FREE_FEATURES,
-      role: 'user',
-      userId: null
+    if (sessionError || !session?.user) {
+      return DEFAULT_PERMISSIONS
     }
-  }
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('membership, membership_expires_at, role')
-    .eq('id', session.user.id)
-    .single()
+    // Fetch profile with timeout
+    const profilePromise = supabase
+      .from('profiles')
+      .select('membership, membership_expires_at, role')
+      .eq('id', session.user.id)
+      .single()
 
-  if (error || !profile) {
+    // Race with timeout
+    const timeoutPromise = new Promise<{ data: null; error: Error }>((_, reject) =>
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+    )
+
+    const { data: profile, error } = await Promise.race([profilePromise, timeoutPromise])
+
+    if (error || !profile) {
+      return {
+        isAuthenticated: true,
+        isPremium: false,
+        features: FREE_FEATURES,
+        role: 'user',
+        userId: session.user.id
+      }
+    }
+
+    // Check premium status
+    let userIsPremium = false
+    if (profile.membership === 'premium') {
+      if (profile.membership_expires_at) {
+        const expiresAt = new Date(profile.membership_expires_at)
+        userIsPremium = expiresAt.getTime() > Date.now()
+      } else {
+        userIsPremium = true
+      }
+    }
+
+    // Get role (default to 'user' if not set)
+    const userRole: UserRole = (profile.role as UserRole) || 'user'
+
     return {
       isAuthenticated: true,
-      isPremium: false,
-      features: FREE_FEATURES,
-      role: 'user',
+      isPremium: userIsPremium,
+      features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
+      role: userRole,
       userId: session.user.id
     }
-  }
-
-  // Check premium status
-  let userIsPremium = false
-  if (profile.membership === 'premium') {
-    if (profile.membership_expires_at) {
-      const expiresAt = new Date(profile.membership_expires_at)
-      userIsPremium = expiresAt.getTime() > Date.now()
-    } else {
-      userIsPremium = true
-    }
-  }
-
-  // Get role (default to 'user' if not set)
-  const userRole: UserRole = (profile.role as UserRole) || 'user'
-
-  return {
-    isAuthenticated: true,
-    isPremium: userIsPremium,
-    features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
-    role: userRole,
-    userId: session.user.id
+  } catch (error) {
+    console.error('❌ [PermissionsContext] Fetch error:', error)
+    return DEFAULT_PERMISSIONS
   }
 }
 
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { mutate } = useSWRConfig()
+  const [isInitialized, setIsInitialized] = useState(false)
+  const initTimeoutRef = useRef<NodeJS.Timeout>()
 
-  const { data, error, isLoading } = useSWR('user-permissions', fetchPermissions, {
+  const { data, error, isLoading: swrLoading } = useSWR('user-permissions', fetchPermissions, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 60000,
-    fallbackData: {
-      isAuthenticated: false,
-      isPremium: false,
-      features: FREE_FEATURES,
-      role: 'user' as UserRole,
-      userId: null
+    fallbackData: DEFAULT_PERMISSIONS,
+    onSuccess: () => {
+      setIsInitialized(true)
     }
   })
+
+  // Safety timeout: force initialize after 8s to prevent infinite loading
+  useEffect(() => {
+    initTimeoutRef.current = setTimeout(() => {
+      if (!isInitialized) {
+        console.warn('⏱️ [PermissionsContext] Init timeout - forcing ready state')
+        setIsInitialized(true)
+      }
+    }, 8000)
+
+    return () => {
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current)
+      }
+    }
+  }, [isInitialized])
 
   // --- LOGIC RELOAD SAU 60s ---
   useEffect(() => {
@@ -120,12 +151,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         const lastTime = sessionStorage.getItem('last_background_time')
         if (lastTime) {
           const timeAway = Date.now() - parseInt(lastTime)
-          // Nếu rời đi > 60s -> Reload trang để làm mới hoàn toàn
           if (timeAway > 60 * 1000) {
             console.log('⏳ Away > 60s. Reloading...')
             window.location.reload()
           } else {
-            // Nếu < 60s -> Chỉ gọi mutate nhẹ để check ngầm, không hiện loading
             mutate('user-permissions')
           }
         }
@@ -142,6 +171,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const refresh = async () => {
     await mutate('user-permissions')
   }
+
+  // isLoading = true chỉ khi chưa initialized VÀ đang fetch
+  // Sau khi initialized (có data lần đầu hoặc timeout), không còn loading nữa
+  const isLoading = !isInitialized && swrLoading
 
   const value = useMemo(() => {
     const role = data?.role ?? 'user'
@@ -181,7 +214,9 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 export function usePermissions() {
   const context = useContext(PermissionsContext)
   if (context === undefined) {
-    // Trả về mặc định để tránh lỗi Build
+    // Context chưa được wrap - trả về default với isLoading: false
+    // để tránh infinite loading
+    console.warn('⚠️ [usePermissions] Called outside of PermissionsProvider')
     return {
       isAuthenticated: false,
       userId: null,
@@ -192,7 +227,7 @@ export function usePermissions() {
       isAdmin: false,
       isMod: false,
       hasAdminAccess: false,
-      isLoading: true,
+      isLoading: false, // QUAN TRỌNG: false để tránh infinite loading
       isError: false,
       refresh: async () => {}
     }
