@@ -125,11 +125,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📝 Gemini raw response length:', generatedText.length)
+    console.log('📝 Gemini raw response preview:', generatedText.substring(0, 500))
 
     // Parse and validate the response (always returns a result with fallback)
     const result = parseGeminiStockAnalysis(generatedText)
 
     console.log('✅ Gemini analysis completed for', symbol)
+    console.log('📊 Parsed result:', JSON.stringify(result, null, 2).substring(0, 500))
 
     return NextResponse.json({
       ...result,
@@ -325,31 +327,30 @@ function buildStockAnalysisPrompt(
   prompt += `8. Đánh giá rủi ro và cơ hội, đặc biệt chú ý đến xu hướng hiệu quả hoạt động\n\n`
 
   prompt += `📋 FORMAT TRẢ VỀ:\n`
-  prompt += `BẮT BUỘC trả về ĐÚNG định dạng JSON sau (không thêm markdown, code block, hay text khác):\n\n`
-  prompt += `{\n`
-  prompt += `  "shortTerm": {\n`
-  prompt += `    "signal": "MUA hoặc BÁN hoặc NẮM GIỮ",\n`
-  prompt += `    "confidence": <số từ 0 đến 100>,\n`
-  prompt += `    "summary": "<phân tích ngắn hạn 2-3 câu>"\n`
-  prompt += `  },\n`
-  prompt += `  "longTerm": {\n`
-  prompt += `    "signal": "MUA hoặc BÁN hoặc NẮM GIỮ",\n`
-  prompt += `    "confidence": <số từ 0 đến 100>,\n`
-  prompt += `    "summary": "<phân tích dài hạn 2-3 câu>"\n`
-  prompt += `  },\n`
-  prompt += `  "targetPrice": "<giá mục tiêu VD: 95-100 hoặc null nếu không MUA>",\n`
-  prompt += `  "stopLoss": "<mức cắt lỗ VD: 85 hoặc null nếu không MUA>",\n`
-  prompt += `  "risks": ["<rủi ro 1>", "<rủi ro 2>", "<rủi ro 3>"],\n`
-  prompt += `  "opportunities": ["<cơ hội 1>", "<cơ hội 2>"]\n`
-  prompt += `}\n\n`
+  prompt += `Trả về JSON object theo đúng cấu trúc sau:\n\n`
+  prompt += `{
+  "shortTerm": {
+    "signal": "MUA",
+    "confidence": 70,
+    "summary": "Mô tả phân tích ngắn hạn ở đây"
+  },
+  "longTerm": {
+    "signal": "NẮM GIỮ",
+    "confidence": 60,
+    "summary": "Mô tả phân tích dài hạn ở đây"
+  },
+  "targetPrice": "95000-100000",
+  "stopLoss": "85000",
+  "risks": ["Rủi ro 1", "Rủi ro 2"],
+  "opportunities": ["Cơ hội 1", "Cơ hội 2"]
+}\n\n`
 
-  prompt += `QUAN TRỌNG:\n`
-  prompt += `- Chỉ trả về JSON object, không thêm text giải thích\n`
-  prompt += `- Không dùng markdown code block (\`\`\`json)\n`
-  prompt += `- Đảm bảo JSON hợp lệ (có thể parse được)\n`
-  prompt += `- Các field string phải trong dấu ngoặc kép\n`
-  prompt += `- Confidence phải là số nguyên từ 0-100\n`
-  prompt += `- Giá mục tiêu và mức cắt lỗ chỉ ghi số, KHÔNG thêm đơn vị VNĐ\n`
+  prompt += `QUY TẮC:\n`
+  prompt += `- signal: chỉ được là "MUA", "BÁN", hoặc "NẮM GIỮ"\n`
+  prompt += `- confidence: số nguyên từ 0 đến 100\n`
+  prompt += `- summary: mô tả 2-3 câu\n`
+  prompt += `- targetPrice và stopLoss: ghi số (VD: "95000" hoặc "95000-100000"), hoặc null nếu không khuyến nghị MUA\n`
+  prompt += `- risks và opportunities: mảng các string mô tả rủi ro và cơ hội\n`
 
   return prompt
 }
@@ -537,11 +538,15 @@ function parseTextFormat(text: string): any {
  * Validate and normalize parsed data
  */
 function validateAndNormalize(parsed: any): any {
+  console.log('🔄 validateAndNormalize input:', JSON.stringify(parsed, null, 2).substring(0, 500))
+
   // Create default structures if missing
   if (!parsed.shortTerm) {
+    console.log('⚠️ Missing shortTerm, using default')
     parsed.shortTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích ngắn hạn' }
   }
   if (!parsed.longTerm) {
+    console.log('⚠️ Missing longTerm, using default')
     parsed.longTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích dài hạn' }
   }
 
