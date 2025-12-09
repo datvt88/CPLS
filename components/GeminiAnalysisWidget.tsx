@@ -100,15 +100,18 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             )
 
             if (result) {
-                console.log('✅ Gemini analysis completed for:', symbol)
+                console.log('✅ Gemini analysis completed for:', symbol, result)
                 setGeminiAnalysis(result)
                 setHasAnalyzed(true)
             } else {
-                throw new Error('Không nhận được kết quả phân tích từ Gemini')
+                console.error('❌ fetchGeminiAnalysis returned null for:', symbol)
+                throw new Error('Không nhận được kết quả phân tích từ Gemini. Vui lòng thử lại.')
             }
         } catch (err: any) {
             console.error('❌ Error performing Gemini analysis:', err)
-            setError(err.message || 'Không thể thực hiện phân tích Gemini')
+            // Show more detailed error message
+            const errorMessage = err.message || 'Không thể thực hiện phân tích Gemini'
+            setError(errorMessage)
         } finally {
             setLoading(false)
         }
@@ -241,13 +244,17 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
 
             const data = await response.json()
 
-            // Check for error in response
-            if (data.error) {
-                throw new Error(data.error)
+            console.log('📥 Gemini API response:', data)
+
+            // Validate response structure - accept partial results
+            if (!data) {
+                console.error('Empty response from Gemini API')
+                throw new Error('Không nhận được dữ liệu từ Gemini')
             }
 
-            // Validate response structure
-            if (!data || (!data.shortTerm && !data.longTerm)) {
+            // Check if we have at least some valid data
+            if (!data.shortTerm && !data.longTerm && !data.risks && !data.opportunities) {
+                console.error('Invalid Gemini response structure:', data)
                 throw new Error('Định dạng phản hồi từ Gemini không hợp lệ')
             }
 
