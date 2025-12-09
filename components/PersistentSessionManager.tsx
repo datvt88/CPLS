@@ -2,21 +2,25 @@
 
 import { useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { createSessionRecord, updateSessionActivity, getDeviceFingerprint } from '@/lib/session-manager'
+import {
+  createSessionRecord,
+  updateSessionActivity,
+  getDeviceFingerprint,
+  cleanupExpiredSessions
+} from '@/lib/session-manager'
 
 const INACTIVITY_TIMEOUT = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 /**
  * PersistentSessionManager Component
  *
- * Manages long-lived sessions with the following rules:
- * 1. User stays logged in for 30 days (persistent)
- * 2. Only logout when:
- *    - No activity for 30+ days
- *    - User manually logs out
- * 3. Session valid for 30 days with auto-refresh
- * 4. Max 3 devices - oldest device removed when limit reached
+ * Quản lý toàn bộ session và authentication:
+ * 1. Token refresh tự động (5 phút trước khi hết hạn)
+ * 2. Session persistence 30 ngày
+ * 3. Device fingerprinting & multi-device management (max 3 devices)
+ * 4. Profile sync khi đăng nhập
+ * 5. Inactivity logout (30 ngày không hoạt động)
+ * 6. Tab visibility handling
  */
 export default function PersistentSessionManager() {
   const refreshTimerRef = useRef<NodeJS.Timeout>()
@@ -25,13 +29,55 @@ export default function PersistentSessionManager() {
   const checkIntervalRef = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
-    console.log('🔐 [PersistentSessionManager] Initializing...')
+    console.log('🔐 [SessionManager] Initializing...')
 
+    // === BACKGROUND TASK RUNNER ===
+    const runInBackground = async (task: () => Promise<any>, name?: string) => {
+      try {
+        await task()
+      } catch (err) {
+        console.warn(`⚠️ [SessionManager] Background task ${name || ''} failed (non-critical):`, err)
+      }
+    }
+
+    // === SYNC USER PROFILE ===
+    const syncUserProfile = async (user: any) => {
+      try {
+        const provider = user.app_metadata?.provider || 'email'
+        const userMetadata = user.user_metadata || {}
+
+        const profileData = {
+          id: user.id,
+          email: user.email || '',
+          full_name: userMetadata.full_name || userMetadata.name || null,
+          avatar_url: userMetadata.avatar_url || userMetadata.picture || null,
+          provider: provider,
+          updated_at: new Date().toISOString(),
+        }
+
+        const { error } = await supabase
+          .from('profiles')
+          .upsert(profileData, {
+            onConflict: 'id',
+            ignoreDuplicates: false,
+          })
+
+        if (error) {
+          console.error('❌ [SessionManager] Profile sync error:', error)
+        } else {
+          console.log('✅ [SessionManager] Profile synced')
+        }
+      } catch (e) {
+        console.error('❌ [SessionManager] Profile sync failed:', e)
+      }
+    }
+
+    // === INITIALIZE SESSION ===
     const initializeSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!session) {
-        console.log('ℹ️ [PersistentSessionManager] No active session')
+        console.log('ℹ️ [SessionManager] No active session')
         return
       }
 
@@ -48,12 +94,12 @@ export default function PersistentSessionManager() {
         .maybeSingle()
 
       if (checkError) {
-        console.error('❌ [PersistentSessionManager] Error checking session:', checkError)
+        console.error('❌ [SessionManager] Error checking session:', checkError)
         return
       }
 
       if (existingSession) {
-        console.log('✅ [PersistentSessionManager] Found existing session for this device')
+        console.log('✅ [SessionManager] Found existing session for this device')
         sessionIdRef.current = existingSession.id
 
         // Check if inactive for > 30 days
@@ -61,7 +107,7 @@ export default function PersistentSessionManager() {
         const daysSinceActivity = (Date.now() - lastActivity) / (24 * 60 * 60 * 1000)
 
         if (daysSinceActivity > 30) {
-          console.log(`⏰ [PersistentSessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
+          console.log(`⏰ [SessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
           await handleInactivityLogout(existingSession.id)
           return
         }
@@ -69,7 +115,7 @@ export default function PersistentSessionManager() {
         // Update activity timestamp
         await updateSessionActivity(session.access_token)
       } else {
-        console.log('🆕 [PersistentSessionManager] New device detected - creating session record')
+        console.log('🆕 [SessionManager] New device detected - creating session record')
 
         // Create new session record for this device
         const sessionId = await createSessionRecord(
@@ -90,6 +136,7 @@ export default function PersistentSessionManager() {
       startInactivityChecker()
     }
 
+    // === SCHEDULE TOKEN REFRESH ===
     const scheduleRefresh = async () => {
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -103,7 +150,7 @@ export default function PersistentSessionManager() {
       const REFRESH_MARGIN = 300
       const timeUntilRefresh = Math.max(0, timeUntilExpiry - REFRESH_MARGIN)
 
-      console.log(`⏰ [PersistentSessionManager] Session expires in ${Math.round(timeUntilExpiry / 60)} minutes`)
+      console.log(`⏰ [SessionManager] Session expires in ${Math.round(timeUntilExpiry / 60)} minutes`)
 
       // Clear existing timer
       if (refreshTimerRef.current) {
@@ -113,17 +160,17 @@ export default function PersistentSessionManager() {
       // Schedule refresh
       if (timeUntilRefresh > 0) {
         refreshTimerRef.current = setTimeout(async () => {
-          console.log('🔄 [PersistentSessionManager] Refreshing token...')
+          console.log('🔄 [SessionManager] Refreshing token...')
 
           const { data, error } = await supabase.auth.refreshSession()
 
           if (error) {
-            console.error('❌ [PersistentSessionManager] Refresh failed:', error.message)
+            console.error('❌ [SessionManager] Refresh failed:', error.message)
             return
           }
 
           if (data.session) {
-            console.log('✅ [PersistentSessionManager] Token refreshed successfully')
+            console.log('✅ [SessionManager] Token refreshed successfully')
 
             // Update session activity
             if (sessionIdRef.current) {
@@ -136,29 +183,30 @@ export default function PersistentSessionManager() {
         }, timeUntilRefresh * 1000)
       } else {
         // Session expired or about to expire, refresh now
-        console.log('⚠️ [PersistentSessionManager] Session expiring soon, refreshing now...')
+        console.log('⚠️ [SessionManager] Session expiring soon, refreshing now...')
 
         const { data, error } = await supabase.auth.refreshSession()
 
         if (error) {
-          console.error('❌ [PersistentSessionManager] Refresh failed:', error.message)
+          console.error('❌ [SessionManager] Refresh failed:', error.message)
           return
         }
 
         if (data.session) {
-          console.log('✅ [PersistentSessionManager] Token refreshed successfully')
+          console.log('✅ [SessionManager] Token refreshed successfully')
           scheduleRefresh()
         }
       }
     }
 
+    // === INACTIVITY CHECKER ===
     const startInactivityChecker = () => {
       // Check every hour
       checkIntervalRef.current = setInterval(async () => {
         const timeSinceActivity = Date.now() - lastActivityRef.current
 
         if (timeSinceActivity > INACTIVITY_TIMEOUT) {
-          console.log('⏰ [PersistentSessionManager] Inactive for 30+ days - logging out')
+          console.log('⏰ [SessionManager] Inactive for 30+ days - logging out')
 
           if (sessionIdRef.current) {
             await handleInactivityLogout(sessionIdRef.current)
@@ -173,6 +221,7 @@ export default function PersistentSessionManager() {
       }, 60 * 60 * 1000) // Check every hour
     }
 
+    // === HANDLE INACTIVITY LOGOUT ===
     const handleInactivityLogout = async (sessionId: string) => {
       // Mark session as inactive
       await supabase
@@ -183,7 +232,7 @@ export default function PersistentSessionManager() {
       // Sign out
       await supabase.auth.signOut()
 
-      console.log('👋 [PersistentSessionManager] Logged out due to inactivity')
+      console.log('👋 [SessionManager] Logged out due to inactivity')
 
       // Redirect to login
       if (typeof window !== 'undefined') {
@@ -191,10 +240,10 @@ export default function PersistentSessionManager() {
       }
     }
 
-    // Handle tab visibility change
+    // === TAB VISIBILITY HANDLER ===
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('👁️ [PersistentSessionManager] Tab became visible, checking session...')
+        console.log('👁️ [SessionManager] Tab became visible, checking session...')
 
         // Update last activity
         lastActivityRef.current = Date.now()
@@ -204,20 +253,36 @@ export default function PersistentSessionManager() {
       }
     }
 
-    // Track user activity
+    // === USER ACTIVITY TRACKER ===
     const updateActivity = () => {
       lastActivityRef.current = Date.now()
     }
 
-    // Subscribe to auth state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`🔔 [PersistentSessionManager] Auth event: ${event}`)
+    // === AUTH STATE CHANGE LISTENER ===
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`🔔 [SessionManager] Auth event: ${event}`)
 
-      if (event === 'SIGNED_IN' && session) {
-        console.log('✅ [PersistentSessionManager] User signed in')
-        initializeSession()
-      } else if (event === 'SIGNED_OUT') {
-        console.log('👋 [PersistentSessionManager] User signed out')
+      if (session?.user) {
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+          console.log('✅ [SessionManager] User signed in')
+
+          // Background tasks (non-blocking)
+          runInBackground(() => syncUserProfile(session.user), 'syncProfile')
+          runInBackground(() => cleanupExpiredSessions(), 'cleanup')
+
+          // Initialize session
+          initializeSession()
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('🔄 [SessionManager] Token was refreshed')
+          runInBackground(() => updateSessionActivity(session.access_token), 'updateActivity')
+          scheduleRefresh()
+        }
+      }
+
+      if (event === 'SIGNED_OUT') {
+        console.log('👋 [SessionManager] User signed out')
 
         if (refreshTimerRef.current) {
           clearTimeout(refreshTimerRef.current)
@@ -227,16 +292,16 @@ export default function PersistentSessionManager() {
         }
 
         sessionIdRef.current = null
-      } else if (event === 'TOKEN_REFRESHED' && session) {
-        console.log('🔄 [PersistentSessionManager] Token was refreshed externally')
-        scheduleRefresh()
       }
     })
 
-    // Initial setup
+    // === INITIAL SETUP ===
     initializeSession()
 
-    // Add event listeners
+    // Run cleanup on startup
+    runInBackground(() => cleanupExpiredSessions(), 'initialCleanup')
+
+    // === EVENT LISTENERS ===
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', updateActivity)
     document.addEventListener('click', updateActivity)
@@ -244,9 +309,9 @@ export default function PersistentSessionManager() {
     document.addEventListener('scroll', updateActivity)
     document.addEventListener('mousemove', updateActivity)
 
-    // Cleanup
+    // === CLEANUP ===
     return () => {
-      console.log('🛑 [PersistentSessionManager] Cleaning up...')
+      console.log('🛑 [SessionManager] Cleaning up...')
 
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current)
@@ -307,9 +372,6 @@ if (typeof window !== 'undefined') {
       daysSinceActivity: dbSession
         ? ((Date.now() - new Date(dbSession.last_activity).getTime()) / (24 * 60 * 60 * 1000)).toFixed(2)
         : 'N/A',
-      willLogoutAt: dbSession
-        ? new Date(new Date(dbSession.last_activity).getTime() + INACTIVITY_TIMEOUT).toLocaleString()
-        : 'N/A'
     }
 
     console.table(info)

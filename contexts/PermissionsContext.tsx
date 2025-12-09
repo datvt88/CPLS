@@ -4,19 +4,36 @@ import { createContext, useContext, useMemo, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { authService } from '@/services/auth.service'
 import { Feature, PREMIUM_FEATURES, FREE_FEATURES } from '@/lib/permissions'
-import useSWR, { useSWRConfig } from 'swr' 
+import useSWR, { useSWRConfig } from 'swr'
+
+// User role types
+type UserRole = 'user' | 'mod' | 'admin'
 
 interface PermissionData {
   isAuthenticated: boolean
   isPremium: boolean
   features: Feature[]
+  role: UserRole
+  userId: string | null
 }
 
 interface PermissionsContextValue {
+  // Auth state
   isAuthenticated: boolean
+  userId: string | null
+
+  // Premium features
   isPremium: boolean
   accessibleFeatures: Feature[]
   canAccess: (feature: Feature) => boolean
+
+  // Admin/Mod access
+  role: UserRole
+  isAdmin: boolean
+  isMod: boolean
+  hasAdminAccess: boolean // admin OR mod
+
+  // Loading & Error states
   isLoading: boolean
   isError: boolean
   refresh: () => Promise<void>
@@ -28,21 +45,34 @@ const PermissionsContext = createContext<PermissionsContextValue | undefined>(un
 const fetchPermissions = async (): Promise<PermissionData> => {
   // authService đã có timeout, nên hàm này sẽ luôn trả về kết quả hoặc lỗi sau 7s
   const { session, error: sessionError } = await authService.getSession()
-  
+
   if (sessionError || !session?.user) {
-    return { isAuthenticated: false, isPremium: false, features: FREE_FEATURES }
+    return {
+      isAuthenticated: false,
+      isPremium: false,
+      features: FREE_FEATURES,
+      role: 'user',
+      userId: null
+    }
   }
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('membership, membership_expires_at')
+    .select('membership, membership_expires_at, role')
     .eq('id', session.user.id)
     .single()
 
   if (error || !profile) {
-    return { isAuthenticated: true, isPremium: false, features: FREE_FEATURES }
+    return {
+      isAuthenticated: true,
+      isPremium: false,
+      features: FREE_FEATURES,
+      role: 'user',
+      userId: session.user.id
+    }
   }
 
+  // Check premium status
   let userIsPremium = false
   if (profile.membership === 'premium') {
     if (profile.membership_expires_at) {
@@ -53,10 +83,15 @@ const fetchPermissions = async (): Promise<PermissionData> => {
     }
   }
 
+  // Get role (default to 'user' if not set)
+  const userRole: UserRole = (profile.role as UserRole) || 'user'
+
   return {
     isAuthenticated: true,
     isPremium: userIsPremium,
-    features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES
+    features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
+    role: userRole,
+    userId: session.user.id
   }
 }
 
@@ -64,16 +99,16 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const { mutate } = useSWRConfig()
 
   const { data, error, isLoading } = useSWR('user-permissions', fetchPermissions, {
-    revalidateOnFocus: false, // TẮT auto check của SWR để tránh xung đột
+    revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 60000, 
-    // Dữ liệu mặc định: Coi như chưa đăng nhập -> UI sẽ render ngay lập tức (không treo)
-    // Sau khi fetch xong (vài ms sau), UI sẽ update lại đúng trạng thái
-    fallbackData: { 
-      isAuthenticated: false, 
-      isPremium: false, 
-      features: FREE_FEATURES 
-    } 
+    dedupingInterval: 60000,
+    fallbackData: {
+      isAuthenticated: false,
+      isPremium: false,
+      features: FREE_FEATURES,
+      role: 'user' as UserRole,
+      userId: null
+    }
   })
 
   // --- LOGIC RELOAD SAU 60s ---
@@ -105,18 +140,36 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   }
 
   const refresh = async () => {
-    await mutate('user-permissions') 
+    await mutate('user-permissions')
   }
 
-  const value = useMemo(() => ({
-    isAuthenticated: data?.isAuthenticated ?? false,
-    isPremium: data?.isPremium ?? false,
-    accessibleFeatures: data?.features ?? FREE_FEATURES,
-    canAccess,
-    isLoading, // SWR tự quản lý
-    isError: !!error,
-    refresh
-  }), [data, isLoading, error])
+  const value = useMemo(() => {
+    const role = data?.role ?? 'user'
+    const isAdmin = role === 'admin'
+    const isMod = role === 'mod'
+
+    return {
+      // Auth state
+      isAuthenticated: data?.isAuthenticated ?? false,
+      userId: data?.userId ?? null,
+
+      // Premium features
+      isPremium: data?.isPremium ?? false,
+      accessibleFeatures: data?.features ?? FREE_FEATURES,
+      canAccess,
+
+      // Admin/Mod access
+      role,
+      isAdmin,
+      isMod,
+      hasAdminAccess: isAdmin || isMod,
+
+      // Loading & Error states
+      isLoading,
+      isError: !!error,
+      refresh
+    }
+  }, [data, isLoading, error])
 
   return (
     <PermissionsContext.Provider value={value}>
@@ -131,9 +184,14 @@ export function usePermissions() {
     // Trả về mặc định để tránh lỗi Build
     return {
       isAuthenticated: false,
+      userId: null,
       isPremium: false,
       accessibleFeatures: FREE_FEATURES,
       canAccess: () => false,
+      role: 'user' as UserRole,
+      isAdmin: false,
+      isMod: false,
+      hasAdminAccess: false,
       isLoading: true,
       isError: false,
       refresh: async () => {}
