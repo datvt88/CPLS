@@ -241,6 +241,11 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
 
             const data = await response.json()
 
+            // Check for error in response
+            if (data.error) {
+                throw new Error(data.error)
+            }
+
             // Validate response structure
             if (!data || (!data.shortTerm && !data.longTerm)) {
                 throw new Error('Định dạng phản hồi từ Gemini không hợp lệ')

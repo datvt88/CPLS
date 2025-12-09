@@ -97,16 +97,8 @@ export async function POST(request: NextRequest) {
 
     console.log('📝 Gemini raw response length:', generatedText.length)
 
-    // Parse and validate the response
+    // Parse and validate the response (always returns a result with fallback)
     const result = parseGeminiStockAnalysis(generatedText)
-
-    if (!result) {
-      console.error('Failed to parse Gemini response for', symbol)
-      return NextResponse.json(
-        { error: 'Invalid response format from Gemini AI' },
-        { status: 500 }
-      )
-    }
 
     console.log('✅ Gemini analysis completed for', symbol)
 
@@ -337,61 +329,159 @@ function buildStockAnalysisPrompt(
  * Parse and validate Gemini response
  */
 function parseGeminiStockAnalysis(text: string): any {
-  // Remove markdown code blocks if present
-  let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+  console.log('🔍 Parsing Gemini response, length:', text.length)
 
-  // Try to find JSON object in the response
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
-    console.error('No JSON object found in Gemini response')
-    return null
+  // Step 1: Clean up the text - remove markdown code blocks
+  let cleaned = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .replace(/^\s*json\s*/gi, '')
+    .trim()
+
+  // Step 2: Try to find JSON object - use non-greedy match to get the first complete JSON
+  // Find opening brace
+  const startIdx = cleaned.indexOf('{')
+  if (startIdx === -1) {
+    console.error('❌ No JSON object found in Gemini response')
+    console.log('Raw text preview:', text.substring(0, 500))
+    return createFallbackResponse(text)
   }
 
-  try {
-    const parsed = JSON.parse(jsonMatch[0])
+  // Find matching closing brace
+  let braceCount = 0
+  let endIdx = -1
+  for (let i = startIdx; i < cleaned.length; i++) {
+    if (cleaned[i] === '{') braceCount++
+    if (cleaned[i] === '}') braceCount--
+    if (braceCount === 0) {
+      endIdx = i
+      break
+    }
+  }
 
-    // Validate structure
-    if (!parsed.shortTerm || !parsed.longTerm) {
-      console.error('Invalid structure: missing shortTerm or longTerm')
-      return null
+  if (endIdx === -1) {
+    console.error('❌ No matching closing brace found')
+    return createFallbackResponse(text)
+  }
+
+  const jsonStr = cleaned.substring(startIdx, endIdx + 1)
+  console.log('📝 Extracted JSON length:', jsonStr.length)
+
+  try {
+    // Step 3: Fix common JSON issues
+    let fixedJson = jsonStr
+      // Fix unquoted keys
+      .replace(/(\s*)(\w+)(\s*):/g, '$1"$2"$3:')
+      // Fix single quotes to double quotes
+      .replace(/'/g, '"')
+      // Remove trailing commas
+      .replace(/,(\s*[}\]])/g, '$1')
+      // Fix null strings
+      .replace(/"null"/g, 'null')
+
+    const parsed = JSON.parse(fixedJson)
+
+    // Step 4: Validate and fix structure
+    if (!parsed.shortTerm && !parsed.longTerm) {
+      console.error('❌ Invalid structure: missing both shortTerm and longTerm')
+      return createFallbackResponse(text)
+    }
+
+    // Create default structures if missing
+    if (!parsed.shortTerm) {
+      parsed.shortTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích ngắn hạn' }
+    }
+    if (!parsed.longTerm) {
+      parsed.longTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích dài hạn' }
     }
 
     // Validate signals
-    const validSignals = ['MUA', 'BÁN', 'NẮM GIỮ', 'HOLD']
-    if (!parsed.shortTerm.signal || !validSignals.some(s => parsed.shortTerm.signal.includes(s))) {
-      console.warn('Invalid shortTerm signal, using default')
+    const validSignals = ['MUA', 'BÁN', 'NẮM GIỮ', 'HOLD', 'BUY', 'SELL']
+    if (!parsed.shortTerm.signal || !validSignals.some(s => parsed.shortTerm.signal.toUpperCase().includes(s))) {
+      console.warn('⚠️ Invalid shortTerm signal, using default')
       parsed.shortTerm.signal = 'NẮM GIỮ'
     }
-    if (!parsed.longTerm.signal || !validSignals.some(s => parsed.longTerm.signal.includes(s))) {
-      console.warn('Invalid longTerm signal, using default')
+    if (!parsed.longTerm.signal || !validSignals.some(s => parsed.longTerm.signal.toUpperCase().includes(s))) {
+      console.warn('⚠️ Invalid longTerm signal, using default')
       parsed.longTerm.signal = 'NẮM GIỮ'
     }
+
+    // Ensure summaries exist
+    parsed.shortTerm.summary = parsed.shortTerm.summary || 'Đang phân tích...'
+    parsed.longTerm.summary = parsed.longTerm.summary || 'Đang phân tích...'
 
     // Ensure confidence is a number between 0-100
     parsed.shortTerm.confidence = Math.max(0, Math.min(100, Number(parsed.shortTerm.confidence) || 50))
     parsed.longTerm.confidence = Math.max(0, Math.min(100, Number(parsed.longTerm.confidence) || 50))
 
-    // Format target price and stop loss with 3 decimal places
-    if (parsed.targetPrice && parsed.targetPrice !== 'null') {
+    // Format target price and stop loss
+    if (parsed.targetPrice && parsed.targetPrice !== 'null' && parsed.targetPrice !== null) {
       parsed.targetPrice = formatGeminiPrice(parsed.targetPrice)
     } else {
       parsed.targetPrice = null
     }
 
-    if (parsed.stopLoss && parsed.stopLoss !== 'null') {
+    if (parsed.stopLoss && parsed.stopLoss !== 'null' && parsed.stopLoss !== null) {
       parsed.stopLoss = formatGeminiPrice(parsed.stopLoss)
     } else {
       parsed.stopLoss = null
     }
 
     // Ensure arrays
-    parsed.risks = Array.isArray(parsed.risks) ? parsed.risks : []
-    parsed.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities : []
+    parsed.risks = Array.isArray(parsed.risks) ? parsed.risks.filter(r => r && typeof r === 'string') : []
+    parsed.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities.filter(o => o && typeof o === 'string') : []
 
+    console.log('✅ Successfully parsed Gemini response')
     return parsed
   } catch (error) {
-    console.error('Failed to parse Gemini JSON:', error)
-    return null
+    console.error('❌ Failed to parse Gemini JSON:', error)
+    console.log('Attempted to parse:', jsonStr.substring(0, 300))
+    return createFallbackResponse(text)
+  }
+}
+
+/**
+ * Create a fallback response when JSON parsing fails
+ * Attempts to extract useful information from plain text
+ */
+function createFallbackResponse(text: string): any {
+  console.log('⚠️ Creating fallback response from text')
+
+  // Try to determine signal from text content
+  const textLower = text.toLowerCase()
+  let signal = 'NẮM GIỮ'
+  let confidence = 50
+
+  if (textLower.includes('mua') || textLower.includes('buy') || textLower.includes('tích cực')) {
+    signal = 'MUA'
+    confidence = 60
+  } else if (textLower.includes('bán') || textLower.includes('sell') || textLower.includes('tiêu cực')) {
+    signal = 'BÁN'
+    confidence = 60
+  }
+
+  // Extract any summary-like content (first 200 chars of meaningful text)
+  const summaryText = text
+    .replace(/[{}"\[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 200)
+
+  return {
+    shortTerm: {
+      signal: signal,
+      confidence: confidence,
+      summary: summaryText || 'Gemini AI đã phân tích nhưng không thể trích xuất kết quả chi tiết.'
+    },
+    longTerm: {
+      signal: signal,
+      confidence: confidence,
+      summary: 'Vui lòng thử lại để có kết quả phân tích chi tiết hơn.'
+    },
+    targetPrice: null,
+    stopLoss: null,
+    risks: ['Không thể trích xuất thông tin rủi ro từ phản hồi AI'],
+    opportunities: ['Không thể trích xuất thông tin cơ hội từ phản hồi AI']
   }
 }
 
