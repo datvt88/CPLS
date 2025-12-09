@@ -362,6 +362,7 @@ function buildStockAnalysisPrompt(
  */
 function parseGeminiStockAnalysis(text: string): any {
   console.log('🔍 Parsing Gemini response, length:', text.length)
+  console.log('📝 Raw response preview:', text.substring(0, 500))
 
   // Step 1: Clean up the text - remove markdown code blocks
   let cleaned = text
@@ -370,13 +371,11 @@ function parseGeminiStockAnalysis(text: string): any {
     .replace(/^\s*json\s*/gi, '')
     .trim()
 
-  // Step 2: Try to find JSON object - use non-greedy match to get the first complete JSON
-  // Find opening brace
+  // Step 2: Try to find JSON object
   const startIdx = cleaned.indexOf('{')
   if (startIdx === -1) {
     console.error('❌ No JSON object found in Gemini response')
-    console.log('Raw text preview:', text.substring(0, 500))
-    return createFallbackResponse(text)
+    return extractFromPlainText(text)
   }
 
   // Find matching closing brace
@@ -393,182 +392,323 @@ function parseGeminiStockAnalysis(text: string): any {
 
   if (endIdx === -1) {
     console.error('❌ No matching closing brace found')
-    return createFallbackResponse(text)
+    return extractFromPlainText(text)
   }
 
   const jsonStr = cleaned.substring(startIdx, endIdx + 1)
-  console.log('📝 Extracted JSON length:', jsonStr.length)
+  console.log('📝 Extracted JSON preview:', jsonStr.substring(0, 300))
 
   try {
     // Step 3: Fix common JSON issues
     let fixedJson = jsonStr
-      // Fix unquoted keys
-      .replace(/(\s*)(\w+)(\s*):/g, '$1"$2"$3:')
-      // Fix single quotes to double quotes
+      // Remove any control characters
+      .replace(/[\x00-\x1F\x7F]/g, ' ')
+      // Fix unquoted keys - more careful regex
+      .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g, '$1"$2"$3')
+      // Fix single quotes to double quotes (but not inside strings)
       .replace(/'/g, '"')
       // Remove trailing commas
       .replace(/,(\s*[}\]])/g, '$1')
       // Fix null strings
-      .replace(/"null"/g, 'null')
+      .replace(/"null"/gi, 'null')
+      // Fix undefined strings
+      .replace(/"undefined"/gi, 'null')
+
+    console.log('🔧 Fixed JSON preview:', fixedJson.substring(0, 300))
 
     const parsed = JSON.parse(fixedJson)
+    console.log('✅ JSON parsed successfully, keys:', Object.keys(parsed))
 
-    // Step 4: Validate and fix structure
-    if (!parsed.shortTerm && !parsed.longTerm) {
-      console.error('❌ Invalid structure: missing both shortTerm and longTerm')
-      return createFallbackResponse(text)
-    }
-
-    // Create default structures if missing
-    if (!parsed.shortTerm) {
-      parsed.shortTerm = { signal: 'THEO DÕI', confidence: 50, summary: 'Không đủ dữ liệu phân tích ngắn hạn' }
-    }
-    if (!parsed.longTerm) {
-      parsed.longTerm = { signal: 'THEO DÕI', confidence: 50, summary: 'Không đủ dữ liệu phân tích dài hạn' }
-    }
-
-    // Validate and normalize signals
-    const validSignals = ['MUA', 'BÁN', 'THEO DÕI', 'NẮM GIỮ', 'HOLD', 'BUY', 'SELL']
-
-    // Normalize shortTerm signal
-    if (parsed.shortTerm.signal) {
-      const signalUpper = parsed.shortTerm.signal.toUpperCase()
-      if (signalUpper.includes('MUA') || signalUpper.includes('BUY')) {
-        parsed.shortTerm.signal = 'MUA'
-      } else if (signalUpper.includes('BÁN') || signalUpper.includes('SELL')) {
-        parsed.shortTerm.signal = 'BÁN'
-      } else if (signalUpper.includes('THEO DÕI') || signalUpper.includes('NẮM GIỮ') || signalUpper.includes('HOLD')) {
-        parsed.shortTerm.signal = 'THEO DÕI'
-      } else {
-        parsed.shortTerm.signal = 'THEO DÕI'
-      }
-    } else {
-      parsed.shortTerm.signal = 'THEO DÕI'
-    }
-
-    // Normalize longTerm signal
-    if (parsed.longTerm.signal) {
-      const signalUpper = parsed.longTerm.signal.toUpperCase()
-      if (signalUpper.includes('MUA') || signalUpper.includes('BUY')) {
-        parsed.longTerm.signal = 'MUA'
-      } else if (signalUpper.includes('BÁN') || signalUpper.includes('SELL')) {
-        parsed.longTerm.signal = 'BÁN'
-      } else if (signalUpper.includes('THEO DÕI') || signalUpper.includes('NẮM GIỮ') || signalUpper.includes('HOLD')) {
-        parsed.longTerm.signal = 'THEO DÕI'
-      } else {
-        parsed.longTerm.signal = 'THEO DÕI'
-      }
-    } else {
-      parsed.longTerm.signal = 'THEO DÕI'
-    }
-
-    // Ensure summaries exist
-    parsed.shortTerm.summary = parsed.shortTerm.summary || 'Đang phân tích...'
-    parsed.longTerm.summary = parsed.longTerm.summary || 'Đang phân tích...'
-
-    // Ensure confidence is a number between 0-100
-    parsed.shortTerm.confidence = Math.max(0, Math.min(100, Number(parsed.shortTerm.confidence) || 50))
-    parsed.longTerm.confidence = Math.max(0, Math.min(100, Number(parsed.longTerm.confidence) || 50))
-
-    // Check if any signal is MUA to determine if we need price recommendations
-    const hasBuySignal = parsed.shortTerm.signal === 'MUA' || parsed.longTerm.signal === 'MUA'
-
-    // Format buy price (new field)
-    if (hasBuySignal && parsed.buyPrice && parsed.buyPrice !== 'null' && parsed.buyPrice !== null) {
-      parsed.buyPrice = formatGeminiPrice(parsed.buyPrice)
-    } else {
-      parsed.buyPrice = null
-    }
-
-    // Format target price
-    if (hasBuySignal && parsed.targetPrice && parsed.targetPrice !== 'null' && parsed.targetPrice !== null) {
-      parsed.targetPrice = formatGeminiPrice(parsed.targetPrice)
-    } else {
-      parsed.targetPrice = null
-    }
-
-    // Format stop loss
-    if (hasBuySignal && parsed.stopLoss && parsed.stopLoss !== 'null' && parsed.stopLoss !== null) {
-      parsed.stopLoss = formatGeminiPrice(parsed.stopLoss)
-    } else {
-      parsed.stopLoss = null
-    }
-
-    // Ensure exactly 3 risks and 3 opportunities
-    parsed.risks = Array.isArray(parsed.risks)
-      ? parsed.risks.filter(r => r && typeof r === 'string').slice(0, 3)
-      : []
-    parsed.opportunities = Array.isArray(parsed.opportunities)
-      ? parsed.opportunities.filter(o => o && typeof o === 'string').slice(0, 3)
-      : []
-
-    // Pad arrays if less than 3 items
-    while (parsed.risks.length < 3) {
-      parsed.risks.push('Cần thêm dữ liệu để đánh giá rủi ro')
-    }
-    while (parsed.opportunities.length < 3) {
-      parsed.opportunities.push('Cần thêm dữ liệu để đánh giá cơ hội')
-    }
-
-    console.log('✅ Successfully parsed Gemini response')
-    return parsed
+    // Step 4: Validate and normalize the response
+    return normalizeGeminiResponse(parsed)
   } catch (error) {
     console.error('❌ Failed to parse Gemini JSON:', error)
-    console.log('Attempted to parse:', jsonStr.substring(0, 300))
-    return createFallbackResponse(text)
+    console.log('Attempted to parse:', jsonStr.substring(0, 500))
+    // Try to extract data from plain text
+    return extractFromPlainText(text)
   }
 }
 
 /**
- * Create a fallback response when JSON parsing fails
- * Attempts to extract useful information from plain text
+ * Normalize and validate parsed Gemini response
  */
-function createFallbackResponse(text: string): any {
-  console.log('⚠️ Creating fallback response from text')
-
-  // Try to determine signal from text content
-  const textLower = text.toLowerCase()
-  let signal = 'THEO DÕI'
-  let confidence = 50
-
-  if (textLower.includes('mua') || textLower.includes('buy') || textLower.includes('tích cực')) {
-    signal = 'MUA'
-    confidence = 60
-  } else if (textLower.includes('bán') || textLower.includes('sell') || textLower.includes('tiêu cực')) {
-    signal = 'BÁN'
-    confidence = 60
+function normalizeGeminiResponse(parsed: any): any {
+  // Validate structure
+  if (!parsed.shortTerm && !parsed.longTerm) {
+    console.error('❌ Invalid structure: missing both shortTerm and longTerm')
+    return createDefaultResponse()
   }
 
-  // Extract any summary-like content (first 200 chars of meaningful text)
-  const summaryText = text
-    .replace(/[{}"\[\]]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .substring(0, 200)
+  // Normalize shortTerm
+  if (parsed.shortTerm) {
+    parsed.shortTerm = {
+      signal: normalizeSignal(parsed.shortTerm.signal),
+      confidence: normalizeConfidence(parsed.shortTerm.confidence),
+      summary: String(parsed.shortTerm.summary || 'Đang phân tích ngắn hạn...').trim()
+    }
+  } else {
+    parsed.shortTerm = { signal: 'THEO DÕI', confidence: 50, summary: 'Không đủ dữ liệu phân tích ngắn hạn' }
+  }
 
+  // Normalize longTerm
+  if (parsed.longTerm) {
+    parsed.longTerm = {
+      signal: normalizeSignal(parsed.longTerm.signal),
+      confidence: normalizeConfidence(parsed.longTerm.confidence),
+      summary: String(parsed.longTerm.summary || 'Đang phân tích dài hạn...').trim()
+    }
+  } else {
+    parsed.longTerm = { signal: 'THEO DÕI', confidence: 50, summary: 'Không đủ dữ liệu phân tích dài hạn' }
+  }
+
+  // Check if any signal is MUA
+  const hasBuySignal = parsed.shortTerm.signal === 'MUA' || parsed.longTerm.signal === 'MUA'
+
+  // Format prices only if buy signal
+  parsed.buyPrice = hasBuySignal && parsed.buyPrice != null ? formatGeminiPrice(parsed.buyPrice) : null
+  parsed.targetPrice = hasBuySignal && parsed.targetPrice != null ? formatGeminiPrice(parsed.targetPrice) : null
+  parsed.stopLoss = hasBuySignal && parsed.stopLoss != null ? formatGeminiPrice(parsed.stopLoss) : null
+
+  // Normalize risks and opportunities - exactly 3 each
+  parsed.risks = normalizeArray(parsed.risks, 3, 'Cần thêm dữ liệu để đánh giá rủi ro')
+  parsed.opportunities = normalizeArray(parsed.opportunities, 3, 'Cần thêm dữ liệu để đánh giá cơ hội')
+
+  console.log('✅ Normalized response:', {
+    shortTerm: parsed.shortTerm.signal,
+    longTerm: parsed.longTerm.signal,
+    buyPrice: parsed.buyPrice,
+    targetPrice: parsed.targetPrice,
+    stopLoss: parsed.stopLoss,
+    risksCount: parsed.risks.length,
+    opportunitiesCount: parsed.opportunities.length
+  })
+
+  return parsed
+}
+
+/**
+ * Normalize signal value
+ */
+function normalizeSignal(signal: any): string {
+  if (!signal) return 'THEO DÕI'
+  const signalStr = String(signal).toUpperCase().trim()
+
+  if (signalStr.includes('MUA') || signalStr.includes('BUY')) return 'MUA'
+  if (signalStr.includes('BÁN') || signalStr.includes('SELL')) return 'BÁN'
+  return 'THEO DÕI'
+}
+
+/**
+ * Normalize confidence value
+ */
+function normalizeConfidence(confidence: any): number {
+  const num = Number(confidence)
+  if (isNaN(num)) return 50
+  return Math.max(0, Math.min(100, Math.round(num)))
+}
+
+/**
+ * Normalize array to exactly n items
+ */
+function normalizeArray(arr: any, count: number, defaultValue: string): string[] {
+  const result: string[] = []
+
+  if (Array.isArray(arr)) {
+    for (const item of arr) {
+      if (item && typeof item === 'string' && item.trim()) {
+        result.push(item.trim())
+        if (result.length >= count) break
+      }
+    }
+  }
+
+  // Pad if needed
+  while (result.length < count) {
+    result.push(defaultValue)
+  }
+
+  return result
+}
+
+/**
+ * Extract analysis from plain text when JSON parsing fails
+ */
+function extractFromPlainText(text: string): any {
+  console.log('⚠️ Extracting from plain text')
+
+  const result = createDefaultResponse()
+
+  // Try to extract signal
+  const textLower = text.toLowerCase()
+
+  // Short-term signal detection
+  let shortSignal = 'THEO DÕI'
+  let shortConfidence = 50
+  if (textLower.includes('ngắn hạn')) {
+    if (textLower.includes('mua') && textLower.indexOf('mua') > textLower.indexOf('ngắn hạn')) {
+      shortSignal = 'MUA'
+      shortConfidence = 65
+    } else if (textLower.includes('bán') && textLower.indexOf('bán') > textLower.indexOf('ngắn hạn')) {
+      shortSignal = 'BÁN'
+      shortConfidence = 65
+    }
+  }
+
+  // Long-term signal detection
+  let longSignal = 'THEO DÕI'
+  let longConfidence = 50
+  if (textLower.includes('dài hạn')) {
+    if (textLower.includes('mua')) {
+      longSignal = 'MUA'
+      longConfidence = 65
+    } else if (textLower.includes('bán')) {
+      longSignal = 'BÁN'
+      longConfidence = 65
+    }
+  }
+
+  // Try to extract summary from text
+  const shortSummary = extractSummary(text, 'ngắn hạn', 'short')
+  const longSummary = extractSummary(text, 'dài hạn', 'long')
+
+  result.shortTerm = {
+    signal: shortSignal,
+    confidence: shortConfidence,
+    summary: shortSummary || 'Phân tích kỹ thuật cho thấy xu hướng cần theo dõi thêm.'
+  }
+
+  result.longTerm = {
+    signal: longSignal,
+    confidence: longConfidence,
+    summary: longSummary || 'Phân tích cơ bản cho thấy cần theo dõi các chỉ số tài chính.'
+  }
+
+  // Extract risks and opportunities
+  result.risks = extractListItems(text, ['rủi ro', 'risk'], 3)
+  result.opportunities = extractListItems(text, ['cơ hội', 'opportunity', 'tiềm năng'], 3)
+
+  // Try to extract prices
+  const hasBuySignal = shortSignal === 'MUA' || longSignal === 'MUA'
+  if (hasBuySignal) {
+    result.buyPrice = extractPrice(text, ['giá mua', 'buy price', 'buyPrice'])
+    result.targetPrice = extractPrice(text, ['giá mục tiêu', 'target', 'targetPrice'])
+    result.stopLoss = extractPrice(text, ['cắt lỗ', 'stop loss', 'stopLoss'])
+  }
+
+  return result
+}
+
+/**
+ * Extract summary from text around keyword
+ */
+function extractSummary(text: string, keyword: string, type: string): string {
+  const textLower = text.toLowerCase()
+  const keywordIdx = textLower.indexOf(keyword)
+
+  if (keywordIdx === -1) return ''
+
+  // Find summary text after keyword
+  const afterKeyword = text.substring(keywordIdx)
+  const colonIdx = afterKeyword.indexOf(':')
+  const summaryStart = colonIdx > 0 && colonIdx < 20 ? colonIdx + 1 : keyword.length
+
+  // Extract up to 200 chars or until next section
+  const summaryText = afterKeyword.substring(summaryStart, summaryStart + 300)
+  const endMarkers = ['\n\n', 'dài hạn', 'ngắn hạn', 'rủi ro', 'cơ hội', 'buyPrice', 'targetPrice']
+
+  let endIdx = summaryText.length
+  for (const marker of endMarkers) {
+    const markerIdx = summaryText.toLowerCase().indexOf(marker)
+    if (markerIdx > 0 && markerIdx < endIdx) {
+      endIdx = markerIdx
+    }
+  }
+
+  return summaryText.substring(0, endIdx).replace(/[{}"]/g, '').trim().substring(0, 200)
+}
+
+/**
+ * Extract list items from text
+ */
+function extractListItems(text: string, keywords: string[], count: number): string[] {
+  const result: string[] = []
+  const textLower = text.toLowerCase()
+
+  for (const keyword of keywords) {
+    const keywordIdx = textLower.indexOf(keyword)
+    if (keywordIdx === -1) continue
+
+    // Look for numbered items after keyword
+    const afterKeyword = text.substring(keywordIdx)
+    const itemMatches = afterKeyword.match(/\d+[\.\)]\s*([^,\n\[\]{}]+)/g)
+
+    if (itemMatches) {
+      for (const match of itemMatches) {
+        const cleanItem = match.replace(/^\d+[\.\)]\s*/, '').trim()
+        if (cleanItem.length > 5 && cleanItem.length < 200) {
+          result.push(cleanItem)
+          if (result.length >= count) return result
+        }
+      }
+    }
+  }
+
+  // Pad with defaults
+  while (result.length < count) {
+    result.push('Cần thêm dữ liệu để đánh giá')
+  }
+
+  return result
+}
+
+/**
+ * Extract price from text
+ */
+function extractPrice(text: string, keywords: string[]): string | null {
+  const textLower = text.toLowerCase()
+
+  for (const keyword of keywords) {
+    const keywordIdx = textLower.indexOf(keyword.toLowerCase())
+    if (keywordIdx === -1) continue
+
+    const afterKeyword = text.substring(keywordIdx, keywordIdx + 50)
+    const priceMatch = afterKeyword.match(/(\d+[\.,]?\d*)/g)
+
+    if (priceMatch && priceMatch.length > 0) {
+      return formatGeminiPrice(priceMatch[0])
+    }
+  }
+
+  return null
+}
+
+/**
+ * Create default response structure
+ */
+function createDefaultResponse(): any {
   return {
     shortTerm: {
-      signal: signal,
-      confidence: confidence,
-      summary: summaryText || 'Gemini AI đã phân tích nhưng không thể trích xuất kết quả chi tiết.'
+      signal: 'THEO DÕI',
+      confidence: 50,
+      summary: 'Đang phân tích...'
     },
     longTerm: {
-      signal: signal,
-      confidence: confidence,
-      summary: 'Vui lòng thử lại để có kết quả phân tích chi tiết hơn.'
+      signal: 'THEO DÕI',
+      confidence: 50,
+      summary: 'Đang phân tích...'
     },
     buyPrice: null,
     targetPrice: null,
     stopLoss: null,
     risks: [
-      'Không thể trích xuất thông tin rủi ro từ phản hồi AI',
-      'Vui lòng thử lại để có đánh giá rủi ro chi tiết',
-      'Cần kiểm tra lại kết nối với Gemini API'
+      'Cần thêm dữ liệu để đánh giá rủi ro',
+      'Cần thêm dữ liệu để đánh giá rủi ro',
+      'Cần thêm dữ liệu để đánh giá rủi ro'
     ],
     opportunities: [
-      'Không thể trích xuất thông tin cơ hội từ phản hồi AI',
-      'Vui lòng thử lại để có đánh giá cơ hội chi tiết',
-      'Cần kiểm tra lại kết nối với Gemini API'
+      'Cần thêm dữ liệu để đánh giá cơ hội',
+      'Cần thêm dữ liệu để đánh giá cơ hội',
+      'Cần thêm dữ liệu để đánh giá cơ hội'
     ]
   }
 }
