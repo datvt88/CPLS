@@ -42,21 +42,30 @@ function isValidTradingDate(dateStr: string): boolean {
     return dataDate <= today
 }
 
+const MAX_RETRIES = 2
+const RETRY_DELAY = 1500 // ms
+
 export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisWidgetProps) {
     const [geminiAnalysis, setGeminiAnalysis] = useState<GeminiAnalysis | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [hasAnalyzed, setHasAnalyzed] = useState(false)
+    const [retryCount, setRetryCount] = useState(0)
 
-    const handleAnalyze = async () => {
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+    const handleAnalyze = async (isRetry = false) => {
         if (!symbol) return
 
         setLoading(true)
         setError(null)
-        setGeminiAnalysis(null)
+        if (!isRetry) {
+            setGeminiAnalysis(null)
+            setRetryCount(0)
+        }
 
         try {
-            console.log('🤖 Starting Gemini Deep Analysis for:', symbol)
+            console.log('🤖 Starting Gemini Deep Analysis for:', symbol, isRetry ? `(Retry ${retryCount + 1})` : '')
 
             // Fetch all required data
             const [pricesResponse, ratiosResponse, recommendationsResponse, profitabilityResponse] = await Promise.all([
@@ -109,8 +118,22 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             }
         } catch (err: any) {
             console.error('❌ Error performing Gemini analysis:', err)
-            // Show more detailed error message
             const errorMessage = err.message || 'Không thể thực hiện phân tích Gemini'
+
+            // Auto-retry for recoverable errors
+            const isRecoverableError = errorMessage.includes('thử lại') ||
+                errorMessage.includes('timeout') ||
+                errorMessage.includes('500') ||
+                errorMessage.includes('không tạo được')
+
+            if (isRecoverableError && retryCount < MAX_RETRIES) {
+                console.log(`🔄 Auto-retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+                setRetryCount(prev => prev + 1)
+                await delay(RETRY_DELAY * (retryCount + 1)) // Exponential backoff
+                return handleAnalyze(true)
+            }
+
+            // Show user-friendly error message
             setError(errorMessage)
         } finally {
             setLoading(false)
@@ -305,7 +328,11 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                 <div className="flex items-center justify-center h-40">
                     <div className="text-center">
                         <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                        <p className="text-gray-400 text-sm">AI đang phân tích dữ liệu kỹ thuật và cơ bản...</p>
+                        <p className="text-gray-400 text-sm">
+                            {retryCount > 0
+                                ? `Đang thử lại lần ${retryCount}/${MAX_RETRIES}...`
+                                : 'AI đang phân tích dữ liệu kỹ thuật và cơ bản...'}
+                        </p>
                     </div>
                 </div>
             )}
@@ -313,8 +340,12 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             {error && (
                 <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4">
                     <p className="text-red-400 mb-3">{error}</p>
+                    <p className="text-gray-500 text-xs mb-3">
+                        {retryCount > 0 && `Đã thử lại ${retryCount} lần. `}
+                        Nếu lỗi tiếp tục, vui lòng thử lại sau vài phút.
+                    </p>
                     <button
-                        onClick={handleAnalyze}
+                        onClick={() => handleAnalyze(false)}
                         className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-colors"
                     >
                         Thử lại

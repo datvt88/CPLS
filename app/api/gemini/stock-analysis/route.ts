@@ -85,12 +85,49 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
-    if (!generatedText) {
-      console.error('No content generated from Gemini for', symbol)
+    // Check for blocked content or safety issues
+    if (data.promptFeedback?.blockReason) {
+      console.error('Gemini blocked content:', data.promptFeedback.blockReason)
       return NextResponse.json(
-        { error: 'No content generated from Gemini' },
+        { error: `Nội dung bị chặn: ${data.promptFeedback.blockReason}. Vui lòng thử lại.` },
+        { status: 400 }
+      )
+    }
+
+    // Check if candidates exist and have content
+    const candidate = data.candidates?.[0]
+    if (!candidate) {
+      console.error('No candidates in Gemini response:', JSON.stringify(data).substring(0, 500))
+      return NextResponse.json(
+        { error: 'Gemini không trả về kết quả. Vui lòng thử lại sau.' },
+        { status: 500 }
+      )
+    }
+
+    // Check for finish reason issues
+    if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+      console.warn('Gemini finish reason:', candidate.finishReason)
+      if (candidate.finishReason === 'SAFETY') {
+        return NextResponse.json(
+          { error: 'Nội dung bị chặn do chính sách an toàn. Vui lòng thử lại.' },
+          { status: 400 }
+        )
+      }
+      if (candidate.finishReason === 'RECITATION') {
+        return NextResponse.json(
+          { error: 'Phản hồi bị chặn do trùng lặp nội dung. Vui lòng thử lại.' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const generatedText = candidate.content?.parts?.[0]?.text || ''
+
+    if (!generatedText || generatedText.trim().length === 0) {
+      console.error('Empty content from Gemini for', symbol, 'Response:', JSON.stringify(data).substring(0, 500))
+      return NextResponse.json(
+        { error: 'Gemini không tạo được nội dung. Vui lòng thử lại sau ít phút.' },
         { status: 500 }
       )
     }
