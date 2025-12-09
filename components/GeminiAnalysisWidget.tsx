@@ -121,147 +121,138 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
         recommendations: any[],
         profitabilityData: any
     ): Promise<GeminiAnalysis | null> => {
+        // Validate input data
+        if (!priceData || priceData.length < 30) {
+            throw new Error('Không đủ dữ liệu giá để phân tích (cần ít nhất 30 ngày)')
+        }
+
+        const closePrices = priceData.map(d => d.adClose)
+        const currentPrice = closePrices[closePrices.length - 1]
+
+        if (!currentPrice || isNaN(currentPrice)) {
+            throw new Error('Giá hiện tại không hợp lệ')
+        }
+
+        const volumes = priceData.map(d => d.nmVolume)
+
+        // Prepare technical data
+        const ma10 = calculateSMA(closePrices, 10)
+        const ma30 = calculateSMA(closePrices, 30)
+        const bb = calculateBollingerBands(closePrices, 20, 2)
+
+        const latestIdx = closePrices.length - 1
+        const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
+        const currentVolume = volumes[volumes.length - 1]
+
+        const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
+        const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
+
+        const high52W = Math.max(...closePrices)
+        const low52W = Math.min(...closePrices)
+
+        // Calculate buy price using pivot points
+        let buyPrice: number | undefined
+        if (priceData.length >= 2) {
+            const latestDay = priceData[priceData.length - 1]
+            const pivots = calculateWoodiePivotPoints(latestDay.adHigh, latestDay.adLow, latestDay.adClose)
+            if (pivots) {
+                buyPrice = pivots.S2
+            }
+        }
+
+        const technicalData = {
+            currentPrice,
+            ma10: ma10[latestIdx],
+            ma30: ma30[latestIdx],
+            bollinger: {
+                upper: bb.upper[latestIdx],
+                middle: bb.middle[latestIdx],
+                lower: bb.lower[latestIdx]
+            },
+            momentum: {
+                day5: priceChange5D,
+                day10: priceChange10D
+            },
+            volume: {
+                current: currentVolume,
+                avg10: avgVolume10,
+                ratio: (currentVolume / avgVolume10) * 100
+            },
+            week52: {
+                high: high52W,
+                low: low52W
+            },
+            buyPrice
+        }
+
+        // Prepare fundamental data with detailed ROE/ROA quarterly data
+        const fundamentalData = {
+            pe: ratios['PRICE_TO_EARNINGS']?.value,
+            pb: ratios['PRICE_TO_BOOK']?.value,
+            roe: ratios['ROAE_TR_AVG5Q']?.value,
+            roa: ratios['ROAA_TR_AVG5Q']?.value,
+            dividendYield: ratios['DIVIDEND_YIELD']?.value,
+            marketCap: ratios['MARKETCAP']?.value,
+            freeFloat: ratios['FREEFLOAT']?.value,
+            eps: ratios['EPS_TR']?.value,
+            bvps: ratios['BVPS_CR']?.value,
+            profitability: profitabilityData ? {
+                quarters: profitabilityData.x || [],
+                metrics: profitabilityData.data || []
+            } : null
+        }
+
+        // Prepare analyst recommendations data (limit to top 10 most recent)
+        const recentRecommendations = recommendations
+            .slice(0, 10)
+            .map(rec => ({
+                firm: rec.firm,
+                type: rec.type,
+                reportDate: rec.reportDate,
+                targetPrice: rec.targetPrice,
+                reportPrice: rec.reportPrice
+            }))
+
+        // Call Gemini API with timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
         try {
-            // Validate input data
-            if (!priceData || priceData.length < 30) {
-                console.warn('Insufficient price data for Gemini analysis')
-                return null
-            }
-
-            const closePrices = priceData.map(d => d.adClose)
-            const currentPrice = closePrices[closePrices.length - 1]
-
-            if (!currentPrice || isNaN(currentPrice)) {
-                console.warn('Invalid current price for Gemini analysis')
-                return null
-            }
-
-            const volumes = priceData.map(d => d.nmVolume)
-
-            // Prepare technical data
-            const ma10 = calculateSMA(closePrices, 10)
-            const ma30 = calculateSMA(closePrices, 30)
-            const bb = calculateBollingerBands(closePrices, 20, 2)
-
-            const latestIdx = closePrices.length - 1
-            const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
-            const currentVolume = volumes[volumes.length - 1]
-
-            const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
-            const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
-
-            const high52W = Math.max(...closePrices)
-            const low52W = Math.min(...closePrices)
-
-            // Calculate buy price using pivot points
-            let buyPrice: number | undefined
-            if (priceData.length >= 2) {
-                const latestDay = priceData[priceData.length - 1]
-                const pivots = calculateWoodiePivotPoints(latestDay.adHigh, latestDay.adLow, latestDay.adClose)
-                if (pivots) {
-                    buyPrice = pivots.S2
-                }
-            }
-
-            const technicalData = {
-                currentPrice,
-                ma10: ma10[latestIdx],
-                ma30: ma30[latestIdx],
-                bollinger: {
-                    upper: bb.upper[latestIdx],
-                    middle: bb.middle[latestIdx],
-                    lower: bb.lower[latestIdx]
+            const response = await fetch('/api/gemini/stock-analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                momentum: {
-                    day5: priceChange5D,
-                    day10: priceChange10D
-                },
-                volume: {
-                    current: currentVolume,
-                    avg10: avgVolume10,
-                    ratio: (currentVolume / avgVolume10) * 100
-                },
-                week52: {
-                    high: high52W,
-                    low: low52W
-                },
-                buyPrice
+                body: JSON.stringify({
+                    symbol,
+                    technicalData,
+                    fundamentalData,
+                    recommendations: recentRecommendations
+                }),
+                signal: controller.signal
+            })
+
+            clearTimeout(timeoutId)
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}))
+                throw new Error(errorData.error || `Lỗi API Gemini: ${response.status}`)
             }
 
-            // Prepare fundamental data with detailed ROE/ROA quarterly data
-            const fundamentalData = {
-                pe: ratios['PRICE_TO_EARNINGS']?.value,
-                pb: ratios['PRICE_TO_BOOK']?.value,
-                roe: ratios['ROAE_TR_AVG5Q']?.value,
-                roa: ratios['ROAA_TR_AVG5Q']?.value,
-                dividendYield: ratios['DIVIDEND_YIELD']?.value,
-                marketCap: ratios['MARKETCAP']?.value,
-                freeFloat: ratios['FREEFLOAT']?.value,
-                eps: ratios['EPS_TR']?.value,
-                bvps: ratios['BVPS_CR']?.value,
-                profitability: profitabilityData ? {
-                    quarters: profitabilityData.x || [],
-                    metrics: profitabilityData.data || []
-                } : null
+            const data = await response.json()
+
+            // Validate response structure
+            if (!data || (!data.shortTerm && !data.longTerm)) {
+                throw new Error('Định dạng phản hồi từ Gemini không hợp lệ')
             }
 
-            // Prepare analyst recommendations data (limit to top 10 most recent)
-            const recentRecommendations = recommendations
-                .slice(0, 10)
-                .map(rec => ({
-                    firm: rec.firm,
-                    type: rec.type,
-                    reportDate: rec.reportDate,
-                    targetPrice: rec.targetPrice,
-                    reportPrice: rec.reportPrice
-                }))
-
-            // Call Gemini API with timeout
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
-            try {
-                const response = await fetch('/api/gemini/stock-analysis', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        symbol,
-                        technicalData,
-                        fundamentalData,
-                        recommendations: recentRecommendations
-                    }),
-                    signal: controller.signal
-                })
-
-                clearTimeout(timeoutId)
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}))
-                    throw new Error(errorData.error || `Gemini API error: ${response.status}`)
-                }
-
-                const data = await response.json()
-
-                // Validate response structure
-                if (!data || (!data.shortTerm && !data.longTerm)) {
-                    console.warn('Invalid Gemini response structure')
-                    return null
-                }
-
-                return data as GeminiAnalysis
-            } catch (fetchError: any) {
-                clearTimeout(timeoutId)
-                if (fetchError.name === 'AbortError') {
-                    console.warn('Gemini API request timed out after 30 seconds')
-                    return null
-                }
-                throw fetchError
+            return data as GeminiAnalysis
+        } catch (fetchError: any) {
+            clearTimeout(timeoutId)
+            if (fetchError.name === 'AbortError') {
+                throw new Error('Yêu cầu đã hết thời gian chờ (30 giây). Vui lòng thử lại.')
             }
-        } catch (error) {
-            console.error('Error fetching Gemini analysis:', error)
-            return null
+            throw fetchError
         }
     }
 
@@ -329,7 +320,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                                     <h5 className="font-semibold text-cyan-300">⚡ Ngắn hạn</h5>
                                     <div className="flex items-center gap-2">
                                         <span className={`px-3 py-1 rounded text-sm font-bold ${geminiAnalysis.shortTerm.signal.includes('MUA') ? 'bg-green-600' :
-                                                geminiAnalysis.shortTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
+                                            geminiAnalysis.shortTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
                                             }`}>
                                             {geminiAnalysis.shortTerm.signal}
                                         </span>
@@ -347,7 +338,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                                     <h5 className="font-semibold text-purple-300">🎯 Dài hạn</h5>
                                     <div className="flex items-center gap-2">
                                         <span className={`px-3 py-1 rounded text-sm font-bold ${geminiAnalysis.longTerm.signal.includes('MUA') ? 'bg-green-600' :
-                                                geminiAnalysis.longTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
+                                            geminiAnalysis.longTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
                                             }`}>
                                             {geminiAnalysis.longTerm.signal}
                                         </span>
