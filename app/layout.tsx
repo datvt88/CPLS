@@ -1,6 +1,5 @@
 import './globals.css'
 import { Providers } from '@/components/Providers'
-import AuthListener from '../components/AuthListener'
 import ConditionalLayout from '../components/ConditionalLayout'
 import AnalyticsScripts from '../components/AnalyticsScripts'
 import SupabaseConfigWarning from '../components/SupabaseConfigWarning'
@@ -84,7 +83,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SupabaseConfigWarning />
           <PersistentSessionManager />
           <div className="bg-[--bg] text-white overflow-x-hidden">
-            <AuthListener />
             <AnalyticsScripts />
             <ConditionalLayout>{children}</ConditionalLayout>
           </div>
