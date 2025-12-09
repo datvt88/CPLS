@@ -35,6 +35,7 @@ interface PermissionsContextValue {
 
   // Loading & Error states
   isLoading: boolean
+  isRevalidating: boolean // Đang revalidate trong background
   isError: boolean
   refresh: () => Promise<void>
 }
@@ -116,24 +117,30 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const [isInitialized, setIsInitialized] = useState(false)
   const initTimeoutRef = useRef<NodeJS.Timeout>()
 
-  const { data, error, isLoading: swrLoading } = useSWR('user-permissions', fetchPermissions, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    dedupingInterval: 60000,
-    fallbackData: DEFAULT_PERMISSIONS,
-    onSuccess: () => {
-      setIsInitialized(true)
+  const { data, error, isLoading: swrLoading, isValidating } = useSWR(
+    'user-permissions',
+    fetchPermissions,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 30000, // Giảm xuống 30s cho responsive hơn
+      fallbackData: DEFAULT_PERMISSIONS,
+      // Giữ data cũ trong khi revalidate để tránh flash
+      keepPreviousData: true,
+      onSuccess: () => {
+        setIsInitialized(true)
+      }
     }
-  })
+  )
 
-  // Safety timeout: force initialize after 8s to prevent infinite loading
+  // Safety timeout: force initialize after 5s to prevent infinite loading
   useEffect(() => {
     initTimeoutRef.current = setTimeout(() => {
       if (!isInitialized) {
         console.warn('⏱️ [PermissionsContext] Init timeout - forcing ready state')
         setIsInitialized(true)
       }
-    }, 8000)
+    }, 5000)
 
     return () => {
       if (initTimeoutRef.current) {
@@ -142,24 +149,18 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
   }, [isInitialized])
 
-  // --- LOGIC RELOAD SAU 60s ---
+  // --- VISIBILITY CHANGE: Revalidate khi quay lại app ---
+  // KHÔNG reload trang, chỉ refresh data ngầm
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        sessionStorage.setItem('last_background_time', Date.now().toString())
-      } else if (document.visibilityState === 'visible') {
-        const lastTime = sessionStorage.getItem('last_background_time')
-        if (lastTime) {
-          const timeAway = Date.now() - parseInt(lastTime)
-          if (timeAway > 60 * 1000) {
-            console.log('⏳ Away > 60s. Reloading...')
-            window.location.reload()
-          } else {
-            mutate('user-permissions')
-          }
-        }
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️ [PermissionsContext] App visible - refreshing permissions...')
+        // Chỉ mutate để refresh, KHÔNG reload trang
+        // SWR sẽ giữ data cũ trong khi fetch mới (keepPreviousData: true)
+        mutate('user-permissions')
       }
     }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [mutate])
@@ -172,8 +173,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     await mutate('user-permissions')
   }
 
-  // isLoading = true chỉ khi chưa initialized VÀ đang fetch
-  // Sau khi initialized (có data lần đầu hoặc timeout), không còn loading nữa
+  // isLoading = true chỉ khi chưa initialized VÀ đang fetch lần đầu
   const isLoading = !isInitialized && swrLoading
 
   const value = useMemo(() => {
@@ -199,10 +199,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
       // Loading & Error states
       isLoading,
+      isRevalidating: isValidating && isInitialized, // Đang refresh ngầm
       isError: !!error,
       refresh
     }
-  }, [data, isLoading, error])
+  }, [data, isLoading, isValidating, isInitialized, error])
 
   return (
     <PermissionsContext.Provider value={value}>
@@ -214,8 +215,6 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 export function usePermissions() {
   const context = useContext(PermissionsContext)
   if (context === undefined) {
-    // Context chưa được wrap - trả về default với isLoading: false
-    // để tránh infinite loading
     console.warn('⚠️ [usePermissions] Called outside of PermissionsProvider')
     return {
       isAuthenticated: false,
@@ -227,7 +226,8 @@ export function usePermissions() {
       isAdmin: false,
       isMod: false,
       hasAdminAccess: false,
-      isLoading: false, // QUAN TRỌNG: false để tránh infinite loading
+      isLoading: false,
+      isRevalidating: false,
       isError: false,
       refresh: async () => {}
     }
