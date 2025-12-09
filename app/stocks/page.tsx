@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic'
 import StockFinancialsWidget from '@/components/StockFinancialsWidget'
 import StockProfitabilityWidget from '@/components/StockProfitabilityWidget'
 import StockProfitStructureWidget from '@/components/StockProfitStructureWidget'
-import StockAIEvaluationWidget from '@/components/StockAIEvaluationWidget'
+import StockSummaryWidget from '@/components/StockSummaryWidget'
+import GeminiAnalysisWidget from '@/components/GeminiAnalysisWidget'
 import StockRecommendationsWidget from '@/components/StockRecommendationsWidget'
 
 // Dynamic import to avoid SSR issues with lightweight-charts
@@ -58,8 +59,11 @@ export default function StocksPage() {
       {/* Stock Recommendations Widget */}
       <StockRecommendationsWidget key={`rec-${currentSymbol}`} symbol={currentSymbol} />
 
-      {/* AI Evaluation Widget */}
-      <StockAIEvaluationWidget key={`ai-${currentSymbol}`} symbol={currentSymbol} />
+      {/* AI Summary Widget */}
+      <StockSummaryWidget key={`summary-${currentSymbol}`} symbol={currentSymbol} />
+
+      {/* Gemini Analysis Widget */}
+      <GeminiAnalysisWidget key={`gemini-${currentSymbol}`} symbol={currentSymbol} />
     </div>
   )
 }
