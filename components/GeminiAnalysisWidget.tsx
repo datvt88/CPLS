@@ -313,7 +313,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                         </p>
                     </div>
                     <button
-                        onClick={handleAnalyze}
+                        onClick={() => handleAnalyze(false)}
                         className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-500/25 transition-all duration-200 flex items-center gap-2 mx-auto"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -451,7 +451,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                     {/* Re-analyze button */}
                     <div className="mt-4 pt-4 border-t border-indigo-700/30 text-center">
                         <button
-                            onClick={handleAnalyze}
+                            onClick={() => handleAnalyze(false)}
                             disabled={loading}
                             className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-sm transition-colors disabled:opacity-50"
                         >
