@@ -356,9 +356,11 @@ function buildStockAnalysisPrompt(
 
 /**
  * Parse and validate Gemini response
+ * Handles both JSON format and plain text key-value format
  */
 function parseGeminiStockAnalysis(text: string): any {
   console.log('🔍 Parsing Gemini response, length:', text.length)
+  console.log('📝 Response preview:', text.substring(0, 300))
 
   // Step 1: Clean up the text - remove markdown code blocks
   let cleaned = text
@@ -367,94 +369,174 @@ function parseGeminiStockAnalysis(text: string): any {
     .replace(/^\s*json\s*/gi, '')
     .trim()
 
-  // Step 2: Try to find JSON object - use non-greedy match to get the first complete JSON
-  // Find opening brace
+  // Step 2: Try to find and parse JSON object
   const startIdx = cleaned.indexOf('{')
-  if (startIdx === -1) {
-    console.error('❌ No JSON object found in Gemini response')
-    console.log('Raw text preview:', text.substring(0, 500))
-    return createFallbackResponse(text)
-  }
+  if (startIdx !== -1) {
+    // Find matching closing brace
+    let braceCount = 0
+    let endIdx = -1
+    for (let i = startIdx; i < cleaned.length; i++) {
+      if (cleaned[i] === '{') braceCount++
+      if (cleaned[i] === '}') braceCount--
+      if (braceCount === 0) {
+        endIdx = i
+        break
+      }
+    }
 
-  // Find matching closing brace
-  let braceCount = 0
-  let endIdx = -1
-  for (let i = startIdx; i < cleaned.length; i++) {
-    if (cleaned[i] === '{') braceCount++
-    if (cleaned[i] === '}') braceCount--
-    if (braceCount === 0) {
-      endIdx = i
-      break
+    if (endIdx !== -1) {
+      const jsonStr = cleaned.substring(startIdx, endIdx + 1)
+      console.log('📝 Extracted JSON length:', jsonStr.length)
+
+      // Try to parse JSON directly
+      try {
+        const parsed = JSON.parse(jsonStr)
+        console.log('✅ JSON parsed successfully on first attempt')
+        return validateAndNormalize(parsed)
+      } catch (firstError) {
+        console.log('⚠️ First JSON parse attempt failed, trying fixes...')
+      }
+
+      // Try with fixes
+      try {
+        let fixedJson = jsonStr
+          .replace(/'/g, '"')
+          .replace(/,(\s*[}\]])/g, '$1')
+          .replace(/"null"/gi, 'null')
+          .replace(/""+/g, '"')
+
+        const parsed = JSON.parse(fixedJson)
+        console.log('✅ JSON parsed successfully after fixes')
+        return validateAndNormalize(parsed)
+      } catch (e) {
+        console.log('⚠️ JSON fix attempts failed, trying text parsing...')
+      }
     }
   }
 
-  if (endIdx === -1) {
-    console.error('❌ No matching closing brace found')
-    return createFallbackResponse(text)
-  }
-
-  const jsonStr = cleaned.substring(startIdx, endIdx + 1)
-  console.log('📝 Extracted JSON length:', jsonStr.length)
-  console.log('📝 JSON preview:', jsonStr.substring(0, 200))
-
-  // Step 3: Try to parse JSON directly first (without fixes)
-  try {
-    const parsed = JSON.parse(jsonStr)
-    console.log('✅ JSON parsed successfully on first attempt')
-    return validateAndNormalize(parsed, text)
-  } catch (firstError) {
-    console.log('⚠️ First parse attempt failed, trying to fix JSON...')
-  }
-
-  try {
-    // Step 4: Apply fixes only if direct parse failed
-    let fixedJson = jsonStr
-      // Fix single quotes to double quotes (but not inside strings)
-      .replace(/'/g, '"')
-      // Remove trailing commas before } or ]
-      .replace(/,(\s*[}\]])/g, '$1')
-      // Fix "null" string to actual null
-      .replace(/"null"/gi, 'null')
-      // Fix common Vietnamese text issues - remove extra quotes
-      .replace(/""+/g, '"')
-
-    // Try parsing after basic fixes
-    try {
-      const parsed = JSON.parse(fixedJson)
-      console.log('✅ JSON parsed successfully after basic fixes')
-      return validateAndNormalize(parsed, text)
-    } catch (e) {
-      // Continue with more aggressive fixes
-    }
-
-    // More aggressive fix: try to fix unquoted keys (only if key is not already quoted)
-    fixedJson = fixedJson.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g, (match, before, key, after) => {
-      // Check if we're inside a string (count unescaped quotes before this position)
-      return `${before}"${key}"${after}`
-    })
-
-    const parsed = JSON.parse(fixedJson)
-    console.log('✅ JSON parsed successfully after aggressive fixes')
-    return validateAndNormalize(parsed, text)
-  } catch (error) {
-    console.error('❌ Failed to parse Gemini JSON:', error)
-    console.log('Attempted to parse:', jsonStr.substring(0, 500))
-
-    // Step 5: Try regex extraction as last resort
-    return extractFromText(jsonStr, text)
-  }
+  // Step 3: Parse as plain text format (shortTerm: signal: MUA, confidence: 60, summary: ...)
+  console.log('📝 Attempting plain text parsing...')
+  return parseTextFormat(cleaned)
 }
 
 /**
- * Validate and normalize parsed JSON
+ * Parse plain text format like:
+ * shortTerm: signal: NẮM GIỮ, confidence: 60, summary: Text here...
+ * longTerm: signal: BÁN, confidence: 70, summary: Text here...
  */
-function validateAndNormalize(parsed: any, rawText: string): any {
-  // Validate we have at least some structure
-  if (!parsed.shortTerm && !parsed.longTerm) {
-    console.error('❌ Invalid structure: missing both shortTerm and longTerm')
-    return extractFromText(JSON.stringify(parsed), rawText)
+function parseTextFormat(text: string): any {
+  console.log('📝 Parsing text format...')
+
+  const result: any = {
+    shortTerm: { signal: 'NẮM GIỮ', confidence: 50, summary: '' },
+    longTerm: { signal: 'NẮM GIỮ', confidence: 50, summary: '' },
+    targetPrice: null,
+    stopLoss: null,
+    risks: [],
+    opportunities: []
   }
 
+  // Helper function to extract value after a key
+  const extractAfter = (text: string, key: string): string => {
+    const regex = new RegExp(`${key}\\s*:\\s*([^,\\n]+)`, 'i')
+    const match = text.match(regex)
+    return match ? match[1].trim() : ''
+  }
+
+  // Helper function to extract summary (can contain commas, so different logic)
+  const extractSummary = (text: string, section: string): string => {
+    // Find the section (shortTerm or longTerm)
+    const sectionRegex = new RegExp(`${section}[^:]*:.*?summary\\s*:\\s*(.+?)(?=(?:longTerm|targetPrice|stopLoss|risks|opportunities|$))`, 'is')
+    const match = text.match(sectionRegex)
+    if (match) {
+      return match[1].trim().replace(/[,\s]+$/, '')
+    }
+    return ''
+  }
+
+  // Parse shortTerm
+  const shortTermMatch = text.match(/shortTerm[^:]*:(.*?)(?=longTerm|targetPrice|stopLoss|risks|opportunities|$)/is)
+  if (shortTermMatch) {
+    const shortTermText = shortTermMatch[1]
+
+    // Extract signal
+    const signalMatch = shortTermText.match(/signal\s*:\s*([^,\n]+)/i)
+    if (signalMatch) {
+      result.shortTerm.signal = signalMatch[1].trim().replace(/["']/g, '')
+    }
+
+    // Extract confidence
+    const confMatch = shortTermText.match(/confidence\s*:\s*(\d+)/i)
+    if (confMatch) {
+      result.shortTerm.confidence = parseInt(confMatch[1], 10)
+    }
+
+    // Extract summary - everything after "summary:"
+    const summaryMatch = shortTermText.match(/summary\s*:\s*(.+)/is)
+    if (summaryMatch) {
+      result.shortTerm.summary = summaryMatch[1].trim().replace(/["']/g, '').replace(/,\s*$/, '')
+    }
+  }
+
+  // Parse longTerm
+  const longTermMatch = text.match(/longTerm[^:]*:(.*?)(?=targetPrice|stopLoss|risks|opportunities|$)/is)
+  if (longTermMatch) {
+    const longTermText = longTermMatch[1]
+
+    const signalMatch = longTermText.match(/signal\s*:\s*([^,\n]+)/i)
+    if (signalMatch) {
+      result.longTerm.signal = signalMatch[1].trim().replace(/["']/g, '')
+    }
+
+    const confMatch = longTermText.match(/confidence\s*:\s*(\d+)/i)
+    if (confMatch) {
+      result.longTerm.confidence = parseInt(confMatch[1], 10)
+    }
+
+    const summaryMatch = longTermText.match(/summary\s*:\s*(.+)/is)
+    if (summaryMatch) {
+      result.longTerm.summary = summaryMatch[1].trim().replace(/["']/g, '').replace(/,\s*$/, '')
+    }
+  }
+
+  // Parse targetPrice
+  const targetMatch = text.match(/targetPrice\s*:\s*["']?([^,"\n]+)["']?/i)
+  if (targetMatch && targetMatch[1].toLowerCase() !== 'null') {
+    result.targetPrice = formatGeminiPrice(targetMatch[1].trim())
+  }
+
+  // Parse stopLoss
+  const stopMatch = text.match(/stopLoss\s*:\s*["']?([^,"\n]+)["']?/i)
+  if (stopMatch && stopMatch[1].toLowerCase() !== 'null') {
+    result.stopLoss = formatGeminiPrice(stopMatch[1].trim())
+  }
+
+  // Parse risks array
+  const risksMatch = text.match(/risks\s*:\s*\[([^\]]+)\]/i)
+  if (risksMatch) {
+    const items = risksMatch[1].match(/"([^"]+)"/g) || risksMatch[1].split(',')
+    result.risks = items
+      .map((r: string) => r.replace(/["']/g, '').trim())
+      .filter((r: string) => r.length > 0 && r.toLowerCase() !== 'null')
+  }
+
+  // Parse opportunities array
+  const oppsMatch = text.match(/opportunities\s*:\s*\[([^\]]+)\]/i)
+  if (oppsMatch) {
+    const items = oppsMatch[1].match(/"([^"]+)"/g) || oppsMatch[1].split(',')
+    result.opportunities = items
+      .map((o: string) => o.replace(/["']/g, '').trim())
+      .filter((o: string) => o.length > 0 && o.toLowerCase() !== 'null')
+  }
+
+  // Validate and provide defaults
+  return validateAndNormalize(result)
+}
+
+/**
+ * Validate and normalize parsed data
+ */
+function validateAndNormalize(parsed: any): any {
   // Create default structures if missing
   if (!parsed.shortTerm) {
     parsed.shortTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích ngắn hạn' }
@@ -463,16 +545,19 @@ function validateAndNormalize(parsed: any, rawText: string): any {
     parsed.longTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích dài hạn' }
   }
 
-  // Validate signals
-  const validSignals = ['MUA', 'BÁN', 'NẮM GIỮ', 'HOLD', 'BUY', 'SELL']
-  if (!parsed.shortTerm.signal || !validSignals.some(s => String(parsed.shortTerm.signal).toUpperCase().includes(s))) {
-    console.warn('⚠️ Invalid shortTerm signal, using default')
-    parsed.shortTerm.signal = 'NẮM GIỮ'
+  // Validate and normalize signals
+  const validSignals = ['MUA', 'BÁN', 'NẮM GIỮ', 'HOLD', 'BUY', 'SELL', 'GIỮ']
+  const normalizeSignal = (signal: string): string => {
+    if (!signal) return 'NẮM GIỮ'
+    const upper = String(signal).toUpperCase()
+    if (upper.includes('MUA') || upper.includes('BUY')) return 'MUA'
+    if (upper.includes('BÁN') || upper.includes('SELL')) return 'BÁN'
+    if (upper.includes('GIỮ') || upper.includes('HOLD')) return 'NẮM GIỮ'
+    return 'NẮM GIỮ'
   }
-  if (!parsed.longTerm.signal || !validSignals.some(s => String(parsed.longTerm.signal).toUpperCase().includes(s))) {
-    console.warn('⚠️ Invalid longTerm signal, using default')
-    parsed.longTerm.signal = 'NẮM GIỮ'
-  }
+
+  parsed.shortTerm.signal = normalizeSignal(parsed.shortTerm.signal)
+  parsed.longTerm.signal = normalizeSignal(parsed.longTerm.signal)
 
   // Ensure summaries exist and are strings
   parsed.shortTerm.summary = String(parsed.shortTerm.summary || 'Đang phân tích...')
@@ -503,162 +588,22 @@ function validateAndNormalize(parsed: any, rawText: string): any {
     ? parsed.opportunities.filter((o: any) => o && typeof o === 'string' && o.trim().length > 0)
     : []
 
-  console.log('✅ Successfully validated and normalized Gemini response')
-  return parsed
-}
-
-/**
- * Extract data from text using regex patterns when JSON parsing fails
- */
-function extractFromText(jsonStr: string, rawText: string): any {
-  console.log('⚠️ Attempting regex extraction from text')
-
-  const result: any = {
-    shortTerm: { signal: 'NẮM GIỮ', confidence: 50, summary: '' },
-    longTerm: { signal: 'NẮM GIỮ', confidence: 50, summary: '' },
-    targetPrice: null,
-    stopLoss: null,
-    risks: [],
-    opportunities: []
+  // If no risks/opportunities, provide informative message
+  if (parsed.risks.length === 0) {
+    parsed.risks = ['Chưa có dữ liệu rủi ro']
+  }
+  if (parsed.opportunities.length === 0) {
+    parsed.opportunities = ['Chưa có dữ liệu cơ hội']
   }
 
-  // Extract shortTerm signal
-  const shortTermSignalMatch = jsonStr.match(/"?shortTerm"?\s*:\s*\{[^}]*"?signal"?\s*:\s*"([^"]+)"/i)
-  if (shortTermSignalMatch) {
-    result.shortTerm.signal = shortTermSignalMatch[1]
-  }
-
-  // Extract shortTerm confidence
-  const shortTermConfMatch = jsonStr.match(/"?shortTerm"?\s*:\s*\{[^}]*"?confidence"?\s*:\s*(\d+)/i)
-  if (shortTermConfMatch) {
-    result.shortTerm.confidence = parseInt(shortTermConfMatch[1], 10)
-  }
-
-  // Extract shortTerm summary
-  const shortTermSummaryMatch = jsonStr.match(/"?shortTerm"?\s*:\s*\{[^}]*"?summary"?\s*:\s*"([^"]+)"/i)
-  if (shortTermSummaryMatch) {
-    result.shortTerm.summary = shortTermSummaryMatch[1]
-  }
-
-  // Extract longTerm signal
-  const longTermSignalMatch = jsonStr.match(/"?longTerm"?\s*:\s*\{[^}]*"?signal"?\s*:\s*"([^"]+)"/i)
-  if (longTermSignalMatch) {
-    result.longTerm.signal = longTermSignalMatch[1]
-  }
-
-  // Extract longTerm confidence
-  const longTermConfMatch = jsonStr.match(/"?longTerm"?\s*:\s*\{[^}]*"?confidence"?\s*:\s*(\d+)/i)
-  if (longTermConfMatch) {
-    result.longTerm.confidence = parseInt(longTermConfMatch[1], 10)
-  }
-
-  // Extract longTerm summary
-  const longTermSummaryMatch = jsonStr.match(/"?longTerm"?\s*:\s*\{[^}]*"?summary"?\s*:\s*"([^"]+)"/i)
-  if (longTermSummaryMatch) {
-    result.longTerm.summary = longTermSummaryMatch[1]
-  }
-
-  // Extract targetPrice
-  const targetPriceMatch = jsonStr.match(/"?targetPrice"?\s*:\s*"?([^",}\]]+)"?/i)
-  if (targetPriceMatch && targetPriceMatch[1] !== 'null') {
-    result.targetPrice = formatGeminiPrice(targetPriceMatch[1].trim())
-  }
-
-  // Extract stopLoss
-  const stopLossMatch = jsonStr.match(/"?stopLoss"?\s*:\s*"?([^",}\]]+)"?/i)
-  if (stopLossMatch && stopLossMatch[1] !== 'null') {
-    result.stopLoss = formatGeminiPrice(stopLossMatch[1].trim())
-  }
-
-  // Extract risks array
-  const risksMatch = jsonStr.match(/"?risks"?\s*:\s*\[([^\]]+)\]/i)
-  if (risksMatch) {
-    const risksContent = risksMatch[1]
-    const riskItems = risksContent.match(/"([^"]+)"/g)
-    if (riskItems) {
-      result.risks = riskItems.map((r: string) => r.replace(/"/g, '').trim()).filter((r: string) => r.length > 0)
-    }
-  }
-
-  // Extract opportunities array
-  const oppsMatch = jsonStr.match(/"?opportunities"?\s*:\s*\[([^\]]+)\]/i)
-  if (oppsMatch) {
-    const oppsContent = oppsMatch[1]
-    const oppItems = oppsContent.match(/"([^"]+)"/g)
-    if (oppItems) {
-      result.opportunities = oppItems.map((o: string) => o.replace(/"/g, '').trim()).filter((o: string) => o.length > 0)
-    }
-  }
-
-  // If still no summary, use fallback
-  if (!result.shortTerm.summary) {
-    result.shortTerm.summary = 'Đang cập nhật phân tích...'
-  }
-  if (!result.longTerm.summary) {
-    result.longTerm.summary = 'Đang cập nhật phân tích...'
-  }
-
-  // If no risks/opportunities extracted, provide default messages
-  if (result.risks.length === 0) {
-    result.risks = ['Dữ liệu rủi ro đang được cập nhật']
-  }
-  if (result.opportunities.length === 0) {
-    result.opportunities = ['Dữ liệu cơ hội đang được cập nhật']
-  }
-
-  console.log('📊 Regex extraction result:', {
-    shortTermSignal: result.shortTerm.signal,
-    longTermSignal: result.longTerm.signal,
-    risksCount: result.risks.length,
-    oppsCount: result.opportunities.length
+  console.log('✅ Validated result:', {
+    shortTerm: parsed.shortTerm.signal,
+    longTerm: parsed.longTerm.signal,
+    risks: parsed.risks.length,
+    opportunities: parsed.opportunities.length
   })
 
-  return result
-}
-
-/**
- * Create a fallback response when JSON parsing fails
- * Attempts to extract useful information from plain text
- */
-function createFallbackResponse(text: string): any {
-  console.log('⚠️ Creating fallback response from text')
-
-  // Try to determine signal from text content
-  const textLower = text.toLowerCase()
-  let signal = 'NẮM GIỮ'
-  let confidence = 50
-
-  if (textLower.includes('mua') || textLower.includes('buy') || textLower.includes('tích cực')) {
-    signal = 'MUA'
-    confidence = 60
-  } else if (textLower.includes('bán') || textLower.includes('sell') || textLower.includes('tiêu cực')) {
-    signal = 'BÁN'
-    confidence = 60
-  }
-
-  // Extract any summary-like content (first 200 chars of meaningful text)
-  const summaryText = text
-    .replace(/[{}"\[\]]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .substring(0, 200)
-
-  return {
-    shortTerm: {
-      signal: signal,
-      confidence: confidence,
-      summary: summaryText || 'Gemini AI đã phân tích nhưng không thể trích xuất kết quả chi tiết.'
-    },
-    longTerm: {
-      signal: signal,
-      confidence: confidence,
-      summary: 'Vui lòng thử lại để có kết quả phân tích chi tiết hơn.'
-    },
-    targetPrice: null,
-    stopLoss: null,
-    risks: ['Không thể trích xuất thông tin rủi ro từ phản hồi AI'],
-    opportunities: ['Không thể trích xuất thông tin cơ hội từ phản hồi AI']
-  }
+  return parsed
 }
 
 /**
