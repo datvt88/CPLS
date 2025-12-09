@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
 
@@ -26,6 +26,24 @@ interface GeminiAnalysis {
     rawText?: string
 }
 
+// Helper function to get signal background color class
+function getSignalColorClass(signal: string | undefined): string {
+    if (!signal) return 'bg-gray-600'
+    const upperSignal = signal.toUpperCase()
+    if (upperSignal.includes('MUA')) return 'bg-green-600'
+    if (upperSignal.includes('BÁN')) return 'bg-red-600'
+    return 'bg-yellow-600'
+}
+
+// Helper function to safely calculate price change percentage
+function calculatePriceChange(prices: number[], daysAgo: number): number {
+    if (prices.length < daysAgo + 1) return 0
+    const currentPrice = prices[prices.length - 1]
+    const previousPrice = prices[prices.length - 1 - daysAgo]
+    if (!previousPrice || previousPrice === 0) return 0
+    return ((currentPrice - previousPrice) / previousPrice) * 100
+}
+
 // Helper function to get current date in Vietnam timezone (GMT+7)
 function getVietnamDate(): Date {
     const now = new Date()
@@ -48,7 +66,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
     const [error, setError] = useState<string | null>(null)
     const [hasAnalyzed, setHasAnalyzed] = useState(false)
 
-    const handleAnalyze = async () => {
+    const handleAnalyze = useCallback(async () => {
         if (!symbol) return
 
         setLoading(true)
@@ -107,15 +125,15 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                 console.error('❌ fetchGeminiAnalysis returned null for:', symbol)
                 throw new Error('Không nhận được kết quả phân tích từ Gemini. Vui lòng thử lại.')
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('❌ Error performing Gemini analysis:', err)
             // Show more detailed error message
-            const errorMessage = err.message || 'Không thể thực hiện phân tích Gemini'
+            const errorMessage = err instanceof Error ? err.message : 'Không thể thực hiện phân tích Gemini'
             setError(errorMessage)
         } finally {
             setLoading(false)
         }
-    }
+    }, [symbol])
 
     const fetchGeminiAnalysis = async (
         symbol: string,
@@ -147,8 +165,8 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
         const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
         const currentVolume = volumes[volumes.length - 1]
 
-        const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
-        const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
+        const priceChange5D = calculatePriceChange(closePrices, 5)
+        const priceChange10D = calculatePriceChange(closePrices, 10)
 
         const high52W = Math.max(...closePrices)
         const low52W = Math.min(...closePrices)
@@ -331,12 +349,10 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                                 <div className="flex items-center justify-between mb-3">
                                     <h5 className="font-semibold text-cyan-300">⚡ Ngắn hạn</h5>
                                     <div className="flex items-center gap-2">
-                                        <span className={`px-3 py-1 rounded text-sm font-bold ${geminiAnalysis.shortTerm.signal.includes('MUA') ? 'bg-green-600' :
-                                            geminiAnalysis.shortTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
-                                            }`}>
-                                            {geminiAnalysis.shortTerm.signal}
+                                        <span className={`px-3 py-1 rounded text-sm font-bold ${getSignalColorClass(geminiAnalysis.shortTerm.signal)}`}>
+                                            {geminiAnalysis.shortTerm.signal || 'N/A'}
                                         </span>
-                                        <span className="text-sm text-gray-400">{geminiAnalysis.shortTerm.confidence}%</span>
+                                        <span className="text-sm text-gray-400">{geminiAnalysis.shortTerm.confidence ?? 0}%</span>
                                     </div>
                                 </div>
                                 <p className="text-sm text-gray-300 leading-relaxed">{geminiAnalysis.shortTerm.summary}</p>
@@ -349,12 +365,10 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                                 <div className="flex items-center justify-between mb-3">
                                     <h5 className="font-semibold text-purple-300">🎯 Dài hạn</h5>
                                     <div className="flex items-center gap-2">
-                                        <span className={`px-3 py-1 rounded text-sm font-bold ${geminiAnalysis.longTerm.signal.includes('MUA') ? 'bg-green-600' :
-                                            geminiAnalysis.longTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
-                                            }`}>
-                                            {geminiAnalysis.longTerm.signal}
+                                        <span className={`px-3 py-1 rounded text-sm font-bold ${getSignalColorClass(geminiAnalysis.longTerm.signal)}`}>
+                                            {geminiAnalysis.longTerm.signal || 'N/A'}
                                         </span>
-                                        <span className="text-sm text-gray-400">{geminiAnalysis.longTerm.confidence}%</span>
+                                        <span className="text-sm text-gray-400">{geminiAnalysis.longTerm.confidence ?? 0}%</span>
                                     </div>
                                 </div>
                                 <p className="text-sm text-gray-300 leading-relaxed">{geminiAnalysis.longTerm.summary}</p>
