@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
 
-    // Call Gemini API
+    // Call Gemini API with JSON response mode
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
       {
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 2048,
+            responseMimeType: 'application/json',
           },
         }),
       }
@@ -85,12 +86,40 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+    // Check for blocked content or safety issues
+    if (data.promptFeedback?.blockReason) {
+      console.error('Gemini blocked content:', data.promptFeedback.blockReason)
+      return NextResponse.json(
+        { error: `Nội dung bị chặn: ${data.promptFeedback.blockReason}` },
+        { status: 400 }
+      )
+    }
+
+    // Check for empty candidates or safety finish reason
+    const candidate = data.candidates?.[0]
+    if (!candidate) {
+      console.error('No candidates in Gemini response for', symbol, JSON.stringify(data).substring(0, 500))
+      return NextResponse.json(
+        { error: 'Không nhận được phản hồi từ Gemini. Vui lòng thử lại.' },
+        { status: 500 }
+      )
+    }
+
+    if (candidate.finishReason === 'SAFETY') {
+      console.error('Gemini response blocked due to safety for', symbol)
+      return NextResponse.json(
+        { error: 'Phản hồi bị chặn do chính sách an toàn. Vui lòng thử lại.' },
+        { status: 400 }
+      )
+    }
+
+    const generatedText = candidate.content?.parts?.[0]?.text || ''
 
     if (!generatedText) {
-      console.error('No content generated from Gemini for', symbol)
+      console.error('No content generated from Gemini for', symbol, 'finishReason:', candidate.finishReason)
       return NextResponse.json(
-        { error: 'No content generated from Gemini' },
+        { error: 'Không có nội dung được tạo từ Gemini. Vui lòng thử lại.' },
         { status: 500 }
       )
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
 
@@ -277,9 +277,9 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             }
 
             return data as GeminiAnalysis
-        } catch (fetchError: any) {
+        } catch (fetchError: unknown) {
             clearTimeout(timeoutId)
-            if (fetchError.name === 'AbortError') {
+            if (fetchError instanceof Error && fetchError.name === 'AbortError') {
                 throw new Error('Yêu cầu đã hết thời gian chờ (30 giây). Vui lòng thử lại.')
             }
             throw fetchError
