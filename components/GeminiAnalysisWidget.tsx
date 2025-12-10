@@ -11,7 +11,7 @@ import {
 } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
 import { formatPrice } from '@/utils/formatters' // Import hàm format giá
-import { usePermissions } from '@/components/providers/PermissionsContext'
+import { usePermissions } from '@/contexts/PermissionsContext'
 import Link from 'next/link'
 
 // --- 1. TYPES ---
