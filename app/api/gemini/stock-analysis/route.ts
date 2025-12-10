@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
 
-    // Call Gemini API
+    // Call Gemini API with JSON mode
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
       {
@@ -51,10 +51,11 @@ export async function POST(request: NextRequest) {
             },
           ],
           generationConfig: {
-            temperature: 0.7,
+            temperature: 0.5,  // Lower temperature for more consistent JSON output
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 2048,
+            responseMimeType: 'application/json',  // Force JSON response
           },
         }),
       }

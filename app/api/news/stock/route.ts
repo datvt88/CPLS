@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
               topK: 40,
               topP: 0.95,
               maxOutputTokens: 2048,
+              responseMimeType: 'application/json',  // Force JSON response
             },
           }),
         }
@@ -181,12 +182,17 @@ async function fetchNewsWithoutSearch(
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 1024,
+            responseMimeType: 'application/json',  // Force JSON response
           },
         }),
       }
     )
 
+    console.log('📡 Fallback news API response status:', response.status)
+
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Fallback news API error:', response.status, errorText)
       return NextResponse.json(
         { error: 'Failed to fetch news' },
         { status: response.status }
@@ -195,6 +201,7 @@ async function fetchNewsWithoutSearch(
 
     const data = await response.json()
     const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    console.log('📰 Fallback news response length:', generatedText.length)
 
     const news = parseNewsResponse(generatedText)
 
