@@ -10,19 +10,20 @@ interface GeminiDeepAnalysisWidgetProps {
 
 interface GeminiAnalysis {
     shortTerm?: {
-        signal: string
+        signal: string  // 'MUA', 'BÁN', 'THEO DÕI'
         confidence: number
         summary: string
     }
     longTerm?: {
-        signal: string
+        signal: string  // 'MUA', 'BÁN', 'THEO DÕI'
         confidence: number
         summary: string
     }
-    targetPrice?: string
-    stopLoss?: string
-    risks?: string[]
-    opportunities?: string[]
+    buyPrice?: string | null  // Giá khuyến nghị mua
+    targetPrice?: string | null  // Giá mục tiêu
+    stopLoss?: string | null  // Mức cắt lỗ
+    risks?: string[]  // Đúng 3 rủi ro
+    opportunities?: string[]  // Đúng 3 cơ hội
     rawText?: string
 }
 
@@ -325,73 +326,118 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             {geminiAnalysis && (
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4">
-                        {/* Gemini Short-term */}
+                        {/* Gemini Short-term - 70% Technical */}
                         {geminiAnalysis.shortTerm && (
                             <div className="bg-cyan-900/20 rounded-lg p-3 sm:p-4 border border-cyan-700/30">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h5 className="font-semibold text-cyan-300">⚡ Ngắn hạn</h5>
+                                    <div>
+                                        <h5 className="font-semibold text-cyan-300">⚡ Ngắn hạn (1-4 tuần)</h5>
+                                        <p className="text-xs text-gray-500">70% Kỹ thuật + 30% Cơ bản</p>
+                                    </div>
                                     <div className="flex items-center gap-2">
-                                        <span className={`px-3 py-1 rounded text-sm font-bold ${geminiAnalysis.shortTerm.signal.includes('MUA') ? 'bg-green-600' :
-                                            geminiAnalysis.shortTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
-                                            }`}>
-                                            {geminiAnalysis.shortTerm.signal}
+                                        <span className={`px-3 py-1 rounded text-sm font-bold ${
+                                            geminiAnalysis.shortTerm.signal === 'MUA' ? 'bg-green-600' :
+                                            geminiAnalysis.shortTerm.signal === 'BÁN' ? 'bg-red-600' : 'bg-amber-600'
+                                        }`}>
+                                            {geminiAnalysis.shortTerm.signal === 'MUA' ? '📈 MUA' :
+                                             geminiAnalysis.shortTerm.signal === 'BÁN' ? '📉 BÁN' : '👀 THEO DÕI'}
                                         </span>
                                         <span className="text-sm text-gray-400">{geminiAnalysis.shortTerm.confidence}%</span>
                                     </div>
+                                </div>
+                                {/* Confidence Bar */}
+                                <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
+                                    <div
+                                        className={`h-2 rounded-full transition-all ${
+                                            geminiAnalysis.shortTerm.signal === 'MUA' ? 'bg-green-500' :
+                                            geminiAnalysis.shortTerm.signal === 'BÁN' ? 'bg-red-500' : 'bg-amber-500'
+                                        }`}
+                                        style={{ width: `${geminiAnalysis.shortTerm.confidence}%` }}
+                                    ></div>
                                 </div>
                                 <p className="text-sm text-gray-300 leading-relaxed">{geminiAnalysis.shortTerm.summary}</p>
                             </div>
                         )}
 
-                        {/* Gemini Long-term */}
+                        {/* Gemini Long-term - 70% Fundamental */}
                         {geminiAnalysis.longTerm && (
                             <div className="bg-purple-900/20 rounded-lg p-3 sm:p-4 border border-purple-700/30">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h5 className="font-semibold text-purple-300">🎯 Dài hạn</h5>
+                                    <div>
+                                        <h5 className="font-semibold text-purple-300">🎯 Dài hạn (3-12 tháng)</h5>
+                                        <p className="text-xs text-gray-500">70% Cơ bản + 30% Kỹ thuật</p>
+                                    </div>
                                     <div className="flex items-center gap-2">
-                                        <span className={`px-3 py-1 rounded text-sm font-bold ${geminiAnalysis.longTerm.signal.includes('MUA') ? 'bg-green-600' :
-                                            geminiAnalysis.longTerm.signal.includes('BÁN') ? 'bg-red-600' : 'bg-yellow-600'
-                                            }`}>
-                                            {geminiAnalysis.longTerm.signal}
+                                        <span className={`px-3 py-1 rounded text-sm font-bold ${
+                                            geminiAnalysis.longTerm.signal === 'MUA' ? 'bg-green-600' :
+                                            geminiAnalysis.longTerm.signal === 'BÁN' ? 'bg-red-600' : 'bg-amber-600'
+                                        }`}>
+                                            {geminiAnalysis.longTerm.signal === 'MUA' ? '📈 MUA' :
+                                             geminiAnalysis.longTerm.signal === 'BÁN' ? '📉 BÁN' : '👀 THEO DÕI'}
                                         </span>
                                         <span className="text-sm text-gray-400">{geminiAnalysis.longTerm.confidence}%</span>
                                     </div>
+                                </div>
+                                {/* Confidence Bar */}
+                                <div className="w-full bg-gray-700 rounded-full h-2 mb-3">
+                                    <div
+                                        className={`h-2 rounded-full transition-all ${
+                                            geminiAnalysis.longTerm.signal === 'MUA' ? 'bg-green-500' :
+                                            geminiAnalysis.longTerm.signal === 'BÁN' ? 'bg-red-500' : 'bg-amber-500'
+                                        }`}
+                                        style={{ width: `${geminiAnalysis.longTerm.confidence}%` }}
+                                    ></div>
                                 </div>
                                 <p className="text-sm text-gray-300 leading-relaxed">{geminiAnalysis.longTerm.summary}</p>
                             </div>
                         )}
                     </div>
 
-                    {/* Price Targets and Stop Loss */}
-                    {(geminiAnalysis.targetPrice || geminiAnalysis.stopLoss) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
-                            {geminiAnalysis.targetPrice && (
-                                <div className="bg-green-900/20 rounded-lg p-3 border border-green-700/30">
-                                    <div className="text-xs text-gray-400 mb-1">🎯 Giá mục tiêu</div>
-                                    <div className="text-base sm:text-lg font-bold text-green-400">{geminiAnalysis.targetPrice}</div>
-                                </div>
-                            )}
-                            {geminiAnalysis.stopLoss && (
-                                <div className="bg-red-900/20 rounded-lg p-3 border border-red-700/30">
-                                    <div className="text-xs text-gray-400 mb-1">🛑 Mức cắt lỗ</div>
-                                    <div className="text-base sm:text-lg font-bold text-red-400">{geminiAnalysis.stopLoss}</div>
-                                </div>
-                            )}
+                    {/* Price Recommendations - Only show when signal is MUA */}
+                    {(geminiAnalysis.shortTerm?.signal === 'MUA' || geminiAnalysis.longTerm?.signal === 'MUA') &&
+                     (geminiAnalysis.buyPrice || geminiAnalysis.targetPrice || geminiAnalysis.stopLoss) && (
+                        <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-lg p-4 border border-green-700/30 mb-4">
+                            <h5 className="font-semibold text-green-300 mb-3 flex items-center gap-2">
+                                💰 Khuyến nghị giá (Khi tín hiệu MUA)
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {geminiAnalysis.buyPrice && (
+                                    <div className="bg-blue-900/30 rounded-lg p-3 border border-blue-700/30">
+                                        <div className="text-xs text-gray-400 mb-1">🛒 Giá khuyến nghị MUA</div>
+                                        <div className="text-lg font-bold text-blue-400">{geminiAnalysis.buyPrice}</div>
+                                        <div className="text-xs text-gray-500 mt-1">Vùng mua tốt</div>
+                                    </div>
+                                )}
+                                {geminiAnalysis.targetPrice && (
+                                    <div className="bg-green-900/30 rounded-lg p-3 border border-green-700/30">
+                                        <div className="text-xs text-gray-400 mb-1">🎯 Giá mục tiêu</div>
+                                        <div className="text-lg font-bold text-green-400">{geminiAnalysis.targetPrice}</div>
+                                        <div className="text-xs text-gray-500 mt-1">Chốt lời</div>
+                                    </div>
+                                )}
+                                {geminiAnalysis.stopLoss && (
+                                    <div className="bg-red-900/30 rounded-lg p-3 border border-red-700/30">
+                                        <div className="text-xs text-gray-400 mb-1">🛑 Mức CẮT LỖ</div>
+                                        <div className="text-lg font-bold text-red-400">{geminiAnalysis.stopLoss}</div>
+                                        <div className="text-xs text-yellow-400 mt-1">⚠️ Thoát nếu phá vỡ</div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
-                    {/* Risks and Opportunities */}
+                    {/* Risks and Opportunities - Always show exactly 3 each */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                        {/* Risks */}
+                        {/* 3 Risks */}
                         {geminiAnalysis.risks && geminiAnalysis.risks.length > 0 && (
                             <div className="bg-red-900/10 rounded-lg p-3 sm:p-4 border border-red-700/20">
-                                <h5 className="text-xs sm:text-sm font-semibold text-red-400 mb-2 flex items-center gap-2">
-                                    ⚠️ Rủi ro
+                                <h5 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
+                                    ⚠️ 3 Rủi ro chính
                                 </h5>
-                                <ul className="space-y-1">
-                                    {geminiAnalysis.risks.map((risk, idx) => (
-                                        <li key={idx} className="text-xs text-gray-300 flex items-start gap-2">
-                                            <span className="text-red-400 mt-0.5 flex-shrink-0">•</span>
+                                <ul className="space-y-2">
+                                    {geminiAnalysis.risks.slice(0, 3).map((risk, idx) => (
+                                        <li key={idx} className="text-sm text-gray-300 flex items-start gap-2 bg-red-900/10 rounded p-2">
+                                            <span className="text-red-400 font-bold flex-shrink-0">{idx + 1}.</span>
                                             <span className="break-words">{risk}</span>
                                         </li>
                                     ))}
@@ -399,16 +445,16 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                             </div>
                         )}
 
-                        {/* Opportunities */}
+                        {/* 3 Opportunities */}
                         {geminiAnalysis.opportunities && geminiAnalysis.opportunities.length > 0 && (
                             <div className="bg-green-900/10 rounded-lg p-3 sm:p-4 border border-green-700/20">
-                                <h5 className="text-xs sm:text-sm font-semibold text-green-400 mb-2 flex items-center gap-2">
-                                    💡 Cơ hội
+                                <h5 className="text-sm font-semibold text-green-400 mb-3 flex items-center gap-2">
+                                    💡 3 Cơ hội chính
                                 </h5>
-                                <ul className="space-y-1">
-                                    {geminiAnalysis.opportunities.map((opp, idx) => (
-                                        <li key={idx} className="text-xs text-gray-300 flex items-start gap-2">
-                                            <span className="text-green-400 mt-0.5 flex-shrink-0">•</span>
+                                <ul className="space-y-2">
+                                    {geminiAnalysis.opportunities.slice(0, 3).map((opp, idx) => (
+                                        <li key={idx} className="text-sm text-gray-300 flex items-start gap-2 bg-green-900/10 rounded p-2">
+                                            <span className="text-green-400 font-bold flex-shrink-0">{idx + 1}.</span>
                                             <span className="break-words">{opp}</span>
                                         </li>
                                     ))}

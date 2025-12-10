@@ -96,11 +96,18 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📝 Gemini raw response length:', generatedText.length)
+    console.log('📝 Raw response preview:', generatedText.substring(0, 300))
 
     // Parse and validate the response (always returns a result with fallback)
-    const result = parseGeminiStockAnalysis(generatedText)
+    const result = parseGeminiStockAnalysis(generatedText, technicalData?.currentPrice)
 
-    console.log('✅ Gemini analysis completed for', symbol)
+    console.log('✅ Gemini analysis completed for', symbol, {
+      shortTerm: result.shortTerm?.signal,
+      longTerm: result.longTerm?.signal,
+      buyPrice: result.buyPrice,
+      targetPrice: result.targetPrice,
+      stopLoss: result.stopLoss
+    })
 
     return NextResponse.json({
       ...result,
@@ -118,6 +125,8 @@ export async function POST(request: NextRequest) {
 
 /**
  * Build comprehensive analysis prompt combining technical, fundamental data and analyst recommendations
+ * Short-term: 70% Technical + 30% Fundamental
+ * Long-term: 70% Fundamental + 30% Technical
  */
 function buildStockAnalysisPrompt(
   symbol: string,
@@ -125,41 +134,42 @@ function buildStockAnalysisPrompt(
   fundamentalData?: any,
   recommendations?: any[]
 ): string {
-  let prompt = `Bạn là chuyên gia phân tích chứng khoán. Hãy phân tích cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
+  let prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích chuyên sâu cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
 
   // Technical Analysis Section
   if (technicalData) {
-    prompt += `📊 PHÂN TÍCH KỸ THUẬT:\n`
-    prompt += `Giá hiện tại: ${technicalData.currentPrice?.toFixed(2)}\n`
+    prompt += `📊 DỮ LIỆU KỸ THUẬT:\n`
+    prompt += `Giá hiện tại: ${technicalData.currentPrice?.toFixed(2)} (x1000 VNĐ)\n`
 
     if (technicalData.ma10 && technicalData.ma30) {
       const maDiff = ((technicalData.ma10 - technicalData.ma30) / technicalData.ma30 * 100).toFixed(2)
-      prompt += `MA10: ${technicalData.ma10.toFixed(2)} | MA30: ${technicalData.ma30.toFixed(2)} (Chênh lệch: ${maDiff}%)\n`
+      const maSignal = technicalData.ma10 > technicalData.ma30 ? 'TĂNG' : 'GIẢM'
+      prompt += `MA10: ${technicalData.ma10.toFixed(2)} | MA30: ${technicalData.ma30.toFixed(2)} | Chênh lệch: ${maDiff}% | Xu hướng: ${maSignal}\n`
     }
 
     if (technicalData.bollinger) {
       const bandPosition = ((technicalData.currentPrice - technicalData.bollinger.lower) /
                            (technicalData.bollinger.upper - technicalData.bollinger.lower) * 100).toFixed(1)
-      prompt += `Bollinger Bands: Upper=${technicalData.bollinger.upper.toFixed(2)}, Middle=${technicalData.bollinger.middle.toFixed(2)}, Lower=${technicalData.bollinger.lower.toFixed(2)}\n`
-      prompt += `Vị trí giá trong band: ${bandPosition}%\n`
+      prompt += `Bollinger: Upper=${technicalData.bollinger.upper.toFixed(2)}, Middle=${technicalData.bollinger.middle.toFixed(2)}, Lower=${technicalData.bollinger.lower.toFixed(2)}\n`
+      prompt += `Vị trí trong Bollinger: ${bandPosition}%\n`
     }
 
     if (technicalData.momentum) {
-      prompt += `Động lượng 5 ngày: ${technicalData.momentum.day5?.toFixed(2)}% | 10 ngày: ${technicalData.momentum.day10?.toFixed(2)}%\n`
+      prompt += `Momentum 5 ngày: ${technicalData.momentum.day5?.toFixed(2)}% | 10 ngày: ${technicalData.momentum.day10?.toFixed(2)}%\n`
     }
 
     if (technicalData.volume) {
-      prompt += `Khối lượng hiện tại: ${technicalData.volume.current?.toLocaleString()} | TB 10 ngày: ${technicalData.volume.avg10?.toLocaleString()} (Tỷ lệ: ${technicalData.volume.ratio?.toFixed(0)}%)\n`
+      prompt += `Khối lượng: ${technicalData.volume.current?.toLocaleString()} | TB 10 ngày: ${technicalData.volume.avg10?.toLocaleString()} | Tỷ lệ: ${technicalData.volume.ratio?.toFixed(0)}%\n`
     }
 
     if (technicalData.week52) {
       const position = ((technicalData.currentPrice - technicalData.week52.low) /
                        (technicalData.week52.high - technicalData.week52.low) * 100).toFixed(0)
-      prompt += `52-Week Range: ${technicalData.week52.low?.toFixed(2)} - ${technicalData.week52.high?.toFixed(2)} (Vị trí: ${position}%)\n`
+      prompt += `52 tuần: ${technicalData.week52.low?.toFixed(2)} - ${technicalData.week52.high?.toFixed(2)} | Vị trí: ${position}%\n`
     }
 
     if (technicalData.buyPrice) {
-      prompt += `Giá khuyến nghị mua (Buy T+ S2): ${technicalData.buyPrice.toFixed(2)}\n`
+      prompt += `Hỗ trợ kỹ thuật (S2): ${technicalData.buyPrice.toFixed(2)}\n`
     }
 
     prompt += `\n`
@@ -167,14 +177,14 @@ function buildStockAnalysisPrompt(
 
   // Fundamental Analysis Section
   if (fundamentalData) {
-    prompt += `💰 PHÂN TÍCH CƠ BẢN:\n`
+    prompt += `💰 DỮ LIỆU CƠ BẢN:\n`
 
     if (fundamentalData.pe !== undefined) {
-      prompt += `P/E Ratio: ${fundamentalData.pe.toFixed(2)}\n`
+      prompt += `P/E: ${fundamentalData.pe.toFixed(2)}\n`
     }
 
     if (fundamentalData.pb !== undefined) {
-      prompt += `P/B Ratio: ${fundamentalData.pb.toFixed(2)}\n`
+      prompt += `P/B: ${fundamentalData.pb.toFixed(2)}\n`
     }
 
     if (fundamentalData.roe !== undefined) {
@@ -186,56 +196,35 @@ function buildStockAnalysisPrompt(
     }
 
     if (fundamentalData.dividendYield !== undefined) {
-      prompt += `Dividend Yield: ${(fundamentalData.dividendYield * 100).toFixed(2)}%\n`
+      prompt += `Cổ tức: ${(fundamentalData.dividendYield * 100).toFixed(2)}%\n`
     }
 
     if (fundamentalData.marketCap !== undefined) {
       prompt += `Vốn hóa: ${(fundamentalData.marketCap / 1000000000000).toFixed(2)} nghìn tỷ\n`
     }
 
-    if (fundamentalData.freeFloat !== undefined) {
-      prompt += `Free Float: ${(fundamentalData.freeFloat * 100).toFixed(2)}%\n`
-    }
-
     if (fundamentalData.eps !== undefined) {
       prompt += `EPS: ${fundamentalData.eps.toFixed(2)}\n`
     }
 
-    if (fundamentalData.bvps !== undefined) {
-      prompt += `BVPS: ${fundamentalData.bvps.toFixed(2)}\n`
-    }
-
     // Add detailed profitability data if available
     if (fundamentalData.profitability && fundamentalData.profitability.metrics && fundamentalData.profitability.metrics.length > 0) {
-      prompt += `\n📈 HIỆU QUẢ HOẠT ĐỘNG (5 QUÝ GẦN NHẤT):\n`
+      prompt += `\n📈 HIỆU QUẢ HOẠT ĐỘNG (5 QUÝ):\n`
 
       const { quarters, metrics } = fundamentalData.profitability
       metrics.forEach((metric: any) => {
         if (metric.label && metric.y && metric.y.length > 0) {
-          prompt += `\n${metric.label} (%): `
+          prompt += `${metric.label}: `
           const reversedQuarters = [...quarters].reverse()
           const reversedValues = [...metric.y].reverse()
           reversedQuarters.forEach((q: string, i: number) => {
             prompt += `${q}: ${reversedValues[i].toFixed(2)}%${i < reversedQuarters.length - 1 ? ', ' : ''}`
           })
 
-          // Calculate trend
           const latest = metric.y[metric.y.length - 1]
           const oldest = metric.y[0]
           const trend = latest - oldest
-          const trendPercent = ((trend / oldest) * 100).toFixed(1)
-
-          if (trend > 0) {
-            prompt += ` (📈 Xu hướng tăng +${trend.toFixed(2)}%, ${trendPercent}%)\n`
-          } else if (trend < 0) {
-            prompt += ` (📉 Xu hướng giảm ${trend.toFixed(2)}%, ${trendPercent}%)\n`
-          } else {
-            prompt += ` (➡️ Ổn định)\n`
-          }
-
-          if (metric.tooltip) {
-            prompt += `   ${metric.tooltip}\n`
-          }
+          prompt += trend > 0 ? ` (tăng ${trend.toFixed(2)}%)\n` : trend < 0 ? ` (giảm ${Math.abs(trend).toFixed(2)}%)\n` : ` (ổn định)\n`
         }
       })
     }
@@ -245,82 +234,68 @@ function buildStockAnalysisPrompt(
 
   // Analyst Recommendations Section
   if (recommendations && recommendations.length > 0) {
-    prompt += `📋 KHUYẾN NGHỊ TỪ CÁC CÔNG TY CHỨNG KHOÁN:\n`
+    prompt += `📋 KHUYẾN NGHỊ CTCK:\n`
 
-    // Group recommendations by type
     const buyRecs = recommendations.filter(r => r.type?.toUpperCase() === 'BUY' || r.type?.toUpperCase() === 'MUA')
     const holdRecs = recommendations.filter(r => r.type?.toUpperCase() === 'HOLD' || r.type?.toUpperCase() === 'GIỮ')
     const sellRecs = recommendations.filter(r => r.type?.toUpperCase() === 'SELL' || r.type?.toUpperCase() === 'BÁN')
 
-    prompt += `Tổng số khuyến nghị: ${recommendations.length} (${buyRecs.length} MUA, ${holdRecs.length} GIỮ, ${sellRecs.length} BÁN)\n\n`
-
-    // Show top 5 most recent recommendations
-    const topRecs = recommendations.slice(0, 5)
-    topRecs.forEach((rec, idx) => {
-      prompt += `${idx + 1}. ${rec.firm || 'N/A'} - ${rec.type || 'N/A'} (${rec.reportDate || 'N/A'})\n`
-      if (rec.targetPrice) {
-        prompt += `   Giá mục tiêu: ${rec.targetPrice}\n`
-      }
-      if (rec.reportPrice) {
-        prompt += `   Giá tại thời điểm báo cáo: ${rec.reportPrice}\n`
-      }
-    })
-
-    // Calculate consensus
     const totalRecs = recommendations.length
-    const buyPercent = ((buyRecs.length / totalRecs) * 100).toFixed(0)
-    const holdPercent = ((holdRecs.length / totalRecs) * 100).toFixed(0)
-    const sellPercent = ((sellRecs.length / totalRecs) * 100).toFixed(0)
+    prompt += `Tổng: ${totalRecs} (MUA: ${buyRecs.length}, GIỮ: ${holdRecs.length}, BÁN: ${sellRecs.length})\n`
 
-    prompt += `\nĐồng thuận thị trường: ${buyPercent}% MUA, ${holdPercent}% GIỮ, ${sellPercent}% BÁN\n`
-
-    // Calculate average target price if available
     const recsWithTarget = recommendations.filter(r => r.targetPrice && !isNaN(r.targetPrice))
     if (recsWithTarget.length > 0) {
       const avgTarget = recsWithTarget.reduce((sum, r) => sum + r.targetPrice, 0) / recsWithTarget.length
-      prompt += `Giá mục tiêu trung bình: ${avgTarget.toFixed(2)} (từ ${recsWithTarget.length} khuyến nghị)\n`
+      prompt += `Giá mục tiêu TB: ${avgTarget.toFixed(2)}\n`
     }
 
     prompt += `\n`
   }
 
-  // Analysis Instructions
-  prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n`
-  prompt += `1. Phân tích tổng hợp các chỉ số kỹ thuật và cơ bản\n`
-  prompt += `2. Đánh giá xu hướng ngắn hạn (1-4 tuần) và dài hạn (3-12 tháng)\n`
-  prompt += `3. Phân tích xu hướng ROE/ROA qua các quý (nếu có dữ liệu chi tiết)\n`
-  prompt += `4. Xác định mức hỗ trợ và kháng cự quan trọng\n`
-  prompt += `5. Tham khảo đồng thuận từ các công ty chứng khoán (nếu có)\n`
-  prompt += `6. Đưa ra khuyến nghị: MUA, BÁN, hoặc NẮM GIỮ\n`
-  prompt += `7. Đề xuất mức giá mục tiêu và điểm cắt lỗ (nếu khuyến nghị MUA)\n`
-  prompt += `8. Đánh giá rủi ro và cơ hội, đặc biệt chú ý đến xu hướng hiệu quả hoạt động\n\n`
+  // Analysis Instructions with weighted methodology
+  prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n\n`
 
-  prompt += `📋 FORMAT TRẢ VỀ:\n`
-  prompt += `BẮT BUỘC trả về ĐÚNG định dạng JSON sau (không thêm markdown, code block, hay text khác):\n\n`
-  prompt += `{\n`
-  prompt += `  "shortTerm": {\n`
-  prompt += `    "signal": "MUA hoặc BÁN hoặc NẮM GIỮ",\n`
-  prompt += `    "confidence": <số từ 0 đến 100>,\n`
-  prompt += `    "summary": "<phân tích ngắn hạn 2-3 câu>"\n`
-  prompt += `  },\n`
-  prompt += `  "longTerm": {\n`
-  prompt += `    "signal": "MUA hoặc BÁN hoặc NẮM GIỮ",\n`
-  prompt += `    "confidence": <số từ 0 đến 100>,\n`
-  prompt += `    "summary": "<phân tích dài hạn 2-3 câu>"\n`
-  prompt += `  },\n`
-  prompt += `  "targetPrice": "<giá mục tiêu VD: 95-100 hoặc null nếu không MUA>",\n`
-  prompt += `  "stopLoss": "<mức cắt lỗ VD: 85 hoặc null nếu không MUA>",\n`
-  prompt += `  "risks": ["<rủi ro 1>", "<rủi ro 2>", "<rủi ro 3>"],\n`
-  prompt += `  "opportunities": ["<cơ hội 1>", "<cơ hội 2>"]\n`
-  prompt += `}\n\n`
+  prompt += `1. NGẮN HẠN (1-4 tuần): Tỷ trọng 70% KỸ THUẬT + 30% CƠ BẢN\n`
+  prompt += `   - Kỹ thuật: MA crossover, Bollinger position, momentum, volume, 52-week range\n`
+  prompt += `   - Cơ bản: ROE/ROA gần đây, thanh khoản\n\n`
 
-  prompt += `QUAN TRỌNG:\n`
-  prompt += `- Chỉ trả về JSON object, không thêm text giải thích\n`
-  prompt += `- Không dùng markdown code block (\`\`\`json)\n`
-  prompt += `- Đảm bảo JSON hợp lệ (có thể parse được)\n`
-  prompt += `- Các field string phải trong dấu ngoặc kép\n`
-  prompt += `- Confidence phải là số nguyên từ 0-100\n`
-  prompt += `- Giá mục tiêu và mức cắt lỗ chỉ ghi số, KHÔNG thêm đơn vị VNĐ\n`
+  prompt += `2. DÀI HẠN (3-12 tháng): Tỷ trọng 70% CƠ BẢN + 30% KỸ THUẬT\n`
+  prompt += `   - Cơ bản: P/E, P/B, ROE/ROA, cổ tức, EPS\n`
+  prompt += `   - Kỹ thuật: Xu hướng dài hạn\n\n`
+
+  prompt += `3. Khuyến nghị: MUA, BÁN, hoặc THEO DÕI\n\n`
+
+  prompt += `4. Nếu khuyến nghị MUA:\n`
+  prompt += `   - buyPrice: Giá mua tốt (dựa trên hỗ trợ kỹ thuật)\n`
+  prompt += `   - targetPrice: Giá mục tiêu\n`
+  prompt += `   - stopLoss: Mức cắt lỗ (5-7% dưới giá mua)\n\n`
+
+  prompt += `5. Đưa ra ĐÚNG 3 rủi ro và ĐÚNG 3 cơ hội cụ thể nhất\n\n`
+
+  prompt += `📋 FORMAT JSON (BẮT BUỘC - chỉ trả về JSON, không có text khác):\n`
+  prompt += `{
+  "shortTerm": {
+    "signal": "MUA",
+    "confidence": 75,
+    "summary": "Phân tích ngắn hạn 2-3 câu"
+  },
+  "longTerm": {
+    "signal": "THEO DÕI",
+    "confidence": 60,
+    "summary": "Phân tích dài hạn 2-3 câu"
+  },
+  "buyPrice": 85.5,
+  "targetPrice": 95,
+  "stopLoss": 80,
+  "risks": ["Rủi ro 1", "Rủi ro 2", "Rủi ro 3"],
+  "opportunities": ["Cơ hội 1", "Cơ hội 2", "Cơ hội 3"]
+}\n\n`
+
+  prompt += `LƯU Ý:\n`
+  prompt += `- signal: "MUA", "BÁN", hoặc "THEO DÕI"\n`
+  prompt += `- confidence: số nguyên 0-100\n`
+  prompt += `- buyPrice, targetPrice, stopLoss: số (x1000 VNĐ), null nếu không MUA\n`
+  prompt += `- risks và opportunities: mỗi array ĐÚNG 3 phần tử\n`
 
   return prompt
 }
@@ -328,23 +303,20 @@ function buildStockAnalysisPrompt(
 /**
  * Parse and validate Gemini response
  */
-function parseGeminiStockAnalysis(text: string): any {
-  console.log('🔍 Parsing Gemini response, length:', text.length)
+function parseGeminiStockAnalysis(text: string, currentPrice?: number): any {
+  console.log('🔍 Parsing Gemini response...')
 
-  // Step 1: Clean up the text - remove markdown code blocks
+  // Clean markdown code blocks
   let cleaned = text
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
-    .replace(/^\s*json\s*/gi, '')
     .trim()
 
-  // Step 2: Try to find JSON object - use non-greedy match to get the first complete JSON
-  // Find opening brace
+  // Find JSON object
   const startIdx = cleaned.indexOf('{')
   if (startIdx === -1) {
-    console.error('❌ No JSON object found in Gemini response')
-    console.log('Raw text preview:', text.substring(0, 500))
-    return createFallbackResponse(text)
+    console.error('❌ No JSON found in response')
+    return createDefaultResponse(currentPrice)
   }
 
   // Find matching closing brace
@@ -360,170 +332,190 @@ function parseGeminiStockAnalysis(text: string): any {
   }
 
   if (endIdx === -1) {
-    console.error('❌ No matching closing brace found')
-    return createFallbackResponse(text)
+    console.error('❌ No closing brace found')
+    return createDefaultResponse(currentPrice)
   }
 
   const jsonStr = cleaned.substring(startIdx, endIdx + 1)
-  console.log('📝 Extracted JSON length:', jsonStr.length)
 
   try {
-    // Step 3: Fix common JSON issues
+    // Fix common JSON issues
     let fixedJson = jsonStr
-      // Fix unquoted keys
-      .replace(/(\s*)(\w+)(\s*):/g, '$1"$2"$3:')
-      // Fix single quotes to double quotes
-      .replace(/'/g, '"')
-      // Remove trailing commas
-      .replace(/,(\s*[}\]])/g, '$1')
-      // Fix null strings
-      .replace(/"null"/g, 'null')
+      .replace(/[\x00-\x1F\x7F]/g, ' ')  // Remove control characters
+      .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g, '$1"$2"$3')  // Quote unquoted keys
+      .replace(/'/g, '"')  // Single to double quotes
+      .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
+      .replace(/"null"/gi, 'null')
+      .replace(/"undefined"/gi, 'null')
 
     const parsed = JSON.parse(fixedJson)
+    console.log('✅ JSON parsed successfully')
 
-    // Step 4: Validate and fix structure
-    if (!parsed.shortTerm && !parsed.longTerm) {
-      console.error('❌ Invalid structure: missing both shortTerm and longTerm')
-      return createFallbackResponse(text)
-    }
-
-    // Create default structures if missing
-    if (!parsed.shortTerm) {
-      parsed.shortTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích ngắn hạn' }
-    }
-    if (!parsed.longTerm) {
-      parsed.longTerm = { signal: 'NẮM GIỮ', confidence: 50, summary: 'Không đủ dữ liệu phân tích dài hạn' }
-    }
-
-    // Validate signals
-    const validSignals = ['MUA', 'BÁN', 'NẮM GIỮ', 'HOLD', 'BUY', 'SELL']
-    if (!parsed.shortTerm.signal || !validSignals.some(s => parsed.shortTerm.signal.toUpperCase().includes(s))) {
-      console.warn('⚠️ Invalid shortTerm signal, using default')
-      parsed.shortTerm.signal = 'NẮM GIỮ'
-    }
-    if (!parsed.longTerm.signal || !validSignals.some(s => parsed.longTerm.signal.toUpperCase().includes(s))) {
-      console.warn('⚠️ Invalid longTerm signal, using default')
-      parsed.longTerm.signal = 'NẮM GIỮ'
-    }
-
-    // Ensure summaries exist
-    parsed.shortTerm.summary = parsed.shortTerm.summary || 'Đang phân tích...'
-    parsed.longTerm.summary = parsed.longTerm.summary || 'Đang phân tích...'
-
-    // Ensure confidence is a number between 0-100
-    parsed.shortTerm.confidence = Math.max(0, Math.min(100, Number(parsed.shortTerm.confidence) || 50))
-    parsed.longTerm.confidence = Math.max(0, Math.min(100, Number(parsed.longTerm.confidence) || 50))
-
-    // Format target price and stop loss
-    if (parsed.targetPrice && parsed.targetPrice !== 'null' && parsed.targetPrice !== null) {
-      parsed.targetPrice = formatGeminiPrice(parsed.targetPrice)
-    } else {
-      parsed.targetPrice = null
-    }
-
-    if (parsed.stopLoss && parsed.stopLoss !== 'null' && parsed.stopLoss !== null) {
-      parsed.stopLoss = formatGeminiPrice(parsed.stopLoss)
-    } else {
-      parsed.stopLoss = null
-    }
-
-    // Ensure arrays
-    parsed.risks = Array.isArray(parsed.risks) ? parsed.risks.filter(r => r && typeof r === 'string') : []
-    parsed.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities.filter(o => o && typeof o === 'string') : []
-
-    console.log('✅ Successfully parsed Gemini response')
-    return parsed
+    // Normalize and validate
+    return normalizeResponse(parsed, currentPrice)
   } catch (error) {
-    console.error('❌ Failed to parse Gemini JSON:', error)
-    console.log('Attempted to parse:', jsonStr.substring(0, 300))
-    return createFallbackResponse(text)
+    console.error('❌ JSON parse failed:', error)
+    return createDefaultResponse(currentPrice)
   }
 }
 
 /**
- * Create a fallback response when JSON parsing fails
- * Attempts to extract useful information from plain text
+ * Normalize parsed response
  */
-function createFallbackResponse(text: string): any {
-  console.log('⚠️ Creating fallback response from text')
+function normalizeResponse(parsed: any, currentPrice?: number): any {
+  const result: any = {}
 
-  // Try to determine signal from text content
-  const textLower = text.toLowerCase()
-  let signal = 'NẮM GIỮ'
-  let confidence = 50
-
-  if (textLower.includes('mua') || textLower.includes('buy') || textLower.includes('tích cực')) {
-    signal = 'MUA'
-    confidence = 60
-  } else if (textLower.includes('bán') || textLower.includes('sell') || textLower.includes('tiêu cực')) {
-    signal = 'BÁN'
-    confidence = 60
+  // Normalize shortTerm
+  if (parsed.shortTerm) {
+    result.shortTerm = {
+      signal: normalizeSignal(parsed.shortTerm.signal),
+      confidence: normalizeConfidence(parsed.shortTerm.confidence),
+      summary: String(parsed.shortTerm.summary || '').trim() || 'Phân tích kỹ thuật cho thấy cần theo dõi thêm các chỉ báo.'
+    }
+  } else {
+    result.shortTerm = {
+      signal: 'THEO DÕI',
+      confidence: 50,
+      summary: 'Không đủ dữ liệu phân tích ngắn hạn.'
+    }
   }
 
-  // Extract any summary-like content (first 200 chars of meaningful text)
-  const summaryText = text
-    .replace(/[{}"\[\]]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .substring(0, 200)
-
-  return {
-    shortTerm: {
-      signal: signal,
-      confidence: confidence,
-      summary: summaryText || 'Gemini AI đã phân tích nhưng không thể trích xuất kết quả chi tiết.'
-    },
-    longTerm: {
-      signal: signal,
-      confidence: confidence,
-      summary: 'Vui lòng thử lại để có kết quả phân tích chi tiết hơn.'
-    },
-    targetPrice: null,
-    stopLoss: null,
-    risks: ['Không thể trích xuất thông tin rủi ro từ phản hồi AI'],
-    opportunities: ['Không thể trích xuất thông tin cơ hội từ phản hồi AI']
+  // Normalize longTerm
+  if (parsed.longTerm) {
+    result.longTerm = {
+      signal: normalizeSignal(parsed.longTerm.signal),
+      confidence: normalizeConfidence(parsed.longTerm.confidence),
+      summary: String(parsed.longTerm.summary || '').trim() || 'Phân tích cơ bản cho thấy cần theo dõi các chỉ số tài chính.'
+    }
+  } else {
+    result.longTerm = {
+      signal: 'THEO DÕI',
+      confidence: 50,
+      summary: 'Không đủ dữ liệu phân tích dài hạn.'
+    }
   }
+
+  // Check if any signal is MUA
+  const hasBuySignal = result.shortTerm.signal === 'MUA' || result.longTerm.signal === 'MUA'
+
+  // Normalize prices (only if buy signal)
+  if (hasBuySignal) {
+    result.buyPrice = formatPrice(parsed.buyPrice)
+    result.targetPrice = formatPrice(parsed.targetPrice)
+    result.stopLoss = formatPrice(parsed.stopLoss)
+  } else {
+    result.buyPrice = null
+    result.targetPrice = null
+    result.stopLoss = null
+  }
+
+  // Normalize risks and opportunities (exactly 3 each)
+  result.risks = normalizeArray(parsed.risks, 3, [
+    'Biến động thị trường có thể ảnh hưởng đến giá',
+    'Rủi ro thanh khoản khi giao dịch',
+    'Cần theo dõi thêm các chỉ số tài chính'
+  ])
+
+  result.opportunities = normalizeArray(parsed.opportunities, 3, [
+    'Tiềm năng tăng trưởng từ ngành',
+    'Định giá có thể hấp dẫn so với các chỉ số cơ bản',
+    'Cơ hội từ xu hướng kỹ thuật'
+  ])
+
+  return result
 }
 
 /**
- * Format price from Gemini response (handles ranges like "95-100" or single values like "85.5")
+ * Normalize signal value
  */
-function formatGeminiPrice(price: string | number | null | undefined): string {
-  if (!price) return ''
+function normalizeSignal(signal: any): string {
+  if (!signal) return 'THEO DÕI'
+  const s = String(signal).toUpperCase().trim()
 
-  const priceStr = String(price).trim()
+  if (s.includes('MUA') || s.includes('BUY')) return 'MUA'
+  if (s.includes('BÁN') || s.includes('SELL')) return 'BÁN'
+  return 'THEO DÕI'
+}
 
-  // Handle range format like "95-100" or "72-75"
-  if (priceStr.includes('-')) {
-    const parts = priceStr.split('-').map(p => p.trim())
-    const formattedParts = parts.map(p => {
-      let num = parseFloat(p)
-      if (isNaN(num)) return p
+/**
+ * Normalize confidence value
+ */
+function normalizeConfidence(confidence: any): number {
+  const num = Number(confidence)
+  if (isNaN(num)) return 50
+  return Math.max(0, Math.min(100, Math.round(num)))
+}
 
-      // If number is too small (< 1000), likely in thousands, multiply by 1000
-      if (num < 1000) {
-        num = num * 1000
-      }
+/**
+ * Format price value
+ */
+function formatPrice(price: any): string | null {
+  if (price === null || price === undefined || price === 'null') return null
 
-      return num.toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-      })
-    })
-    return formattedParts.join(' - ')
-  }
+  const num = Number(price)
+  if (isNaN(num)) return null
 
-  // Handle single value
-  let num = parseFloat(priceStr)
-  if (isNaN(num)) return priceStr
+  // If too small, multiply by 1000 (assuming x1000 VND format)
+  const finalNum = num < 1000 ? num * 1000 : num
 
-  // If number is too small (< 1000), likely in thousands, multiply by 1000
-  if (num < 1000) {
-    num = num * 1000
-  }
-
-  return num.toLocaleString('en-US', {
+  return finalNum.toLocaleString('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   })
+}
+
+/**
+ * Normalize array to exactly n items
+ */
+function normalizeArray(arr: any, count: number, defaults: string[]): string[] {
+  const result: string[] = []
+
+  if (Array.isArray(arr)) {
+    for (const item of arr) {
+      if (item && typeof item === 'string' && item.trim().length > 3) {
+        result.push(item.trim())
+        if (result.length >= count) break
+      }
+    }
+  }
+
+  // Fill with defaults if needed
+  let defaultIdx = 0
+  while (result.length < count && defaultIdx < defaults.length) {
+    result.push(defaults[defaultIdx])
+    defaultIdx++
+  }
+
+  return result.slice(0, count)
+}
+
+/**
+ * Create default response
+ */
+function createDefaultResponse(currentPrice?: number): any {
+  return {
+    shortTerm: {
+      signal: 'THEO DÕI',
+      confidence: 50,
+      summary: 'Cần theo dõi thêm các chỉ báo kỹ thuật trước khi đưa ra quyết định.'
+    },
+    longTerm: {
+      signal: 'THEO DÕI',
+      confidence: 50,
+      summary: 'Cần phân tích thêm các chỉ số cơ bản để đánh giá dài hạn.'
+    },
+    buyPrice: null,
+    targetPrice: null,
+    stopLoss: null,
+    risks: [
+      'Biến động thị trường có thể ảnh hưởng đến giá',
+      'Rủi ro thanh khoản khi giao dịch',
+      'Cần theo dõi thêm các chỉ số tài chính'
+    ],
+    opportunities: [
+      'Tiềm năng tăng trưởng từ ngành',
+      'Định giá có thể hấp dẫn so với các chỉ số cơ bản',
+      'Cơ hội từ xu hướng kỹ thuật'
+    ]
+  }
 }
