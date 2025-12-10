@@ -164,15 +164,63 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             }
         }
 
+        // Calculate technical signals
+        const ma10Value = ma10[latestIdx]
+        const ma30Value = ma30[latestIdx]
+        const maTrend = ma10Value && ma30Value
+            ? (ma10Value > ma30Value ? 'TĂNG' : ma10Value < ma30Value ? 'GIẢM' : 'TRUNG LẬP')
+            : 'KHÔNG XÁC ĐỊNH'
+
+        // Detect recent MA crossover (last 5 days)
+        let lastCrossover: string | null = null
+        for (let i = latestIdx; i >= Math.max(0, latestIdx - 5); i--) {
+            if (ma10[i] && ma30[i] && ma10[i-1] && ma30[i-1]) {
+                if (ma10[i-1] <= ma30[i-1] && ma10[i] > ma30[i]) {
+                    lastCrossover = 'GOLDEN_CROSS'
+                    break
+                }
+                if (ma10[i-1] >= ma30[i-1] && ma10[i] < ma30[i]) {
+                    lastCrossover = 'DEATH_CROSS'
+                    break
+                }
+            }
+        }
+
+        // Bollinger position analysis
+        const bbUpper = bb.upper[latestIdx]
+        const bbLower = bb.lower[latestIdx]
+        const bollingerPosition = bbUpper && bbLower
+            ? ((currentPrice - bbLower) / (bbUpper - bbLower) * 100)
+            : 50
+        const bollingerSignal = bollingerPosition >= 80 ? 'QUÁ MUA'
+            : bollingerPosition <= 20 ? 'QUÁ BÁN'
+            : 'TRUNG LẬP'
+
+        // 52-week position
+        const week52Position = ((currentPrice - low52W) / (high52W - low52W) * 100)
+        const week52Signal = week52Position >= 80 ? 'GẦN ĐỈNH'
+            : week52Position <= 20 ? 'GẦN ĐÁY'
+            : 'GIỮA RANGE'
+
+        // Volume signal
+        const volumeRatio = (currentVolume / avgVolume10) * 100
+        const volumeSignal = volumeRatio >= 150 ? 'TĂNG MẠNH'
+            : volumeRatio <= 70 ? 'THẤP'
+            : 'BÌNH THƯỜNG'
+
         const technicalData = {
             currentPrice,
-            ma10: ma10[latestIdx],
-            ma30: ma30[latestIdx],
+            ma10: ma10Value,
+            ma30: ma30Value,
+            maTrend,
+            lastCrossover,
             bollinger: {
-                upper: bb.upper[latestIdx],
+                upper: bbUpper,
                 middle: bb.middle[latestIdx],
-                lower: bb.lower[latestIdx]
+                lower: bbLower
             },
+            bollingerPosition: Math.round(bollingerPosition),
+            bollingerSignal,
             momentum: {
                 day5: priceChange5D,
                 day10: priceChange10D
@@ -180,12 +228,15 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             volume: {
                 current: currentVolume,
                 avg10: avgVolume10,
-                ratio: (currentVolume / avgVolume10) * 100
+                ratio: volumeRatio
             },
+            volumeSignal,
             week52: {
                 high: high52W,
-                low: low52W
+                low: low52W,
+                position: Math.round(week52Position)
             },
+            week52Signal,
             buyPrice
         }
 
@@ -206,16 +257,46 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             } : null
         }
 
-        // Prepare analyst recommendations data (limit to top 10 most recent)
-        const recentRecommendations = recommendations
-            .slice(0, 10)
-            .map(rec => ({
+        // Prepare analyst recommendations data with statistics
+        const buyRecs = recommendations.filter(r => r.type === 'BUY')
+        const holdRecs = recommendations.filter(r => r.type === 'HOLD')
+        const sellRecs = recommendations.filter(r => r.type === 'SELL')
+        const totalRecs = recommendations.length
+
+        // Calculate consensus
+        let consensus = 'KHÔNG CÓ'
+        if (totalRecs > 0) {
+            const buyPercent = (buyRecs.length / totalRecs) * 100
+            const sellPercent = (sellRecs.length / totalRecs) * 100
+            if (buyPercent >= 50) consensus = 'MUA'
+            else if (sellPercent >= 50) consensus = 'BÁN'
+            else consensus = 'GIỮ'
+        }
+
+        // Average target price
+        const recsWithTarget = recommendations.filter(r => r.targetPrice && !isNaN(r.targetPrice))
+        const avgTargetPrice = recsWithTarget.length > 0
+            ? recsWithTarget.reduce((sum, r) => sum + r.targetPrice, 0) / recsWithTarget.length
+            : null
+
+        const recommendationsData = {
+            statistics: {
+                total: totalRecs,
+                buy: buyRecs.length,
+                hold: holdRecs.length,
+                sell: sellRecs.length,
+                buyPercent: totalRecs > 0 ? Math.round((buyRecs.length / totalRecs) * 100) : 0,
+                holdPercent: totalRecs > 0 ? Math.round((holdRecs.length / totalRecs) * 100) : 0,
+                sellPercent: totalRecs > 0 ? Math.round((sellRecs.length / totalRecs) * 100) : 0,
+                consensus,
+                avgTargetPrice
+            },
+            recent: recommendations.slice(0, 5).map(rec => ({
                 firm: rec.firm,
                 type: rec.type,
-                reportDate: rec.reportDate,
-                targetPrice: rec.targetPrice,
-                reportPrice: rec.reportPrice
+                targetPrice: rec.targetPrice
             }))
+        }
 
         // Call Gemini API with timeout
         const controller = new AbortController()
@@ -231,7 +312,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                     symbol,
                     technicalData,
                     fundamentalData,
-                    recommendations: recentRecommendations
+                    recommendations: recommendationsData
                 }),
                 signal: controller.signal
             })

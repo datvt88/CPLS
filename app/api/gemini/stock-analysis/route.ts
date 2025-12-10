@@ -132,44 +132,60 @@ function buildStockAnalysisPrompt(
   symbol: string,
   technicalData?: any,
   fundamentalData?: any,
-  recommendations?: any[]
+  recommendations?: any
 ): string {
-  let prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích chuyên sâu cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
+  let prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Phân tích cổ phiếu ${symbol}:\n\n`
 
-  // Technical Analysis Section
+  // Technical Analysis Section with pre-calculated signals
   if (technicalData) {
-    prompt += `📊 DỮ LIỆU KỸ THUẬT:\n`
-    prompt += `Giá hiện tại: ${technicalData.currentPrice?.toFixed(2)} (x1000 VNĐ)\n`
+    prompt += `📊 PHÂN TÍCH KỸ THUẬT:\n`
+    prompt += `• Giá hiện tại: ${technicalData.currentPrice?.toFixed(2)} (x1000 VNĐ)\n`
 
+    // MA Trend
     if (technicalData.ma10 && technicalData.ma30) {
       const maDiff = ((technicalData.ma10 - technicalData.ma30) / technicalData.ma30 * 100).toFixed(2)
-      const maSignal = technicalData.ma10 > technicalData.ma30 ? 'TĂNG' : 'GIẢM'
-      prompt += `MA10: ${technicalData.ma10.toFixed(2)} | MA30: ${technicalData.ma30.toFixed(2)} | Chênh lệch: ${maDiff}% | Xu hướng: ${maSignal}\n`
+      prompt += `• MA10/MA30: ${technicalData.ma10.toFixed(2)}/${technicalData.ma30.toFixed(2)} (${maDiff}%)\n`
+      prompt += `• Xu hướng MA: ${technicalData.maTrend || (technicalData.ma10 > technicalData.ma30 ? 'TĂNG' : 'GIẢM')}\n`
+      if (technicalData.lastCrossover) {
+        prompt += `• Tín hiệu gần đây: ${technicalData.lastCrossover === 'GOLDEN_CROSS' ? '🟢 GOLDEN CROSS (MUA)' : '🔴 DEATH CROSS (BÁN)'}\n`
+      }
     }
 
-    if (technicalData.bollinger) {
-      const bandPosition = ((technicalData.currentPrice - technicalData.bollinger.lower) /
-                           (technicalData.bollinger.upper - technicalData.bollinger.lower) * 100).toFixed(1)
-      prompt += `Bollinger: Upper=${technicalData.bollinger.upper.toFixed(2)}, Middle=${technicalData.bollinger.middle.toFixed(2)}, Lower=${technicalData.bollinger.lower.toFixed(2)}\n`
-      prompt += `Vị trí trong Bollinger: ${bandPosition}%\n`
+    // Bollinger signal
+    if (technicalData.bollingerSignal) {
+      prompt += `• Bollinger: ${technicalData.bollingerPosition}% - ${technicalData.bollingerSignal}\n`
+    } else if (technicalData.bollinger) {
+      const pos = ((technicalData.currentPrice - technicalData.bollinger.lower) / (technicalData.bollinger.upper - technicalData.bollinger.lower) * 100).toFixed(0)
+      const sig = Number(pos) >= 80 ? 'QUÁ MUA' : Number(pos) <= 20 ? 'QUÁ BÁN' : 'TRUNG LẬP'
+      prompt += `• Bollinger: ${pos}% - ${sig}\n`
     }
 
+    // Momentum
     if (technicalData.momentum) {
-      prompt += `Momentum 5 ngày: ${technicalData.momentum.day5?.toFixed(2)}% | 10 ngày: ${technicalData.momentum.day10?.toFixed(2)}%\n`
+      const mom5 = technicalData.momentum.day5
+      const mom10 = technicalData.momentum.day10
+      prompt += `• Momentum: 5D ${mom5 >= 0 ? '+' : ''}${mom5?.toFixed(2)}% | 10D ${mom10 >= 0 ? '+' : ''}${mom10?.toFixed(2)}%\n`
     }
 
-    if (technicalData.volume) {
-      prompt += `Khối lượng: ${technicalData.volume.current?.toLocaleString()} | TB 10 ngày: ${technicalData.volume.avg10?.toLocaleString()} | Tỷ lệ: ${technicalData.volume.ratio?.toFixed(0)}%\n`
+    // Volume signal
+    if (technicalData.volumeSignal) {
+      prompt += `• Khối lượng: ${technicalData.volumeSignal} (${technicalData.volume?.ratio?.toFixed(0)}% so với TB)\n`
+    } else if (technicalData.volume) {
+      const volSig = technicalData.volume.ratio >= 150 ? 'TĂNG MẠNH' : technicalData.volume.ratio <= 70 ? 'THẤP' : 'BÌNH THƯỜNG'
+      prompt += `• Khối lượng: ${volSig} (${technicalData.volume.ratio?.toFixed(0)}%)\n`
     }
 
-    if (technicalData.week52) {
-      const position = ((technicalData.currentPrice - technicalData.week52.low) /
-                       (technicalData.week52.high - technicalData.week52.low) * 100).toFixed(0)
-      prompt += `52 tuần: ${technicalData.week52.low?.toFixed(2)} - ${technicalData.week52.high?.toFixed(2)} | Vị trí: ${position}%\n`
+    // 52-week position
+    if (technicalData.week52Signal) {
+      prompt += `• Vị trí 52 tuần: ${technicalData.week52?.position}% - ${technicalData.week52Signal}\n`
+    } else if (technicalData.week52) {
+      const pos = ((technicalData.currentPrice - technicalData.week52.low) / (technicalData.week52.high - technicalData.week52.low) * 100).toFixed(0)
+      prompt += `• Vị trí 52 tuần: ${pos}%\n`
     }
 
+    // Support level for buy
     if (technicalData.buyPrice) {
-      prompt += `Hỗ trợ kỹ thuật (S2): ${technicalData.buyPrice.toFixed(2)}\n`
+      prompt += `• Hỗ trợ (S2): ${technicalData.buyPrice.toFixed(2)}\n`
     }
 
     prompt += `\n`
@@ -177,54 +193,48 @@ function buildStockAnalysisPrompt(
 
   // Fundamental Analysis Section
   if (fundamentalData) {
-    prompt += `💰 DỮ LIỆU CƠ BẢN:\n`
+    prompt += `💰 CHỈ SỐ TÀI CHÍNH:\n`
 
-    if (fundamentalData.pe !== undefined) {
-      prompt += `P/E: ${fundamentalData.pe.toFixed(2)}\n`
+    if (fundamentalData.pe !== undefined && fundamentalData.pe !== null) {
+      const peSignal = fundamentalData.pe < 0 ? 'ÂM' : fundamentalData.pe < 10 ? 'RẺ' : fundamentalData.pe <= 20 ? 'HỢP LÝ' : 'CAO'
+      prompt += `• P/E: ${fundamentalData.pe.toFixed(2)} (${peSignal})\n`
     }
 
-    if (fundamentalData.pb !== undefined) {
-      prompt += `P/B: ${fundamentalData.pb.toFixed(2)}\n`
+    if (fundamentalData.pb !== undefined && fundamentalData.pb !== null) {
+      const pbSignal = fundamentalData.pb < 1 ? 'DƯỚI SĐSS' : fundamentalData.pb <= 2 ? 'HỢP LÝ' : 'CAO'
+      prompt += `• P/B: ${fundamentalData.pb.toFixed(2)} (${pbSignal})\n`
     }
 
-    if (fundamentalData.roe !== undefined) {
-      prompt += `ROE: ${(fundamentalData.roe * 100).toFixed(2)}%\n`
+    if (fundamentalData.roe !== undefined && fundamentalData.roe !== null) {
+      const roeVal = fundamentalData.roe * 100
+      const roeSignal = roeVal >= 15 ? 'TỐT' : roeVal >= 10 ? 'KHÁ' : 'THẤP'
+      prompt += `• ROE: ${roeVal.toFixed(2)}% (${roeSignal})\n`
     }
 
-    if (fundamentalData.roa !== undefined) {
-      prompt += `ROA: ${(fundamentalData.roa * 100).toFixed(2)}%\n`
+    if (fundamentalData.roa !== undefined && fundamentalData.roa !== null) {
+      const roaVal = fundamentalData.roa * 100
+      prompt += `• ROA: ${roaVal.toFixed(2)}%\n`
     }
 
-    if (fundamentalData.dividendYield !== undefined) {
-      prompt += `Cổ tức: ${(fundamentalData.dividendYield * 100).toFixed(2)}%\n`
+    if (fundamentalData.eps !== undefined && fundamentalData.eps !== null) {
+      prompt += `• EPS: ${fundamentalData.eps.toFixed(0)} VNĐ\n`
     }
 
-    if (fundamentalData.marketCap !== undefined) {
-      prompt += `Vốn hóa: ${(fundamentalData.marketCap / 1000000000000).toFixed(2)} nghìn tỷ\n`
+    if (fundamentalData.dividendYield !== undefined && fundamentalData.dividendYield !== null) {
+      prompt += `• Cổ tức: ${(fundamentalData.dividendYield * 100).toFixed(2)}%\n`
     }
 
-    if (fundamentalData.eps !== undefined) {
-      prompt += `EPS: ${fundamentalData.eps.toFixed(2)}\n`
-    }
-
-    // Add detailed profitability data if available
-    if (fundamentalData.profitability && fundamentalData.profitability.metrics && fundamentalData.profitability.metrics.length > 0) {
-      prompt += `\n📈 HIỆU QUẢ HOẠT ĐỘNG (5 QUÝ):\n`
-
+    // Profitability trends
+    if (fundamentalData.profitability?.metrics?.length > 0) {
+      prompt += `\n📈 HIỆU QUẢ HOẠT ĐỘNG:\n`
       const { quarters, metrics } = fundamentalData.profitability
-      metrics.forEach((metric: any) => {
-        if (metric.label && metric.y && metric.y.length > 0) {
-          prompt += `${metric.label}: `
-          const reversedQuarters = [...quarters].reverse()
-          const reversedValues = [...metric.y].reverse()
-          reversedQuarters.forEach((q: string, i: number) => {
-            prompt += `${q}: ${reversedValues[i].toFixed(2)}%${i < reversedQuarters.length - 1 ? ', ' : ''}`
-          })
-
+      metrics.slice(0, 3).forEach((metric: any) => {
+        if (metric.label && metric.y?.length > 0) {
           const latest = metric.y[metric.y.length - 1]
           const oldest = metric.y[0]
           const trend = latest - oldest
-          prompt += trend > 0 ? ` (tăng ${trend.toFixed(2)}%)\n` : trend < 0 ? ` (giảm ${Math.abs(trend).toFixed(2)}%)\n` : ` (ổn định)\n`
+          const trendText = trend > 1 ? '📈 TĂNG' : trend < -1 ? '📉 GIẢM' : '➡️ ỔN ĐỊNH'
+          prompt += `• ${metric.label}: ${latest?.toFixed(2)}% (${trendText})\n`
         }
       })
     }
@@ -232,70 +242,31 @@ function buildStockAnalysisPrompt(
     prompt += `\n`
   }
 
-  // Analyst Recommendations Section
-  if (recommendations && recommendations.length > 0) {
-    prompt += `📋 KHUYẾN NGHỊ CTCK:\n`
-
-    const buyRecs = recommendations.filter(r => r.type?.toUpperCase() === 'BUY' || r.type?.toUpperCase() === 'MUA')
-    const holdRecs = recommendations.filter(r => r.type?.toUpperCase() === 'HOLD' || r.type?.toUpperCase() === 'GIỮ')
-    const sellRecs = recommendations.filter(r => r.type?.toUpperCase() === 'SELL' || r.type?.toUpperCase() === 'BÁN')
-
-    const totalRecs = recommendations.length
-    prompt += `Tổng: ${totalRecs} (MUA: ${buyRecs.length}, GIỮ: ${holdRecs.length}, BÁN: ${sellRecs.length})\n`
-
-    const recsWithTarget = recommendations.filter(r => r.targetPrice && !isNaN(r.targetPrice))
-    if (recsWithTarget.length > 0) {
-      const avgTarget = recsWithTarget.reduce((sum, r) => sum + r.targetPrice, 0) / recsWithTarget.length
-      prompt += `Giá mục tiêu TB: ${avgTarget.toFixed(2)}\n`
+  // Analyst Recommendations with statistics
+  if (recommendations?.statistics) {
+    const stats = recommendations.statistics
+    prompt += `📋 KHUYẾN NGHỊ TỪ CTCK:\n`
+    prompt += `• Tổng: ${stats.total} đánh giá\n`
+    prompt += `• MUA: ${stats.buy} (${stats.buyPercent}%) | GIỮ: ${stats.hold} (${stats.holdPercent}%) | BÁN: ${stats.sell} (${stats.sellPercent}%)\n`
+    prompt += `• Đồng thuận: ${stats.consensus}\n`
+    if (stats.avgTargetPrice) {
+      prompt += `• Giá mục tiêu TB: ${stats.avgTargetPrice.toFixed(2)}\n`
     }
-
     prompt += `\n`
   }
 
-  // Analysis Instructions with weighted methodology
-  prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n\n`
+  // Analysis Instructions
+  prompt += `🎯 YÊU CẦU:\n`
+  prompt += `1. NGẮN HẠN (1-4 tuần): 70% Kỹ thuật + 30% Cơ bản\n`
+  prompt += `2. DÀI HẠN (3-12 tháng): 70% Cơ bản + 30% Kỹ thuật\n`
+  prompt += `3. Khuyến nghị: MUA, BÁN, hoặc THEO DÕI\n`
+  prompt += `4. Nếu MUA: buyPrice (hỗ trợ), targetPrice (mục tiêu), stopLoss (cắt lỗ 5-7%)\n`
+  prompt += `5. ĐÚNG 3 rủi ro và ĐÚNG 3 cơ hội cụ thể\n\n`
 
-  prompt += `1. NGẮN HẠN (1-4 tuần): Tỷ trọng 70% KỸ THUẬT + 30% CƠ BẢN\n`
-  prompt += `   - Kỹ thuật: MA crossover, Bollinger position, momentum, volume, 52-week range\n`
-  prompt += `   - Cơ bản: ROE/ROA gần đây, thanh khoản\n\n`
+  prompt += `📋 TRẢ VỀ JSON (KHÔNG text khác):\n`
+  prompt += `{"shortTerm":{"signal":"MUA","confidence":75,"summary":"..."},"longTerm":{"signal":"THEO DÕI","confidence":60,"summary":"..."},"buyPrice":85.5,"targetPrice":95,"stopLoss":80,"risks":["R1","R2","R3"],"opportunities":["O1","O2","O3"]}\n\n`
 
-  prompt += `2. DÀI HẠN (3-12 tháng): Tỷ trọng 70% CƠ BẢN + 30% KỸ THUẬT\n`
-  prompt += `   - Cơ bản: P/E, P/B, ROE/ROA, cổ tức, EPS\n`
-  prompt += `   - Kỹ thuật: Xu hướng dài hạn\n\n`
-
-  prompt += `3. Khuyến nghị: MUA, BÁN, hoặc THEO DÕI\n\n`
-
-  prompt += `4. Nếu khuyến nghị MUA:\n`
-  prompt += `   - buyPrice: Giá mua tốt (dựa trên hỗ trợ kỹ thuật)\n`
-  prompt += `   - targetPrice: Giá mục tiêu\n`
-  prompt += `   - stopLoss: Mức cắt lỗ (5-7% dưới giá mua)\n\n`
-
-  prompt += `5. Đưa ra ĐÚNG 3 rủi ro và ĐÚNG 3 cơ hội cụ thể nhất\n\n`
-
-  prompt += `📋 FORMAT JSON (BẮT BUỘC - chỉ trả về JSON, không có text khác):\n`
-  prompt += `{
-  "shortTerm": {
-    "signal": "MUA",
-    "confidence": 75,
-    "summary": "Phân tích ngắn hạn 2-3 câu"
-  },
-  "longTerm": {
-    "signal": "THEO DÕI",
-    "confidence": 60,
-    "summary": "Phân tích dài hạn 2-3 câu"
-  },
-  "buyPrice": 85.5,
-  "targetPrice": 95,
-  "stopLoss": 80,
-  "risks": ["Rủi ro 1", "Rủi ro 2", "Rủi ro 3"],
-  "opportunities": ["Cơ hội 1", "Cơ hội 2", "Cơ hội 3"]
-}\n\n`
-
-  prompt += `LƯU Ý:\n`
-  prompt += `- signal: "MUA", "BÁN", hoặc "THEO DÕI"\n`
-  prompt += `- confidence: số nguyên 0-100\n`
-  prompt += `- buyPrice, targetPrice, stopLoss: số (x1000 VNĐ), null nếu không MUA\n`
-  prompt += `- risks và opportunities: mỗi array ĐÚNG 3 phần tử\n`
+  prompt += `LƯU Ý: signal chỉ nhận "MUA"/"BÁN"/"THEO DÕI", confidence 0-100, giá x1000 VNĐ (null nếu không MUA), risks/opportunities mỗi array ĐÚNG 3 phần tử.`
 
   return prompt
 }
