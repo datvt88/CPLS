@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
-import type { FinancialRatio } from '@/types/vndirect'
+import { useState, useEffect } from 'react'
+import { useStockAnalysis } from '@/contexts/StockAnalysisContext'
+import type { StockNews } from '@/app/api/news/stock/route'
 
 interface GeminiDeepAnalysisWidgetProps {
     symbol: string
@@ -24,30 +24,35 @@ interface GeminiAnalysis {
     stopLoss?: string | null  // Mức cắt lỗ
     risks?: string[]  // Đúng 3 rủi ro
     opportunities?: string[]  // Đúng 3 cơ hội
+    newsAnalysis?: {
+        sentiment: 'positive' | 'negative' | 'neutral'
+        summary: string
+        impactOnPrice: string
+    }
     rawText?: string
-}
-
-// Helper function to get current date in Vietnam timezone (GMT+7)
-function getVietnamDate(): Date {
-    const now = new Date()
-    const vietnamTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }))
-    vietnamTime.setHours(0, 0, 0, 0)
-    return vietnamTime
-}
-
-// Helper function to validate trading date
-function isValidTradingDate(dateStr: string): boolean {
-    const dataDate = new Date(dateStr)
-    dataDate.setHours(0, 0, 0, 0)
-    const today = getVietnamDate()
-    return dataDate <= today
 }
 
 export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisWidgetProps) {
     const [geminiAnalysis, setGeminiAnalysis] = useState<GeminiAnalysis | null>(null)
+    const [news, setNews] = useState<StockNews[]>([])
     const [loading, setLoading] = useState(false)
+    const [loadingNews, setLoadingNews] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [hasAnalyzed, setHasAnalyzed] = useState(false)
+    const [lastAnalyzedSymbol, setLastAnalyzedSymbol] = useState<string | null>(null)
+
+    // Get data from context
+    const { data: contextData, isDataFresh } = useStockAnalysis()
+
+    // Reset when symbol changes
+    useEffect(() => {
+        if (symbol !== lastAnalyzedSymbol) {
+            setGeminiAnalysis(null)
+            setNews([])
+            setHasAnalyzed(false)
+            setError(null)
+        }
+    }, [symbol, lastAnalyzedSymbol])
 
     const handleAnalyze = async () => {
         if (!symbol) return
@@ -55,62 +60,60 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
         setLoading(true)
         setError(null)
         setGeminiAnalysis(null)
+        setNews([])
 
         try {
             console.log('🤖 Starting Gemini Deep Analysis for:', symbol)
 
-            // Fetch all required data
-            const [pricesResponse, ratiosResponse, recommendationsResponse, profitabilityResponse] = await Promise.all([
-                fetchStockPrices(symbol, 270),
-                fetchFinancialRatios(symbol),
-                fetchStockRecommendations(symbol).catch(err => {
-                    console.warn('⚠️ Failed to fetch recommendations, continuing without:', err)
-                    return { data: [] }
-                }),
-                fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`)
-                    .then(res => res.json())
-                    .catch(err => {
-                        console.warn('⚠️ Failed to fetch profitability data, continuing without:', err)
-                        return null
-                    })
-            ])
+            // Check if we have data from context
+            let technicalData = contextData?.technicalData
+            let fundamentalData = contextData?.fundamentalData
+            let recommendations = contextData?.recommendations
 
-            if (!pricesResponse.data || pricesResponse.data.length === 0) {
-                throw new Error('Không có dữ liệu giá')
+            // If context data is not available or not fresh, show error
+            if (!technicalData || !contextData || contextData.symbol !== symbol) {
+                console.log('⚠️ No context data available, waiting for StockSummaryWidget to load data...')
+                throw new Error('Đang chờ dữ liệu từ widget tổng hợp đánh giá. Vui lòng đợi vài giây và thử lại.')
             }
 
-            // Process technical data
-            const validData = pricesResponse.data.filter(item => isValidTradingDate(item.date))
-            const sortedData = [...validData].sort(
-                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-            )
-
-            // Process fundamental data
-            const ratiosMap: Record<string, FinancialRatio> = {}
-            ratiosResponse.data.forEach(ratio => {
-                ratiosMap[ratio.ratioCode] = ratio
+            console.log('📊 Using data from context for:', symbol, {
+                hasTechnical: !!technicalData,
+                hasFundamental: !!fundamentalData,
+                recommendationsCount: recommendations?.length || 0
             })
 
-            // Call Gemini API
-            const result = await fetchGeminiAnalysis(
+            // Fetch news in parallel with preparing data
+            setLoadingNews(true)
+            const newsPromise = fetchStockNews(symbol)
+
+            // Wait for news
+            const fetchedNews = await newsPromise
+            setNews(fetchedNews)
+            setLoadingNews(false)
+
+            console.log('📰 Fetched', fetchedNews.length, 'news articles for:', symbol)
+
+            // Call Gemini API with context data + news
+            const result = await callGeminiAnalysis(
                 symbol,
-                sortedData,
-                ratiosMap,
-                recommendationsResponse.data || [],
-                profitabilityResponse
+                technicalData,
+                fundamentalData,
+                recommendations || [],
+                fetchedNews
             )
 
             if (result) {
                 console.log('✅ Gemini analysis completed for:', symbol, result)
                 setGeminiAnalysis(result)
                 setHasAnalyzed(true)
+                setLastAnalyzedSymbol(symbol)
             } else {
-                console.error('❌ fetchGeminiAnalysis returned null for:', symbol)
+                console.error('❌ Gemini analysis returned null for:', symbol)
                 throw new Error('Không nhận được kết quả phân tích từ Gemini. Vui lòng thử lại.')
             }
         } catch (err: any) {
             console.error('❌ Error performing Gemini analysis:', err)
-            // Show more detailed error message
+            setLoadingNews(false)
             const errorMessage = err.message || 'Không thể thực hiện phân tích Gemini'
             setError(errorMessage)
         } finally {
@@ -118,108 +121,39 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
         }
     }
 
-    const fetchGeminiAnalysis = async (
-        symbol: string,
-        priceData: any[],
-        ratios: Record<string, FinancialRatio>,
-        recommendations: any[],
-        profitabilityData: any
-    ): Promise<GeminiAnalysis | null> => {
-        // Validate input data
-        if (!priceData || priceData.length < 30) {
-            throw new Error('Không đủ dữ liệu giá để phân tích (cần ít nhất 30 ngày)')
-        }
+    const fetchStockNews = async (symbol: string): Promise<StockNews[]> => {
+        try {
+            const response = await fetch('/api/news/stock', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ symbol })
+            })
 
-        const closePrices = priceData.map(d => d.adClose)
-        const currentPrice = closePrices[closePrices.length - 1]
-
-        if (!currentPrice || isNaN(currentPrice)) {
-            throw new Error('Giá hiện tại không hợp lệ')
-        }
-
-        const volumes = priceData.map(d => d.nmVolume)
-
-        // Prepare technical data
-        const ma10 = calculateSMA(closePrices, 10)
-        const ma30 = calculateSMA(closePrices, 30)
-        const bb = calculateBollingerBands(closePrices, 20, 2)
-
-        const latestIdx = closePrices.length - 1
-        const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
-        const currentVolume = volumes[volumes.length - 1]
-
-        const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
-        const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
-
-        const high52W = Math.max(...closePrices)
-        const low52W = Math.min(...closePrices)
-
-        // Calculate buy price using pivot points
-        let buyPrice: number | undefined
-        if (priceData.length >= 2) {
-            const latestDay = priceData[priceData.length - 1]
-            const pivots = calculateWoodiePivotPoints(latestDay.adHigh, latestDay.adLow, latestDay.adClose)
-            if (pivots) {
-                buyPrice = pivots.S2
+            if (!response.ok) {
+                console.warn('⚠️ Failed to fetch news, continuing without')
+                return []
             }
+
+            const data = await response.json()
+            return data.news || []
+        } catch (error) {
+            console.warn('⚠️ News fetch error:', error)
+            return []
         }
+    }
 
-        const technicalData = {
-            currentPrice,
-            ma10: ma10[latestIdx],
-            ma30: ma30[latestIdx],
-            bollinger: {
-                upper: bb.upper[latestIdx],
-                middle: bb.middle[latestIdx],
-                lower: bb.lower[latestIdx]
-            },
-            momentum: {
-                day5: priceChange5D,
-                day10: priceChange10D
-            },
-            volume: {
-                current: currentVolume,
-                avg10: avgVolume10,
-                ratio: (currentVolume / avgVolume10) * 100
-            },
-            week52: {
-                high: high52W,
-                low: low52W
-            },
-            buyPrice
-        }
-
-        // Prepare fundamental data with detailed ROE/ROA quarterly data
-        const fundamentalData = {
-            pe: ratios['PRICE_TO_EARNINGS']?.value,
-            pb: ratios['PRICE_TO_BOOK']?.value,
-            roe: ratios['ROAE_TR_AVG5Q']?.value,
-            roa: ratios['ROAA_TR_AVG5Q']?.value,
-            dividendYield: ratios['DIVIDEND_YIELD']?.value,
-            marketCap: ratios['MARKETCAP']?.value,
-            freeFloat: ratios['FREEFLOAT']?.value,
-            eps: ratios['EPS_TR']?.value,
-            bvps: ratios['BVPS_CR']?.value,
-            profitability: profitabilityData ? {
-                quarters: profitabilityData.x || [],
-                metrics: profitabilityData.data || []
-            } : null
-        }
-
-        // Prepare analyst recommendations data (limit to top 10 most recent)
-        const recentRecommendations = recommendations
-            .slice(0, 10)
-            .map(rec => ({
-                firm: rec.firm,
-                type: rec.type,
-                reportDate: rec.reportDate,
-                targetPrice: rec.targetPrice,
-                reportPrice: rec.reportPrice
-            }))
-
+    const callGeminiAnalysis = async (
+        symbol: string,
+        technicalData: any,
+        fundamentalData: any,
+        recommendations: any[],
+        news: StockNews[]
+    ): Promise<GeminiAnalysis | null> => {
         // Call Gemini API with timeout
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout (longer due to news)
 
         try {
             const response = await fetch('/api/gemini/stock-analysis', {
@@ -231,7 +165,8 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                     symbol,
                     technicalData,
                     fundamentalData,
-                    recommendations: recentRecommendations
+                    recommendations,
+                    news  // Include news in the request
                 }),
                 signal: controller.signal
             })
@@ -263,11 +198,38 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
         } catch (fetchError: any) {
             clearTimeout(timeoutId)
             if (fetchError.name === 'AbortError') {
-                throw new Error('Yêu cầu đã hết thời gian chờ (30 giây). Vui lòng thử lại.')
+                throw new Error('Yêu cầu đã hết thời gian chờ (45 giây). Vui lòng thử lại.')
             }
             throw fetchError
         }
     }
+
+    const getSentimentColor = (sentiment: string) => {
+        switch (sentiment) {
+            case 'positive': return 'text-green-400'
+            case 'negative': return 'text-red-400'
+            default: return 'text-amber-400'
+        }
+    }
+
+    const getSentimentLabel = (sentiment: string) => {
+        switch (sentiment) {
+            case 'positive': return 'Tích cực'
+            case 'negative': return 'Tiêu cực'
+            default: return 'Trung lập'
+        }
+    }
+
+    const getSentimentIcon = (sentiment: string) => {
+        switch (sentiment) {
+            case 'positive': return '📈'
+            case 'negative': return '📉'
+            default: return '➡️'
+        }
+    }
+
+    // Check if context data is available for this symbol
+    const hasContextData = contextData && contextData.symbol === symbol && contextData.technicalData
 
     return (
         <div className="bg-gradient-to-br from-indigo-900/20 to-violet-900/20 rounded-xl p-4 sm:p-6 border border-indigo-700/30">
@@ -286,13 +248,28 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                         <p className="text-gray-400 mb-4">
                             Click nút bên dưới để Gemini AI phân tích chuyên sâu cổ phiếu {symbol}
                         </p>
-                        <p className="text-xs text-gray-500 mb-6">
-                            Phân tích bao gồm: Đánh giá kỹ thuật, cơ bản, rủi ro, cơ hội và khuyến nghị giá
+                        <p className="text-xs text-gray-500 mb-2">
+                            Phân tích bao gồm: Kỹ thuật, Cơ bản, Tin tức, Rủi ro, Cơ hội và Khuyến nghị giá
                         </p>
+                        {!hasContextData && (
+                            <p className="text-xs text-amber-400 mb-4">
+                                ⏳ Đang chờ dữ liệu từ widget "Tổng hợp đánh giá"...
+                            </p>
+                        )}
+                        {hasContextData && (
+                            <p className="text-xs text-green-400 mb-4">
+                                ✅ Dữ liệu sẵn sàng - Sử dụng dữ liệu đã tải (không fetch lại)
+                            </p>
+                        )}
                     </div>
                     <button
                         onClick={handleAnalyze}
-                        className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold rounded-lg shadow-lg shadow-indigo-500/25 transition-all duration-200 flex items-center gap-2 mx-auto"
+                        disabled={!hasContextData}
+                        className={`px-6 py-3 font-semibold rounded-lg shadow-lg transition-all duration-200 flex items-center gap-2 mx-auto ${
+                            hasContextData
+                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/25'
+                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        }`}
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -306,7 +283,9 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                 <div className="flex items-center justify-center h-40">
                     <div className="text-center">
                         <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                        <p className="text-gray-400 text-sm">AI đang phân tích dữ liệu kỹ thuật và cơ bản...</p>
+                        <p className="text-gray-400 text-sm">
+                            {loadingNews ? 'Đang tìm kiếm tin tức...' : 'AI đang phân tích dữ liệu kỹ thuật, cơ bản và tin tức...'}
+                        </p>
                     </div>
                 </div>
             )}
@@ -316,7 +295,8 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                     <p className="text-red-400 mb-3">{error}</p>
                     <button
                         onClick={handleAnalyze}
-                        className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-colors"
+                        disabled={!hasContextData}
+                        className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-sm transition-colors disabled:opacity-50"
                     >
                         Thử lại
                     </button>
@@ -393,6 +373,72 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                         )}
                     </div>
 
+                    {/* News Analysis Section */}
+                    {geminiAnalysis.newsAnalysis && (
+                        <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-700/30 mb-4">
+                            <h5 className="font-semibold text-blue-300 mb-3 flex items-center gap-2">
+                                📰 Phân tích Tin tức
+                            </h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                                <div className="bg-blue-900/30 rounded-lg p-3">
+                                    <div className="text-xs text-gray-400 mb-1">Sentiment</div>
+                                    <div className={`text-lg font-bold ${getSentimentColor(geminiAnalysis.newsAnalysis.sentiment)}`}>
+                                        {getSentimentIcon(geminiAnalysis.newsAnalysis.sentiment)} {getSentimentLabel(geminiAnalysis.newsAnalysis.sentiment)}
+                                    </div>
+                                </div>
+                                <div className="bg-blue-900/30 rounded-lg p-3 sm:col-span-2">
+                                    <div className="text-xs text-gray-400 mb-1">Tác động đến giá</div>
+                                    <div className="text-sm text-gray-300">{geminiAnalysis.newsAnalysis.impactOnPrice}</div>
+                                </div>
+                            </div>
+                            <div className="text-sm text-gray-300 leading-relaxed">
+                                {geminiAnalysis.newsAnalysis.summary}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* News List */}
+                    {news.length > 0 && (
+                        <div className="bg-slate-900/30 rounded-lg p-4 border border-slate-700/30 mb-4">
+                            <h5 className="font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                                🗞️ Tin tức liên quan ({news.length})
+                            </h5>
+                            <div className="space-y-2">
+                                {news.map((item, idx) => (
+                                    <div key={idx} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/20">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1">
+                                                <h6 className="text-sm font-medium text-white mb-1">{item.title}</h6>
+                                                <p className="text-xs text-gray-400 mb-2">{item.summary}</p>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="text-gray-500">{item.source}</span>
+                                                    <span className="text-gray-600">•</span>
+                                                    <span className="text-gray-500">{item.date}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className={`px-2 py-0.5 rounded text-xs ${
+                                                    item.sentiment === 'positive' ? 'bg-green-900/50 text-green-400' :
+                                                    item.sentiment === 'negative' ? 'bg-red-900/50 text-red-400' :
+                                                    'bg-amber-900/50 text-amber-400'
+                                                }`}>
+                                                    {getSentimentLabel(item.sentiment)}
+                                                </span>
+                                                <span className={`text-xs ${
+                                                    item.relevance === 'high' ? 'text-blue-400' :
+                                                    item.relevance === 'low' ? 'text-gray-500' : 'text-gray-400'
+                                                }`}>
+                                                    {item.relevance === 'high' ? 'Liên quan cao' :
+                                                     item.relevance === 'low' ? 'Liên quan thấp' : 'Liên quan vừa'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Price Recommendations - Only show when signal is MUA */}
                     {(geminiAnalysis.shortTerm?.signal === 'MUA' || geminiAnalysis.longTerm?.signal === 'MUA') &&
                      (geminiAnalysis.buyPrice || geminiAnalysis.targetPrice || geminiAnalysis.stopLoss) && (
@@ -467,7 +513,7 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                     <div className="mt-4 pt-4 border-t border-indigo-700/30 text-center">
                         <button
                             onClick={handleAnalyze}
-                            disabled={loading}
+                            disabled={loading || !hasContextData}
                             className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-sm transition-colors disabled:opacity-50"
                         >
                             🔄 Phân tích lại

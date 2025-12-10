@@ -3,7 +3,7 @@ import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 export async function POST(request: NextRequest) {
   try {
-    const { symbol, technicalData, fundamentalData, recommendations, model } = await request.json()
+    const { symbol, technicalData, fundamentalData, recommendations, news, model } = await request.json()
 
     // Validate input
     if (!symbol || typeof symbol !== 'string') {
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build comprehensive prompt with technical, fundamental data and analyst recommendations
-    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations)
+    // Build comprehensive prompt with technical, fundamental data, analyst recommendations and news
+    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations, news)
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
 
@@ -123,8 +123,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// News item interface
+interface NewsItem {
+  title: string
+  summary: string
+  source: string
+  date: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+  relevance: 'high' | 'medium' | 'low'
+}
+
 /**
- * Build comprehensive analysis prompt combining technical, fundamental data and analyst recommendations
+ * Build comprehensive analysis prompt combining technical, fundamental data, analyst recommendations and news
  * Short-term: 70% Technical + 30% Fundamental
  * Long-term: 70% Fundamental + 30% Technical
  */
@@ -132,7 +142,8 @@ function buildStockAnalysisPrompt(
   symbol: string,
   technicalData?: any,
   fundamentalData?: any,
-  recommendations?: any[]
+  recommendations?: any[],
+  news?: NewsItem[]
 ): string {
   let prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích chuyên sâu cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
 
@@ -252,6 +263,26 @@ function buildStockAnalysisPrompt(
     prompt += `\n`
   }
 
+  // News Section
+  if (news && news.length > 0) {
+    prompt += `📰 TIN TỨC GẦN ĐÂY:\n`
+
+    news.forEach((item, idx) => {
+      const sentimentLabel = item.sentiment === 'positive' ? 'Tích cực' :
+                            item.sentiment === 'negative' ? 'Tiêu cực' : 'Trung lập'
+      prompt += `${idx + 1}. [${sentimentLabel}] ${item.title}\n`
+      prompt += `   ${item.summary}\n`
+      prompt += `   Nguồn: ${item.source} | ${item.date}\n\n`
+    })
+
+    // Count sentiment
+    const positive = news.filter(n => n.sentiment === 'positive').length
+    const negative = news.filter(n => n.sentiment === 'negative').length
+    const neutral = news.filter(n => n.sentiment === 'neutral').length
+
+    prompt += `Tổng hợp sentiment tin tức: Tích cực (${positive}), Tiêu cực (${negative}), Trung lập (${neutral})\n\n`
+  }
+
   // Analysis Instructions with weighted methodology
   prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n\n`
 
@@ -272,6 +303,11 @@ function buildStockAnalysisPrompt(
 
   prompt += `5. Đưa ra ĐÚNG 3 rủi ro và ĐÚNG 3 cơ hội cụ thể nhất\n\n`
 
+  prompt += `6. PHÂN TÍCH TIN TỨC (nếu có tin tức):\n`
+  prompt += `   - Đánh giá sentiment tổng hợp từ tin tức\n`
+  prompt += `   - Tác động tiềm năng đến giá cổ phiếu\n`
+  prompt += `   - Tóm tắt các điểm chính từ tin tức\n\n`
+
   prompt += `📋 FORMAT JSON (BẮT BUỘC - chỉ trả về JSON, không có text khác):\n`
   prompt += `{
   "shortTerm": {
@@ -288,7 +324,12 @@ function buildStockAnalysisPrompt(
   "targetPrice": 95,
   "stopLoss": 80,
   "risks": ["Rủi ro 1", "Rủi ro 2", "Rủi ro 3"],
-  "opportunities": ["Cơ hội 1", "Cơ hội 2", "Cơ hội 3"]
+  "opportunities": ["Cơ hội 1", "Cơ hội 2", "Cơ hội 3"],
+  "newsAnalysis": {
+    "sentiment": "positive|negative|neutral",
+    "summary": "Tóm tắt phân tích tin tức 2-3 câu",
+    "impactOnPrice": "Tác động tiềm năng đến giá 1-2 câu"
+  }
 }\n\n`
 
   prompt += `LƯU Ý:\n`
@@ -296,6 +337,7 @@ function buildStockAnalysisPrompt(
   prompt += `- confidence: số nguyên 0-100\n`
   prompt += `- buyPrice, targetPrice, stopLoss: số (x1000 VNĐ), null nếu không MUA\n`
   prompt += `- risks và opportunities: mỗi array ĐÚNG 3 phần tử\n`
+  prompt += `- newsAnalysis: bắt buộc nếu có tin tức, sentiment là "positive", "negative", hoặc "neutral"\n`
 
   return prompt
 }
@@ -422,7 +464,28 @@ function normalizeResponse(parsed: any, currentPrice?: number): any {
     'Cơ hội từ xu hướng kỹ thuật'
   ])
 
+  // Normalize newsAnalysis if present
+  if (parsed.newsAnalysis) {
+    result.newsAnalysis = {
+      sentiment: normalizeNewsSentiment(parsed.newsAnalysis.sentiment),
+      summary: String(parsed.newsAnalysis.summary || '').trim() || 'Chưa có đủ thông tin tin tức để phân tích.',
+      impactOnPrice: String(parsed.newsAnalysis.impactOnPrice || '').trim() || 'Cần theo dõi thêm diễn biến tin tức.'
+    }
+  }
+
   return result
+}
+
+/**
+ * Normalize news sentiment value
+ */
+function normalizeNewsSentiment(sentiment: any): 'positive' | 'negative' | 'neutral' {
+  if (!sentiment) return 'neutral'
+  const s = String(sentiment).toLowerCase().trim()
+
+  if (s.includes('positive') || s.includes('tích cực')) return 'positive'
+  if (s.includes('negative') || s.includes('tiêu cực')) return 'negative'
+  return 'neutral'
 }
 
 /**

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { fetchStockPrices, fetchFinancialRatios, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
 import { formatPrice } from '@/utils/formatters'
+import { useStockAnalysis, TechnicalData, FundamentalData } from '@/contexts/StockAnalysisContext'
 
 interface StockSummaryEvaluationWidgetProps {
     symbol: string
@@ -46,8 +47,14 @@ export default function StockSummaryEvaluationWidget({ symbol }: StockSummaryEva
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    // Get context for publishing data
+    const { publishData, setSymbol } = useStockAnalysis()
+
     useEffect(() => {
         if (!symbol) return
+
+        // Update symbol in context
+        setSymbol(symbol)
 
         // Reset analysis when symbol changes
         setAnalysis(null)
@@ -59,8 +66,8 @@ export default function StockSummaryEvaluationWidget({ symbol }: StockSummaryEva
             try {
                 console.log('🤖 Performing Summary Analysis for:', symbol)
 
-                // Fetch technical, fundamental data and profitability data in parallel
-                const [pricesResponse, ratiosResponse, profitabilityResponse] = await Promise.all([
+                // Fetch technical, fundamental data, profitability data and recommendations in parallel
+                const [pricesResponse, ratiosResponse, profitabilityResponse, recommendationsResponse] = await Promise.all([
                     fetchStockPrices(symbol, 270),
                     fetchFinancialRatios(symbol),
                     fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`)
@@ -68,7 +75,11 @@ export default function StockSummaryEvaluationWidget({ symbol }: StockSummaryEva
                         .catch(err => {
                             console.warn('⚠️ Failed to fetch profitability data, continuing without:', err)
                             return null
-                        })
+                        }),
+                    fetchStockRecommendations(symbol).catch(err => {
+                        console.warn('⚠️ Failed to fetch recommendations, continuing without:', err)
+                        return { data: [] }
+                    })
                 ])
 
                 if (!pricesResponse.data || pricesResponse.data.length === 0) {
@@ -87,6 +98,101 @@ export default function StockSummaryEvaluationWidget({ symbol }: StockSummaryEva
                     ratiosMap[ratio.ratioCode] = ratio
                 })
 
+                // Build technical data for context
+                const closePrices = sortedData.map(d => d.adClose)
+                const currentPrice = closePrices[closePrices.length - 1]
+                const volumes = sortedData.map(d => d.nmVolume)
+
+                const ma10 = calculateSMA(closePrices, 10)
+                const ma30 = calculateSMA(closePrices, 30)
+                const bb = calculateBollingerBands(closePrices, 20, 2)
+
+                const latestIdx = closePrices.length - 1
+                const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
+                const currentVolume = volumes[volumes.length - 1]
+
+                const priceChange5D = ((currentPrice - closePrices[closePrices.length - 6]) / closePrices[closePrices.length - 6]) * 100
+                const priceChange10D = ((currentPrice - closePrices[closePrices.length - 11]) / closePrices[closePrices.length - 11]) * 100
+
+                const high52W = Math.max(...closePrices)
+                const low52W = Math.min(...closePrices)
+
+                // Calculate buy price using pivot points
+                let buyPrice: number | undefined
+                if (sortedData.length >= 2) {
+                    const latestDay = sortedData[sortedData.length - 1]
+                    const pivots = calculateWoodiePivotPoints(latestDay.adHigh, latestDay.adLow, latestDay.adClose)
+                    if (pivots) {
+                        buyPrice = pivots.S2
+                    }
+                }
+
+                const technicalData: TechnicalData = {
+                    currentPrice,
+                    ma10: ma10[latestIdx],
+                    ma30: ma30[latestIdx],
+                    bollinger: {
+                        upper: bb.upper[latestIdx],
+                        middle: bb.middle[latestIdx],
+                        lower: bb.lower[latestIdx]
+                    },
+                    momentum: {
+                        day5: priceChange5D,
+                        day10: priceChange10D
+                    },
+                    volume: {
+                        current: currentVolume,
+                        avg10: avgVolume10,
+                        ratio: (currentVolume / avgVolume10) * 100
+                    },
+                    week52: {
+                        high: high52W,
+                        low: low52W
+                    },
+                    buyPrice,
+                    priceData: sortedData
+                }
+
+                // Build fundamental data for context
+                const fundamentalData: FundamentalData = {
+                    pe: ratiosMap['PRICE_TO_EARNINGS']?.value,
+                    pb: ratiosMap['PRICE_TO_BOOK']?.value,
+                    roe: ratiosMap['ROAE_TR_AVG5Q']?.value,
+                    roa: ratiosMap['ROAA_TR_AVG5Q']?.value,
+                    dividendYield: ratiosMap['DIVIDEND_YIELD']?.value,
+                    marketCap: ratiosMap['MARKETCAP']?.value,
+                    freeFloat: ratiosMap['FREEFLOAT']?.value,
+                    eps: ratiosMap['EPS_TR']?.value,
+                    bvps: ratiosMap['BVPS_CR']?.value,
+                    profitability: profitabilityResponse ? {
+                        quarters: profitabilityResponse.x || [],
+                        metrics: profitabilityResponse.data || []
+                    } : null
+                }
+
+                // Prepare recommendations for context
+                const recommendations = (recommendationsResponse.data || [])
+                    .slice(0, 10)
+                    .map((rec: any) => ({
+                        firm: rec.firm,
+                        type: rec.type,
+                        reportDate: rec.reportDate,
+                        targetPrice: rec.targetPrice,
+                        reportPrice: rec.reportPrice
+                    }))
+
+                // Publish data to context for other widgets (like GeminiAnalysisWidget)
+                publishData({
+                    symbol,
+                    technicalData,
+                    fundamentalData,
+                    recommendations,
+                    ratiosMap,
+                    profitabilityData: profitabilityResponse
+                })
+
+                console.log('📤 Published stock data to context for:', symbol)
+
                 // Perform analysis with profitability data
                 const aiAnalysis = analyzeStock(sortedData, ratiosMap, profitabilityResponse)
                 console.log('✅ Summary analysis completed for:', symbol)
@@ -100,7 +206,7 @@ export default function StockSummaryEvaluationWidget({ symbol }: StockSummaryEva
         }
 
         performAnalysis()
-    }, [symbol])
+    }, [symbol, publishData, setSymbol])
 
     const analyzeStock = (priceData: any[], ratios: Record<string, FinancialRatio>, profitabilityData: any): AIAnalysis => {
         // Technical Analysis for Short-term

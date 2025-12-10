@@ -8,6 +8,7 @@ import StockProfitStructureWidget from '@/components/StockProfitStructureWidget'
 import StockSummaryWidget from '@/components/StockSummaryWidget'
 import GeminiAnalysisWidget from '@/components/GeminiAnalysisWidget'
 import StockRecommendationsWidget from '@/components/StockRecommendationsWidget'
+import { StockAnalysisProvider } from '@/contexts/StockAnalysisContext'
 
 // Dynamic import to avoid SSR issues with lightweight-charts
 const StockDetailsWidget = dynamic(
@@ -31,39 +32,41 @@ export default function StocksPage() {
   const [currentSymbol, setCurrentSymbol] = useState('VNM')
 
   return (
-    <div className="space-y-3 sm:space-y-4 md:space-y-5">
-      {/* Header */}
-      <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1.5 sm:mb-2">📈 Phân tích Cổ phiếu</h1>
-        <p className="text-xs sm:text-sm md:text-base text-[--muted]">
-          Công cụ phân tích chuyên sâu với biểu đồ kỹ thuật, chỉ báo Bollinger Bands,
-          Pivot Points và các chỉ số tài chính cơ bản
-        </p>
+    <StockAnalysisProvider initialSymbol={currentSymbol}>
+      <div className="space-y-3 sm:space-y-4 md:space-y-5">
+        {/* Header */}
+        <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-1.5 sm:mb-2">📈 Phân tích Cổ phiếu</h1>
+          <p className="text-xs sm:text-sm md:text-base text-[--muted]">
+            Công cụ phân tích chuyên sâu với biểu đồ kỹ thuật, chỉ báo Bollinger Bands,
+            Pivot Points và các chỉ số tài chính cơ bản
+          </p>
+        </div>
+
+        {/* Stock Details Widget with Chart */}
+        <StockDetailsWidget
+          initialSymbol={currentSymbol}
+          onSymbolChange={setCurrentSymbol}
+        />
+
+        {/* Stock Financials Widget */}
+        <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
+
+        {/* Stock Profitability Widget (ROE/ROA) */}
+        <StockProfitabilityWidget key={`profitability-${currentSymbol}`} symbol={currentSymbol} />
+
+        {/* Stock Profit Structure Widget */}
+        <StockProfitStructureWidget key={`profit-structure-${currentSymbol}`} symbol={currentSymbol} />
+
+        {/* Stock Recommendations Widget */}
+        <StockRecommendationsWidget key={`rec-${currentSymbol}`} symbol={currentSymbol} />
+
+        {/* AI Summary Widget - loads data and publishes to context */}
+        <StockSummaryWidget key={`summary-${currentSymbol}`} symbol={currentSymbol} />
+
+        {/* Gemini Analysis Widget - uses data from context + fetches news */}
+        <GeminiAnalysisWidget key={`gemini-${currentSymbol}`} symbol={currentSymbol} />
       </div>
-
-      {/* Stock Details Widget with Chart */}
-      <StockDetailsWidget
-        initialSymbol={currentSymbol}
-        onSymbolChange={setCurrentSymbol}
-      />
-
-      {/* Stock Financials Widget */}
-      <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
-
-      {/* Stock Profitability Widget (ROE/ROA) */}
-      <StockProfitabilityWidget key={`profitability-${currentSymbol}`} symbol={currentSymbol} />
-
-      {/* Stock Profit Structure Widget */}
-      <StockProfitStructureWidget key={`profit-structure-${currentSymbol}`} symbol={currentSymbol} />
-
-      {/* Stock Recommendations Widget */}
-      <StockRecommendationsWidget key={`rec-${currentSymbol}`} symbol={currentSymbol} />
-
-      {/* AI Summary Widget */}
-      <StockSummaryWidget key={`summary-${currentSymbol}`} symbol={currentSymbol} />
-
-      {/* Gemini Analysis Widget */}
-      <GeminiAnalysisWidget key={`gemini-${currentSymbol}`} symbol={currentSymbol} />
-    </div>
+    </StockAnalysisProvider>
   )
 }
