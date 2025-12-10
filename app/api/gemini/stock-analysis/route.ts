@@ -347,17 +347,24 @@ function buildStockAnalysisPrompt(
  */
 function parseGeminiStockAnalysis(text: string, currentPrice?: number): any {
   console.log('🔍 Parsing Gemini response...')
+  console.log('📝 Raw text length:', text.length)
+  console.log('📝 First 500 chars:', text.substring(0, 500))
 
-  // Clean markdown code blocks
+  // Clean markdown code blocks - more aggressive cleaning
   let cleaned = text
     .replace(/```json\s*/gi, '')
+    .replace(/```javascript\s*/gi, '')
     .replace(/```\s*/g, '')
+    .replace(/^\s*[\r\n]+/gm, '')  // Remove empty lines
     .trim()
+
+  console.log('📝 Cleaned text length:', cleaned.length)
 
   // Find JSON object
   const startIdx = cleaned.indexOf('{')
   if (startIdx === -1) {
     console.error('❌ No JSON found in response')
+    console.error('📝 Cleaned text:', cleaned.substring(0, 500))
     return createDefaultResponse(currentPrice)
   }
 
@@ -375,28 +382,64 @@ function parseGeminiStockAnalysis(text: string, currentPrice?: number): any {
 
   if (endIdx === -1) {
     console.error('❌ No closing brace found')
+    console.error('📝 JSON string from start:', cleaned.substring(startIdx, startIdx + 500))
     return createDefaultResponse(currentPrice)
   }
 
   const jsonStr = cleaned.substring(startIdx, endIdx + 1)
+  console.log('📝 Extracted JSON length:', jsonStr.length)
+  console.log('📝 JSON preview:', jsonStr.substring(0, 300))
 
   try {
     // Fix common JSON issues
     let fixedJson = jsonStr
       .replace(/[\x00-\x1F\x7F]/g, ' ')  // Remove control characters
+      .replace(/\n/g, ' ')  // Remove newlines
+      .replace(/\r/g, '')   // Remove carriage returns
+      .replace(/\t/g, ' ')  // Remove tabs
       .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g, '$1"$2"$3')  // Quote unquoted keys
       .replace(/'/g, '"')  // Single to double quotes
       .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas
       .replace(/"null"/gi, 'null')
       .replace(/"undefined"/gi, 'null')
+      .replace(/\s+/g, ' ')  // Collapse multiple spaces
+
+    console.log('📝 Fixed JSON preview:', fixedJson.substring(0, 300))
 
     const parsed = JSON.parse(fixedJson)
     console.log('✅ JSON parsed successfully')
+    console.log('📊 Parsed keys:', Object.keys(parsed))
+    console.log('📊 shortTerm:', parsed.shortTerm)
+    console.log('📊 longTerm:', parsed.longTerm)
 
     // Normalize and validate
     return normalizeResponse(parsed, currentPrice)
   } catch (error) {
     console.error('❌ JSON parse failed:', error)
+    console.error('📝 Failed JSON string:', jsonStr.substring(0, 500))
+
+    // Try alternative parsing - find JSON using regex
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*?"shortTerm"[\s\S]*?"longTerm"[\s\S]*?\}/);
+      if (jsonMatch) {
+        console.log('🔄 Trying alternative JSON extraction...')
+        const altJson = jsonMatch[0]
+          .replace(/[\x00-\x1F\x7F]/g, ' ')
+          .replace(/\n/g, ' ')
+          .replace(/\r/g, '')
+          .replace(/\t/g, ' ')
+          .replace(/'/g, '"')
+          .replace(/,(\s*[}\]])/g, '$1')
+          .replace(/\s+/g, ' ')
+
+        const altParsed = JSON.parse(altJson)
+        console.log('✅ Alternative JSON parsed successfully')
+        return normalizeResponse(altParsed, currentPrice)
+      }
+    } catch (altError) {
+      console.error('❌ Alternative parsing also failed:', altError)
+    }
+
     return createDefaultResponse(currentPrice)
   }
 }

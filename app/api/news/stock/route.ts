@@ -50,47 +50,60 @@ export async function POST(request: NextRequest) {
     // Build prompt for Gemini to search and analyze news
     const prompt = buildNewsSearchPrompt(symbol, companyName, searchQuery)
 
-    // Call Gemini API with Google Search grounding
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          tools: [
-            {
-              googleSearch: {}
-            }
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 2048,
+    // Try calling Gemini API with Google Search grounding first
+    let response: Response
+    let useGoogleSearch = true
+
+    try {
+      console.log('🔍 Trying Gemini with Google Search grounding...')
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
           },
-        }),
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+            tools: [
+              {
+                googleSearch: {}
+              }
+            ],
+            generationConfig: {
+              temperature: 0.3,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 2048,
+            },
+          }),
+        }
+      )
+
+      console.log('📡 Gemini News API (with Google Search) response status:', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.warn('⚠️ Google Search grounding failed:', response.status, errorText)
+        useGoogleSearch = false
       }
-    )
+    } catch (searchError) {
+      console.warn('⚠️ Google Search grounding error:', searchError)
+      useGoogleSearch = false
+    }
 
-    console.log('📡 Gemini News API response status:', response.status)
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Gemini News API error:', response.status, errorText)
-
-      // Try fallback without Google Search if it fails
+    // Fallback to request without Google Search
+    if (!useGoogleSearch) {
+      console.log('🔄 Falling back to Gemini without Google Search...')
       return await fetchNewsWithoutSearch(apiKey, selectedModel, symbol, companyName, searchQuery)
     }
 
@@ -139,9 +152,10 @@ async function fetchNewsWithoutSearch(
   companyName: string | undefined,
   searchQuery: string
 ): Promise<NextResponse> {
-  console.log('⚠️ Falling back to news generation without Google Search')
+  console.log('⚠️ Fetching news without Google Search for:', symbol)
 
   const fallbackPrompt = buildFallbackNewsPrompt(symbol, companyName)
+  console.log('📝 Fallback prompt length:', fallbackPrompt.length)
 
   try {
     const response = await fetch(
@@ -273,17 +287,22 @@ LƯU Ý: Đây là các chủ đề tham khảo, không phải tin tức cụ th
  */
 function parseNewsResponse(text: string): StockNews[] {
   console.log('🔍 Parsing news response...')
+  console.log('📝 News text length:', text.length)
+  console.log('📝 News text preview:', text.substring(0, 300))
 
   // Clean markdown code blocks
   let cleaned = text
     .replace(/```json\s*/gi, '')
+    .replace(/```javascript\s*/gi, '')
     .replace(/```\s*/g, '')
+    .replace(/^\s*[\r\n]+/gm, '')
     .trim()
 
   // Find JSON object
   const startIdx = cleaned.indexOf('{')
   if (startIdx === -1) {
     console.error('❌ No JSON found in news response')
+    console.error('📝 Cleaned text:', cleaned.substring(0, 500))
     return getDefaultNews()
   }
 
@@ -305,19 +324,26 @@ function parseNewsResponse(text: string): StockNews[] {
   }
 
   const jsonStr = cleaned.substring(startIdx, endIdx + 1)
+  console.log('📝 Extracted news JSON length:', jsonStr.length)
 
   try {
     // Fix common JSON issues
     let fixedJson = jsonStr
       .replace(/[\x00-\x1F\x7F]/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, '')
+      .replace(/\t/g, ' ')
       .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)/g, '$1"$2"$3')
       .replace(/'/g, '"')
       .replace(/,(\s*[}\]])/g, '$1')
+      .replace(/\s+/g, ' ')
 
     const parsed = JSON.parse(fixedJson)
     console.log('✅ News JSON parsed successfully')
+    console.log('📊 Parsed news count:', parsed.news?.length || 0)
 
     if (!parsed.news || !Array.isArray(parsed.news)) {
+      console.warn('⚠️ No news array in parsed response')
       return getDefaultNews()
     }
 
