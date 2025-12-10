@@ -108,6 +108,11 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
             // Get context summary from other widgets
             const contextSummary = stockAnalysisContext?.getContextSummary() || ''
             console.log('📋 Context summary for Gemini:', contextSummary.length > 0 ? 'Available' : 'Not available')
+            console.log('📋 Context summary length:', contextSummary.length)
+            console.log('📋 Available data sources:', availableDataSources)
+            if (contextSummary.length > 0) {
+                console.log('📋 Context summary preview:', contextSummary.substring(0, 500))
+            }
 
             // Call Gemini API with context from other widgets
             const result = await fetchGeminiAnalysis(

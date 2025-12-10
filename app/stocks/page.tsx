@@ -32,7 +32,7 @@ export default function StocksPage() {
   const [currentSymbol, setCurrentSymbol] = useState('VNM')
 
   return (
-    <StockAnalysisProvider initialSymbol={currentSymbol}>
+    <StockAnalysisProvider key={`provider-${currentSymbol}`} initialSymbol={currentSymbol}>
       <div className="space-y-3 sm:space-y-4 md:space-y-5">
         {/* Header */}
         <div className="bg-[--panel] rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 border border-gray-800">

@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
     const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations, widgetContextSummary)
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
+    console.log('📋 Widget context summary received:', widgetContextSummary ? `${widgetContextSummary.length} chars` : 'None')
+    console.log('📝 Full prompt length:', prompt.length, 'chars')
 
     // Call Gemini API
     const response = await fetch(
@@ -96,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📝 Gemini raw response length:', generatedText.length)
-    console.log('📝 Raw response preview:', generatedText.substring(0, 300))
+    console.log('📝 Raw response preview:', generatedText.substring(0, 500))
+    console.log('📝 Raw response full:', generatedText)
 
     // Parse and validate the response (always returns a result with fallback)
     const result = parseGeminiStockAnalysis(generatedText, technicalData?.currentPrice)
