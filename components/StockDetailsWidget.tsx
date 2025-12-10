@@ -7,6 +7,7 @@ import { calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/
 import { fetchStockPricesClient } from '@/services/vndirect-client'
 import type { StockPriceData, WoodiePivotPoints } from '@/types/vndirect'
 import { formatVolume, formatCurrency, formatPrice, formatChange } from '@/utils/formatters'
+import { useStockAnalysisSafe, TechnicalAnalysisData } from '@/contexts/StockAnalysisContext'
 
 interface StockDetailsWidgetProps {
   initialSymbol?: string
@@ -55,6 +56,9 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const [pivotPoints, setPivotPoints] = useState<WoodiePivotPoints | null>(null)
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Stock Analysis Context - for sharing data with Gemini
+  const stockAnalysisContext = useStockAnalysisSafe()
 
   // AbortController ref to cancel in-flight requests
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -597,6 +601,54 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
 
     return markers
   }, [displayData, movingAverages.ma10Array, movingAverages.ma30Array])
+
+  // Publish technical analysis data to context for Gemini
+  useEffect(() => {
+    if (!stockAnalysisContext || !stockData.length) return
+
+    const latestData = stockData[stockData.length - 1]
+    if (!latestData) return
+
+    // Calculate average volume for last 10 days
+    const avgVolume10 = stockData.length >= 10
+      ? stockData.slice(-10).reduce((sum, d) => sum + d.nmVolume, 0) / 10
+      : latestData.nmVolume
+
+    // Determine trend based on MA10 vs MA30
+    let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral'
+    const ma30Value = bollingerBands.middle.length > 0
+      ? bollingerBands.middle[bollingerBands.middle.length - 1]?.value
+      : null
+
+    if (movingAverages.ma10 !== null && ma30Value !== null) {
+      if (movingAverages.ma10 > ma30Value) {
+        trend = 'bullish'
+      } else if (movingAverages.ma10 < ma30Value) {
+        trend = 'bearish'
+      }
+    }
+
+    const technicalData: TechnicalAnalysisData = {
+      currentPrice: latestData.close,
+      ma10: movingAverages.ma10,
+      ma30: ma30Value,
+      bollinger: {
+        upper: bollingerBands.upper.length > 0 ? bollingerBands.upper[bollingerBands.upper.length - 1]?.value : null,
+        middle: ma30Value,
+        lower: bollingerBands.lower.length > 0 ? bollingerBands.lower[bollingerBands.lower.length - 1]?.value : null,
+      },
+      pivotPoints,
+      trend,
+      priceChange: latestData.change || 0,
+      priceChangePercent: latestData.pctChange || 0,
+      volume: latestData.nmVolume,
+      avgVolume10,
+      lastUpdated: new Date().toISOString(),
+    }
+
+    stockAnalysisContext.setTechnicalAnalysis(technicalData)
+    console.log('📊 [StockDetailsWidget] Published technical analysis to context:', symbol)
+  }, [stockData, movingAverages, bollingerBands, pivotPoints, symbol, stockAnalysisContext])
 
   // Update chart when data or settings change
   useEffect(() => {

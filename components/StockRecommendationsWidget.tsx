@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { fetchRecommendationsClient } from '@/services/vndirect-client'
 import type { StockRecommendation } from '@/types/vndirect'
 import { formatPrice as formatPriceUtil } from '@/utils/formatters'
+import { useStockAnalysisSafe, RecommendationsData } from '@/contexts/StockAnalysisContext'
 
 interface StockRecommendationsWidgetProps {
   symbol: string
@@ -15,6 +16,9 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState({ buy: 0, hold: 0, sell: 0 })
   const [showAll, setShowAll] = useState(false)
+
+  // Stock Analysis Context - for sharing data with Gemini
+  const stockAnalysisContext = useStockAnalysisSafe()
 
   useEffect(() => {
     if (!symbol) return
@@ -71,6 +75,28 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
 
     loadRecommendations()
   }, [symbol])
+
+  // Publish recommendations data to context for Gemini
+  useEffect(() => {
+    if (!stockAnalysisContext || recommendations.length === 0) return
+
+    const avgTargetPrice = recommendations.length > 0 ? recommendations[0].avgTargetPrice : null
+
+    const recommendationsData: RecommendationsData = {
+      recommendations,
+      stats: {
+        buy: stats.buy,
+        hold: stats.hold,
+        sell: stats.sell,
+        total: stats.buy + stats.hold + stats.sell,
+      },
+      avgTargetPrice,
+      lastUpdated: new Date().toISOString(),
+    }
+
+    stockAnalysisContext.setRecommendations(recommendationsData)
+    console.log('📊 [StockRecommendationsWidget] Published recommendations to context:', symbol)
+  }, [recommendations, stats, symbol, stockAnalysisContext])
 
   const getRecommendationColor = (type: string) => {
     switch (type) {

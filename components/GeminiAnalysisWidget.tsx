@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { fetchStockPrices, fetchFinancialRatios, fetchStockRecommendations, calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
 import type { FinancialRatio } from '@/types/vndirect'
+import { useStockAnalysisSafe } from '@/contexts/StockAnalysisContext'
 
 interface GeminiDeepAnalysisWidgetProps {
     symbol: string
@@ -49,6 +50,19 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
     const [error, setError] = useState<string | null>(null)
     const [hasAnalyzed, setHasAnalyzed] = useState(false)
 
+    // Stock Analysis Context - read data from other widgets
+    const stockAnalysisContext = useStockAnalysisSafe()
+
+    // Check which data sources are available from context
+    const availableDataSources = {
+        technicalAnalysis: !!stockAnalysisContext?.technicalAnalysis,
+        financialRatios: !!stockAnalysisContext?.financialRatios,
+        profitability: !!stockAnalysisContext?.profitability,
+        profitStructure: !!stockAnalysisContext?.profitStructure,
+        recommendations: !!stockAnalysisContext?.recommendations,
+    }
+    const hasContextData = Object.values(availableDataSources).some(v => v)
+
     const handleAnalyze = async () => {
         if (!symbol) return
 
@@ -91,13 +105,18 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                 ratiosMap[ratio.ratioCode] = ratio
             })
 
-            // Call Gemini API
+            // Get context summary from other widgets
+            const contextSummary = stockAnalysisContext?.getContextSummary() || ''
+            console.log('📋 Context summary for Gemini:', contextSummary.length > 0 ? 'Available' : 'Not available')
+
+            // Call Gemini API with context from other widgets
             const result = await fetchGeminiAnalysis(
                 symbol,
                 sortedData,
                 ratiosMap,
                 recommendationsResponse.data || [],
-                profitabilityResponse
+                profitabilityResponse,
+                contextSummary
             )
 
             if (result) {
@@ -123,7 +142,8 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
         priceData: any[],
         ratios: Record<string, FinancialRatio>,
         recommendations: any[],
-        profitabilityData: any
+        profitabilityData: any,
+        contextSummary: string = ''
     ): Promise<GeminiAnalysis | null> => {
         // Validate input data
         if (!priceData || priceData.length < 30) {
@@ -231,7 +251,9 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                     symbol,
                     technicalData,
                     fundamentalData,
-                    recommendations: recentRecommendations
+                    recommendations: recentRecommendations,
+                    // Include context summary from other widgets
+                    widgetContextSummary: contextSummary
                 }),
                 signal: controller.signal
             })
@@ -286,9 +308,53 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                         <p className="text-gray-400 mb-4">
                             Click nút bên dưới để Gemini AI phân tích chuyên sâu cổ phiếu {symbol}
                         </p>
-                        <p className="text-xs text-gray-500 mb-6">
+                        <p className="text-xs text-gray-500 mb-4">
                             Phân tích bao gồm: Đánh giá kỹ thuật, cơ bản, rủi ro, cơ hội và khuyến nghị giá
                         </p>
+
+                        {/* Data Sources Status */}
+                        {hasContextData && (
+                            <div className="mb-6 p-3 bg-green-900/20 border border-green-700/30 rounded-lg">
+                                <p className="text-green-400 text-sm font-semibold mb-2">
+                                    Dữ liệu sẵn sàng từ các widget:
+                                </p>
+                                <div className="flex flex-wrap justify-center gap-2 text-xs">
+                                    {availableDataSources.technicalAnalysis && (
+                                        <span className="px-2 py-1 bg-cyan-900/30 border border-cyan-700/30 rounded text-cyan-400">
+                                            Phân tích kỹ thuật
+                                        </span>
+                                    )}
+                                    {availableDataSources.financialRatios && (
+                                        <span className="px-2 py-1 bg-purple-900/30 border border-purple-700/30 rounded text-purple-400">
+                                            Chỉ số tài chính
+                                        </span>
+                                    )}
+                                    {availableDataSources.profitability && (
+                                        <span className="px-2 py-1 bg-yellow-900/30 border border-yellow-700/30 rounded text-yellow-400">
+                                            Hiệu quả hoạt động
+                                        </span>
+                                    )}
+                                    {availableDataSources.profitStructure && (
+                                        <span className="px-2 py-1 bg-orange-900/30 border border-orange-700/30 rounded text-orange-400">
+                                            Cơ cấu lợi nhuận
+                                        </span>
+                                    )}
+                                    {availableDataSources.recommendations && (
+                                        <span className="px-2 py-1 bg-blue-900/30 border border-blue-700/30 rounded text-blue-400">
+                                            Đánh giá CTCK
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {!hasContextData && (
+                            <div className="mb-6 p-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg">
+                                <p className="text-yellow-400 text-xs">
+                                    Đang chờ dữ liệu từ các widget khác... Gemini AI sẽ tự động thu thập dữ liệu bổ sung.
+                                </p>
+                            </div>
+                        )}
                     </div>
                     <button
                         onClick={handleAnalyze}

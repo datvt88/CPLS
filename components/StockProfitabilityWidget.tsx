@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useStockAnalysisSafe, ProfitabilityData as ContextProfitabilityData } from '@/contexts/StockAnalysisContext'
 
 interface StockProfitabilityWidgetProps {
   symbol: string
 }
 
-interface ProfitabilityData {
+interface ProfitabilityApiData {
   x: string[]
   type: string
   unit: string
@@ -21,9 +22,12 @@ interface ProfitabilityData {
 }
 
 export default function StockProfitabilityWidget({ symbol }: StockProfitabilityWidgetProps) {
-  const [data, setData] = useState<ProfitabilityData | null>(null)
+  const [data, setData] = useState<ProfitabilityApiData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Stock Analysis Context - for sharing data with Gemini
+  const stockAnalysisContext = useStockAnalysisSafe()
 
   useEffect(() => {
     if (!symbol) return
@@ -72,6 +76,25 @@ export default function StockProfitabilityWidget({ symbol }: StockProfitabilityW
 
     loadProfitabilityData()
   }, [symbol])
+
+  // Publish profitability data to context for Gemini
+  useEffect(() => {
+    if (!stockAnalysisContext || !data || !data.data || data.data.length === 0) return
+
+    const profitabilityData: ContextProfitabilityData = {
+      quarters: data.x,
+      metrics: data.data.map(m => ({
+        id: m.id,
+        label: m.label,
+        values: m.y,
+        tooltip: m.tooltip,
+      })),
+      lastUpdated: new Date().toISOString(),
+    }
+
+    stockAnalysisContext.setProfitability(profitabilityData)
+    console.log('📊 [StockProfitabilityWidget] Published profitability to context:', symbol)
+  }, [data, symbol, stockAnalysisContext])
 
   if (loading) {
     return (

@@ -3,7 +3,7 @@ import { isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 
 export async function POST(request: NextRequest) {
   try {
-    const { symbol, technicalData, fundamentalData, recommendations, model } = await request.json()
+    const { symbol, technicalData, fundamentalData, recommendations, model, widgetContextSummary } = await request.json()
 
     // Validate input
     if (!symbol || typeof symbol !== 'string') {
@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build comprehensive prompt with technical, fundamental data and analyst recommendations
-    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations)
+    // Build comprehensive prompt with technical, fundamental data, analyst recommendations, and widget context
+    const prompt = buildStockAnalysisPrompt(symbol, technicalData, fundamentalData, recommendations, widgetContextSummary)
 
     console.log('📊 Analyzing stock with Gemini:', symbol)
 
@@ -132,9 +132,19 @@ function buildStockAnalysisPrompt(
   symbol: string,
   technicalData?: any,
   fundamentalData?: any,
-  recommendations?: any[]
+  recommendations?: any[],
+  widgetContextSummary?: string
 ): string {
   let prompt = `Bạn là chuyên gia phân tích chứng khoán Việt Nam. Hãy phân tích chuyên sâu cổ phiếu ${symbol} dựa trên dữ liệu sau:\n\n`
+
+  // Include widget context summary if available (data from other widgets on the page)
+  if (widgetContextSummary && widgetContextSummary.trim().length > 50) {
+    prompt += `📱 DỮ LIỆU TỪ CÁC WIDGET PHÂN TÍCH KHÁC:\n`
+    prompt += `(Dữ liệu này được thu thập tự động từ các widget hiển thị trên trang phân tích)\n\n`
+    prompt += widgetContextSummary
+    prompt += `\n--- HẾT DỮ LIỆU TỪ WIDGET ---\n\n`
+    prompt += `Lưu ý: Sử dụng dữ liệu từ các widget ở trên để bổ sung và xác thực phân tích của bạn.\n\n`
+  }
 
   // Technical Analysis Section
   if (technicalData) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { fetchFinancialRatiosClient } from '@/services/vndirect-client'
 import type { FinancialRatio } from '@/types/vndirect'
 import { formatFinancialRatio } from '@/utils/formatters'
+import { useStockAnalysisSafe, FinancialRatiosData } from '@/contexts/StockAnalysisContext'
 
 interface StockFinancialsWidgetProps {
   symbol: string
@@ -13,6 +14,9 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
   const [ratios, setRatios] = useState<Record<string, FinancialRatio>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Stock Analysis Context - for sharing data with Gemini
+  const stockAnalysisContext = useStockAnalysisSafe()
 
   useEffect(() => {
     if (!symbol) return
@@ -65,6 +69,33 @@ export default function StockFinancialsWidget({ symbol }: StockFinancialsWidgetP
 
     loadRatios()
   }, [symbol])
+
+  // Publish financial ratios to context for Gemini
+  useEffect(() => {
+    if (!stockAnalysisContext || Object.keys(ratios).length === 0) return
+
+    const financialData: FinancialRatiosData = {
+      pe: ratios['PRICE_TO_EARNINGS']?.value ?? null,
+      pb: ratios['PRICE_TO_BOOK']?.value ?? null,
+      eps: ratios['EPS_TR']?.value ?? null,
+      bvps: ratios['BVPS_CR']?.value ?? null,
+      roe: ratios['ROAE_TR_AVG5Q']?.value ?? null,
+      roa: ratios['ROAA_TR_AVG5Q']?.value ?? null,
+      beta: ratios['BETA']?.value ?? null,
+      dividendYield: ratios['DIVIDEND_YIELD']?.value ?? null,
+      marketCap: ratios['MARKETCAP']?.value ?? null,
+      freeFloat: ratios['FREEFLOAT']?.value ?? null,
+      high52Week: ratios['PRICE_HIGHEST_CR_52W']?.value ?? null,
+      low52Week: ratios['PRICE_LOWEST_CR_52W']?.value ?? null,
+      avgVolume10D: ratios['NMVOLUME_AVG_CR_10D']?.value ?? null,
+      outstandingShares: ratios['OUTSTANDING_SHARES']?.value ?? null,
+      rawData: ratios,
+      lastUpdated: new Date().toISOString(),
+    }
+
+    stockAnalysisContext.setFinancialRatios(financialData)
+    console.log('📊 [StockFinancialsWidget] Published financial ratios to context:', symbol)
+  }, [ratios, symbol, stockAnalysisContext])
 
   // Use standardized formatter from utils
   const formatValue = (ratioCode: string, value: number | undefined): string => {

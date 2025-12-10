@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useStockAnalysisSafe, ProfitStructureData as ContextProfitStructureData } from '@/contexts/StockAnalysisContext'
 
 interface StockProfitStructureWidgetProps {
   symbol: string
 }
 
-interface ProfitStructureData {
+interface ProfitStructureApiData {
   x: string[]
   type: string
   data: Array<{
@@ -20,13 +21,16 @@ interface ProfitStructureData {
 }
 
 export default function StockProfitStructureWidget({ symbol }: StockProfitStructureWidgetProps) {
-  const [data, setData] = useState<ProfitStructureData | null>(null)
-  const [equityData, setEquityData] = useState<ProfitStructureData | null>(null)
+  const [data, setData] = useState<ProfitStructureApiData | null>(null)
+  const [equityData, setEquityData] = useState<ProfitStructureApiData | null>(null)
   const [loading, setLoading] = useState(false)
   const [equityLoading, setEquityLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [equityError, setEquityError] = useState<string | null>(null)
   const [dataType, setDataType] = useState<'profit' | 'revenue'>('profit') // Track which data type we're showing
+
+  // Stock Analysis Context - for sharing data with Gemini
+  const stockAnalysisContext = useStockAnalysisSafe()
 
   useEffect(() => {
     if (!symbol) return
@@ -152,6 +156,32 @@ export default function StockProfitStructureWidget({ symbol }: StockProfitStruct
 
     loadEquityData()
   }, [symbol])
+
+  // Publish profit structure data to context for Gemini
+  useEffect(() => {
+    if (!stockAnalysisContext || !data || !data.data || data.data.length === 0) return
+
+    const profitStructureData: ContextProfitStructureData = {
+      quarters: data.x,
+      profitComponents: data.data.map(c => ({
+        id: c.id,
+        label: c.label,
+        values: c.y,
+      })),
+      equityComponents: equityData?.data
+        ? equityData.data.map(c => ({
+            id: c.id,
+            label: c.label,
+            values: c.y,
+          }))
+        : null,
+      dataType,
+      lastUpdated: new Date().toISOString(),
+    }
+
+    stockAnalysisContext.setProfitStructure(profitStructureData)
+    console.log('📊 [StockProfitStructureWidget] Published profit structure to context:', symbol)
+  }, [data, equityData, dataType, symbol, stockAnalysisContext])
 
   // Format large numbers to billions (tỷ đồng)
   const formatBillion = (value: number): string => {
