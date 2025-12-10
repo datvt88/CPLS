@@ -175,12 +175,13 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}))
+                console.error('❌ API response not ok:', response.status, errorData)
                 throw new Error(errorData.error || `Lỗi API Gemini: ${response.status}`)
             }
 
             const data = await response.json()
 
-            console.log('📥 Gemini API response:', data)
+            console.log('📥 Gemini API response:', JSON.stringify(data).substring(0, 500))
 
             // Validate response structure - accept partial results
             if (!data) {
@@ -188,7 +189,25 @@ export default function GeminiDeepAnalysisWidget({ symbol }: GeminiDeepAnalysisW
                 throw new Error('Không nhận được dữ liệu từ Gemini')
             }
 
+            // Check for error in response
+            if (data.error) {
+                console.error('Gemini API error:', data.error)
+                throw new Error(data.error)
+            }
+
             // Check if we have at least some valid data
+            // Also check if we got default values (signal = 'THEO DÕI' and confidence = 50)
+            const isDefaultResponse =
+                data.shortTerm?.signal === 'THEO DÕI' &&
+                data.shortTerm?.confidence === 50 &&
+                data.longTerm?.signal === 'THEO DÕI' &&
+                data.longTerm?.confidence === 50 &&
+                data.shortTerm?.summary?.includes('theo dõi')
+
+            if (isDefaultResponse) {
+                console.warn('⚠️ Got default response from Gemini - API may have issues')
+            }
+
             if (!data.shortTerm && !data.longTerm && !data.risks && !data.opportunities) {
                 console.error('Invalid Gemini response structure:', data)
                 throw new Error('Định dạng phản hồi từ Gemini không hợp lệ')

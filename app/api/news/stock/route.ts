@@ -84,7 +84,6 @@ export async function POST(request: NextRequest) {
               topK: 40,
               topP: 0.95,
               maxOutputTokens: 2048,
-              responseMimeType: 'application/json',  // Force JSON response
             },
           }),
         }
@@ -178,11 +177,10 @@ async function fetchNewsWithoutSearch(
             },
           ],
           generationConfig: {
-            temperature: 0.5,
+            temperature: 0.3,
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 1024,
-            responseMimeType: 'application/json',  // Force JSON response
           },
         }),
       }
