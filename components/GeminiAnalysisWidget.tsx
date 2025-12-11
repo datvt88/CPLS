@@ -39,6 +39,8 @@ interface DataStatus {
   ratios: boolean
   recommendations: boolean
   technical: boolean
+  profitability: boolean
+  profitStructure: boolean
 }
 
 // --- STATUS COMPONENTS ---
@@ -169,14 +171,16 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
   // Data readiness from StockHub
   const dataStatus = useMemo<DataStatus>(() => {
     if (!stockHub?.stockData) {
-      return { prices: false, ratios: false, recommendations: false, technical: false }
+      return { prices: false, ratios: false, recommendations: false, technical: false, profitability: false, profitStructure: false }
     }
     const sd = stockHub.stockData
     return {
       prices: sd.prices.length >= 30,
       ratios: Object.keys(sd.ratios).length > 0,
       recommendations: sd.recommendations.length > 0,
-      technical: sd.technicalIndicators !== null
+      technical: sd.technicalIndicators !== null,
+      profitability: sd.profitability !== null,
+      profitStructure: sd.profitStructure !== null
     }
   }, [stockHub?.stockData])
 
@@ -255,12 +259,15 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
       let ratios = stockHub.stockData?.ratios
       let recs = stockHub.stockData?.recommendations
       let profitability = stockHub.stockData?.profitability
+      let profitStructure = stockHub.stockData?.profitStructure
 
       const needsPrices = !prices || prices.length < 30
       const needsRatios = !ratios || Object.keys(ratios).length === 0
       const needsRecs = !recs || recs.length === 0
+      const needsProfitability = !profitability
+      const needsProfitStructure = !profitStructure
 
-      if (needsPrices || needsRatios || needsRecs) {
+      if (needsPrices || needsRatios || needsRecs || needsProfitability || needsProfitStructure) {
         setStatusMsg('Tải dữ liệu thị trường...')
 
         const fetchPromises: Promise<any>[] = []
@@ -286,12 +293,20 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
               .catch(() => ({ type: 'recs', data: [] }))
           )
         }
-        if (!profitability) {
+        if (needsProfitability) {
           fetchPromises.push(
             fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`)
               .then(r => r.json())
               .then(data => ({ type: 'profitability', data }))
               .catch(() => ({ type: 'profitability', data: null }))
+          )
+        }
+        if (needsProfitStructure) {
+          fetchPromises.push(
+            fetch(`/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`)
+              .then(r => r.json())
+              .then(data => ({ type: 'profitStructure', data }))
+              .catch(() => ({ type: 'profitStructure', data: null }))
           )
         }
 
@@ -319,6 +334,10 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
             case 'profitability':
               profitability = result.data
               stockHub.setProfitability(result.data)
+              break
+            case 'profitStructure':
+              profitStructure = result.data
+              stockHub.setProfitStructure(result.data)
               break
           }
         }
@@ -375,7 +394,8 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
           pb: (ratios as any)?.['PRICE_TO_BOOK']?.value,
           roe: (ratios as any)?.['ROAE_TR_AVG5Q']?.value ? (ratios as any)['ROAE_TR_AVG5Q'].value * 100 : undefined,
           roa: (ratios as any)?.['ROAA_TR_AVG5Q']?.value ? (ratios as any)['ROAA_TR_AVG5Q'].value * 100 : undefined,
-          profitability
+          profitability,
+          profitStructure
         },
         recommendations: recs?.slice(0, 5) || []
       }
@@ -461,12 +481,14 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
       </div>
 
       {/* STATUS PANEL */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 pb-3 border-b border-slate-700/50">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3 pb-3 border-b border-slate-700/50">
         <StatusIndicator ready={apiStatus.ready} label={apiStatus.checked ? (apiStatus.ready ? 'API OK' : 'API lỗi') : 'Đang kiểm tra API...'} />
         <StatusIndicator ready={dataStatus.prices} label={`Giá ${dataStatus.prices ? '✓' : '○'}`} />
         <StatusIndicator ready={dataStatus.ratios} label={`Chỉ số ${dataStatus.ratios ? '✓' : '○'}`} />
         <StatusIndicator ready={dataStatus.technical} label={`Kỹ thuật ${dataStatus.technical ? '✓' : '○'}`} />
         <StatusIndicator ready={dataStatus.recommendations} label={`CTCK ${dataStatus.recommendations ? '✓' : '○'}`} />
+        <StatusIndicator ready={dataStatus.profitability} label={`ROE/ROA ${dataStatus.profitability ? '✓' : '○'}`} />
+        <StatusIndicator ready={dataStatus.profitStructure} label={`Cơ cấu LN ${dataStatus.profitStructure ? '✓' : '○'}`} />
         {/* Usage Limit Badge */}
         <div className="flex items-center gap-1.5 text-[10px] ml-auto">
           <span className={`w-1.5 h-1.5 rounded-full ${isUnlimited ? 'bg-purple-500' : canUseGemini ? 'bg-emerald-500' : 'bg-rose-500'}`} />
