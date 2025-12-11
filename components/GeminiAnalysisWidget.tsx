@@ -12,6 +12,7 @@ import {
 import type { FinancialRatio } from '@/types/vndirect'
 import { formatPrice } from '@/utils/formatters' // Import hàm format giá
 import { usePermissions } from '@/contexts/PermissionsContext'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 import Link from 'next/link'
 
 // --- 1. TYPES ---
@@ -90,7 +91,7 @@ const analyzeFundamental = (ratios: Record<string, FinancialRatio>, profit: any)
     // Lấy dữ liệu ROE mới nhất từ API profitability nếu có
     if (profit?.data) {
          const roeItem = profit.data.find((x: any) => x.label === 'ROE')
-         if (roeItem?.y?.length) roeVal = roeItem.y[roeItem.y.length - 1]
+         if (roeItem?.y?.length) roe = roeItem.y[roeItem.y.length - 1]
     }
     
     if (roe > 15) { score += 30; reasons.push(`ROE ấn tượng (${roe.toFixed(1)}%)`) }
@@ -217,7 +218,7 @@ export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
                     },
                     recommendations: recs.data.slice(0, 5),
                     ruleBasedAnalysis: ruleAnalysis,
-                    model: 'gemini-1.5-flash'
+                    model: DEFAULT_GEMINI_MODEL
                 })
             })
 
