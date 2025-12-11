@@ -12,7 +12,7 @@ import {
 import type { FinancialRatio } from '@/types/vndirect'
 import { formatPrice } from '@/utils/formatters' // Import hàm format giá
 import { usePermissions } from '@/contexts/PermissionsContext'
-import { DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
+import { DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 import Link from 'next/link'
 
 // --- 1. TYPES ---

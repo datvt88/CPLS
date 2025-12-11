@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { SignalOutput, SignalResponse } from '@/types/signal'
-import { getActiveModels, DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
+import { getActiveModels, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 
 interface ApiStatus {
   status: 'success' | 'error' | 'checking'

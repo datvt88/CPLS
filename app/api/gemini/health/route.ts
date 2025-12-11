@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
+import { geminiHub, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 
 /**
  * Health check endpoint for Gemini API
@@ -8,9 +8,7 @@ import { DEFAULT_GEMINI_MODEL } from '@/lib/geminiModels'
 export async function GET(request: NextRequest) {
   try {
     // Check if API key exists
-    const apiKey = process.env.GEMINI_API_KEY
-
-    if (!apiKey) {
+    if (!geminiHub.isConfigured()) {
       return NextResponse.json({
         status: 'error',
         message: 'Gemini API key not configured',
@@ -20,33 +18,10 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Quick test with minimal prompt to check API availability
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_GEMINI_MODEL}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: 'ping',
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            maxOutputTokens: 10,
-          },
-        }),
-      }
-    )
+    // Check health via Hub
+    const health = await geminiHub.healthCheck()
 
-    if (response.ok) {
+    if (health.status === 'ok') {
       return NextResponse.json({
         status: 'success',
         message: 'Gemini API is available',
@@ -55,24 +30,11 @@ export async function GET(request: NextRequest) {
         model: DEFAULT_GEMINI_MODEL,
       })
     } else {
-      const errorText = await response.text()
-
-      let message = 'Gemini API error'
-      if (response.status === 403) {
-        message = 'API key is invalid or disabled'
-      } else if (response.status === 404) {
-        message = 'Gemini model not found'
-      } else if (response.status === 429) {
-        message = 'Rate limit exceeded'
-      }
-
       return NextResponse.json({
         status: 'error',
-        message,
-        details: errorText,
+        message: health.message,
         configured: true,
         available: false,
-        statusCode: response.status,
       })
     }
   } catch (error) {
@@ -80,7 +42,7 @@ export async function GET(request: NextRequest) {
       status: 'error',
       message: 'Failed to check Gemini API',
       details: error instanceof Error ? error.message : 'Unknown error',
-      configured: !!process.env.GEMINI_API_KEY,
+      configured: geminiHub.isConfigured(),
       available: false,
     })
   }
