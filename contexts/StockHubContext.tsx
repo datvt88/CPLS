@@ -29,6 +29,19 @@ export interface ProfitabilityData {
   }>
 }
 
+// Profit Structure data (Cơ cấu lợi nhuận & Vốn chủ)
+export interface ProfitStructureData {
+  x: string[]
+  data: Array<{
+    id: number
+    label: string
+    type: string
+    tooltip?: string
+    y: number[]
+    yAxisPosition?: string
+  }>
+}
+
 // Technical indicators calculated from price data
 export interface TechnicalIndicators {
   ma10: number | null
@@ -73,6 +86,7 @@ export interface StockData {
   // Fundamental
   ratios: Record<string, FinancialRatio>
   profitability: ProfitabilityData | null
+  profitStructure: ProfitStructureData | null
   // Evaluations
   recommendations: StockRecommendation[]
   analystEvaluation: AnalystEvaluation | null
@@ -89,11 +103,12 @@ interface LoadingStates {
   ratios: boolean
   recommendations: boolean
   profitability: boolean
+  profitStructure: boolean
   geminiAnalysis: boolean
 }
 
 // Request types for inter-widget communication
-export type DataRequestType = 'prices' | 'ratios' | 'recommendations' | 'profitability' | 'geminiAnalysis'
+export type DataRequestType = 'prices' | 'ratios' | 'recommendations' | 'profitability' | 'profitStructure' | 'geminiAnalysis'
 
 // Context value interface
 interface StockHubContextValue {
@@ -112,6 +127,7 @@ interface StockHubContextValue {
   setRatios: (ratiosArray: FinancialRatio[]) => void
   setRecommendations: (recs: StockRecommendation[]) => void
   setProfitability: (data: ProfitabilityData | null) => void
+  setProfitStructure: (data: ProfitStructureData | null) => void
   setTechnicalIndicators: (indicators: TechnicalIndicators) => void
   setGeminiAnalysis: (result: DeepAnalysisResult | null) => void
 
@@ -158,6 +174,7 @@ export interface AnalysisPayload {
     marketCap?: number
     eps?: number
     profitability?: ProfitabilityData | null
+    profitStructure?: ProfitStructureData | null
   }
   recommendations: StockRecommendation[]
 }
@@ -184,6 +201,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
     ratios: false,
     recommendations: false,
     profitability: false,
+    profitStructure: false,
     geminiAnalysis: false,
   })
   const [error, setError] = useState<string | null>(null)
@@ -226,6 +244,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
       ratios: prev?.ratios ?? {},
       recommendations: prev?.recommendations ?? [],
       profitability: prev?.profitability ?? null,
+      profitStructure: prev?.profitStructure ?? null,
       technicalIndicators: prev?.technicalIndicators ?? null,
       analystEvaluation: prev?.analystEvaluation ?? null,
       lastUpdated: Date.now(),
@@ -245,6 +264,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
       ratios: ratiosMap,
       recommendations: prev?.recommendations ?? [],
       profitability: prev?.profitability ?? null,
+      profitStructure: prev?.profitStructure ?? null,
       technicalIndicators: prev?.technicalIndicators ?? null,
       analystEvaluation: prev?.analystEvaluation ?? null,
       lastUpdated: Date.now(),
@@ -287,6 +307,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
       ratios: prev?.ratios ?? {},
       recommendations: recs,
       profitability: prev?.profitability ?? null,
+      profitStructure: prev?.profitStructure ?? null,
       technicalIndicators: prev?.technicalIndicators ?? null,
       analystEvaluation: evaluation,
       lastUpdated: Date.now(),
@@ -304,6 +325,25 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
       ratios: prev?.ratios ?? {},
       recommendations: prev?.recommendations ?? [],
       profitability: data,
+      profitStructure: prev?.profitStructure ?? null,
+      technicalIndicators: prev?.technicalIndicators ?? null,
+      analystEvaluation: prev?.analystEvaluation ?? null,
+      lastUpdated: Date.now(),
+      pricesUpdatedAt: prev?.pricesUpdatedAt ?? null,
+      ratiosUpdatedAt: prev?.ratiosUpdatedAt ?? null,
+      recommendationsUpdatedAt: prev?.recommendationsUpdatedAt ?? null,
+    }))
+  }, [updateStockData])
+
+  const setProfitStructure = useCallback((data: ProfitStructureData | null) => {
+    updateStockData(prev => ({
+      ...prev!,
+      symbol: currentSymbolRef.current,
+      prices: prev?.prices ?? [],
+      ratios: prev?.ratios ?? {},
+      recommendations: prev?.recommendations ?? [],
+      profitability: prev?.profitability ?? null,
+      profitStructure: data,
       technicalIndicators: prev?.technicalIndicators ?? null,
       analystEvaluation: prev?.analystEvaluation ?? null,
       lastUpdated: Date.now(),
@@ -321,6 +361,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
       ratios: prev?.ratios ?? {},
       recommendations: prev?.recommendations ?? [],
       profitability: prev?.profitability ?? null,
+      profitStructure: prev?.profitStructure ?? null,
       technicalIndicators: indicators,
       analystEvaluation: prev?.analystEvaluation ?? null,
       lastUpdated: Date.now(),
@@ -513,7 +554,8 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
         dividendYield: r['DIVIDEND_YIELD']?.value,
         marketCap: r['MARKETCAP']?.value,
         eps: r['EARNING_PER_SHARE']?.value,
-        profitability: stockData.profitability
+        profitability: stockData.profitability,
+        profitStructure: stockData.profitStructure
       },
       recommendations: stockData.recommendations.slice(0, 5)
     }
@@ -535,6 +577,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
     setRatios,
     setRecommendations,
     setProfitability,
+    setProfitStructure,
     setTechnicalIndicators,
     setGeminiAnalysis,
     // State management
@@ -555,7 +598,7 @@ export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children
   }), [
     currentSymbol, stockData, geminiAnalysis, loading, error,
     setCurrentSymbol, setPrices, setRatios, setRecommendations,
-    setProfitability, setTechnicalIndicators, setGeminiAnalysis,
+    setProfitability, setProfitStructure, setTechnicalIndicators, setGeminiAnalysis,
     setLoading, clearCache, isDataStale, isPricesStale,
     isRatiosStale, isRecommendationsStale, requestData, onDataRequest,
     formatStockContextForAlpha, getAnalysisPayload
