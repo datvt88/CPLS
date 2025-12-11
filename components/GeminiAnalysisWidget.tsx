@@ -1,14 +1,9 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import {
-    fetchStockPrices,
-    fetchFinancialRatios,
-    fetchStockRecommendations,
-    calculateSMA,
-    calculateBollingerBands,
-    calculateWoodiePivotPoints
-} from '@/services/vndirect'
+import { fetchStockPricesClient, fetchFinancialRatiosClient, fetchRecommendationsClient } from '@/services/vndirect-client'
+import { calculateSMA, calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/vndirect'
+import { geminiDeepAnalysis } from '@/lib/gemini/deep-analysis'
 import type { FinancialRatio, StockPriceData } from '@/types/vndirect'
 import { formatPrice } from '@/utils/formatters'
 import { usePermissions } from '@/contexts/PermissionsContext'
@@ -243,7 +238,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 if (hubData!.recommendations.length > 0) {
                     recs = { data: hubData!.recommendations }
                 } else {
-                    recs = await fetchStockRecommendations(symbol).catch(() => ({ data: [] }))
+                    recs = await fetchRecommendationsClient(symbol).catch(() => ({ data: [] }))
                     if (recs.data) stockHub?.setRecommendations(recs.data)
                 }
 
@@ -260,9 +255,9 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 setStatusMsg('Đang tải dữ liệu thị trường...')
 
                 const [pricesResult, ratiosResult, recsResult, profitsResult] = await Promise.all([
-                    fetchStockPrices(symbol, 270),
-                    fetchFinancialRatios(symbol),
-                    fetchStockRecommendations(symbol).catch(() => ({ data: [] })),
+                    fetchStockPricesClient(symbol, 270),
+                    fetchFinancialRatiosClient(symbol),
+                    fetchRecommendationsClient(symbol).catch(() => ({ data: [] })),
                     fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`).then(r => r.json()).catch(() => null)
                 ])
 
@@ -412,8 +407,16 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 })
             })
 
-            if (!res.ok) throw new Error('Kết nối AI thất bại')
+            console.log('📡 Gemini API Response Status:', res.status)
+
+            if (!res.ok) {
+                const errorText = await res.text()
+                console.error('❌ Gemini API Error:', errorText)
+                throw new Error(`Kết nối AI thất bại: ${res.status} ${res.statusText}`)
+            }
+
             const data = await res.json()
+            console.log('✅ Gemini API Data received:', data)
 
             // STEP 4: Success
             setResult(data)
