@@ -91,8 +91,8 @@ const analyzeFundamental = (ratios: Record<string, FinancialRatio>, profit: any)
     let roe = ratios['ROAE_TR_AVG5Q']?.value * 100 || 0
     // Lấy dữ liệu ROE mới nhất từ API profitability nếu có
     if (profit?.data) {
-         const roeItem = profit.data.find((x: any) => x.label === 'ROE')
-         if (roeItem?.y?.length) roe = roeItem.y[roeItem.y.length - 1]
+        const roeItem = profit.data.find((x: any) => x.label === 'ROE')
+        if (roeItem?.y?.length) roe = roeItem.y[roeItem.y.length - 1]
     }
 
     if (roe > 15) { score += 30; reasons.push(`ROE ấn tượng (${roe.toFixed(1)}%)`) }
@@ -108,7 +108,7 @@ const analyzeFundamental = (ratios: Record<string, FinancialRatio>, profit: any)
 // --- 3. UI COMPONENTS ---
 const StatusBadge = ({ status, message }: { status: ConnectionStatus, message: string }) => {
     const getColor = () => {
-        switch(status) {
+        switch (status) {
             case 'fetching': return 'bg-yellow-500 animate-pulse'
             case 'processing': return 'bg-blue-500 animate-pulse'
             case 'ai_generating': return 'bg-purple-500 animate-pulse'
@@ -135,7 +135,7 @@ const AnalysisCard = ({ title, data, colorClass }: { title: string, data: any, c
                 <span className={`px-2 py-1 rounded text-xs font-bold ${data.signal === 'MUA' ? 'bg-emerald-600' : data.signal === 'BÁN' ? 'bg-rose-600' : 'bg-amber-600'}`}>{data.signal}</span>
             </div>
             <div className="w-full bg-gray-700 rounded-full h-1.5 mb-3 overflow-hidden">
-                <div className={`h-full transition-all duration-1000 ${data.signal === 'MUA' ? 'bg-emerald-500' : data.signal === 'BÁN' ? 'bg-rose-500' : 'bg-amber-500'}`} style={{width: `${data.confidence}%`}}/>
+                <div className={`h-full transition-all duration-1000 ${data.signal === 'MUA' ? 'bg-emerald-500' : data.signal === 'BÁN' ? 'bg-rose-500' : 'bg-amber-500'}`} style={{ width: `${data.confidence}%` }} />
             </div>
             <p className="text-sm text-gray-300 leading-relaxed">{data.summary}</p>
         </div>
@@ -197,34 +197,64 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
 
         try {
             // Check if Stock Hub has cached data we can use
-            const hasCachedPrices = stockHub?.stockData?.prices && stockHub.stockData.prices.length >= 30
-            const hasCachedRatios = stockHub?.stockData?.ratios && Object.keys(stockHub.stockData.ratios).length > 0
+            // We now check for technicalIndicators which are pre-calculated by other widgets (e.g. StockDetailsWidget)
+            const hubData = stockHub?.stockData
+            const hasCachedPrices = hubData?.prices && hubData.prices.length >= 30
+            const hasCachedRatios = hubData?.ratios && Object.keys(hubData.ratios).length > 0
+            const hasTechnicalIndicators = !!hubData?.technicalIndicators
 
             let prices: StockPriceData[]
             let ratiosMap: Record<string, FinancialRatio>
             let recs: { data: any[] }
             let profits: any
+            let pivotPoints: any
+            let ma10: number | null = null
+            let ma30: number | null = null
+            let bb: { upper: number[], middle: number[], lower: number[] } | null = null
+            let momentum5d: number | null = null
+            let momentum10d: number | null = null
 
             // STEP 1: Fetching (use cached data where available)
             setStatus('fetching')
 
             if (hasCachedPrices && hasCachedRatios) {
                 // Use cached data from Stock Hub
-                setStatusMsg('Sử dụng dữ liệu đã cache...')
-                prices = stockHub!.stockData!.prices
-                ratiosMap = stockHub!.stockData!.ratios
+                setStatusMsg(hasTechnicalIndicators ? 'Đang lấy dữ liệu từ Hub...' : 'Đang tính toán lại...')
+                prices = hubData!.prices
+                ratiosMap = hubData!.ratios
 
-                // Only fetch recommendations and profitability
-                const [recsResult, profitsResult] = await Promise.all([
-                    fetchStockRecommendations(symbol).catch(() => ({ data: [] })),
-                    fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`).then(r => r.json()).catch(() => null)
-                ])
-                recs = recsResult
-                profits = profitsResult
+                // Get cached technical indicators if available
+                if (hasTechnicalIndicators) {
+                    const ti = hubData!.technicalIndicators!
+                    ma10 = ti.ma10
+                    ma30 = ti.ma30
+                    // Reconstruct simple bb object for consistency if needed, though we only need last values mostly
+                    // The Hub stores single values for indicators usually, let's check input
+                    // Actually StockHubContext defines bollinger as { upper, middle, lower } (single values)
+                    // But our local calc returns arrays. We need to handle this.
 
-                // Push to Stock Hub
-                if (recsResult.data) stockHub?.setRecommendations(recsResult.data)
-                if (profitsResult) stockHub?.setProfitability(profitsResult)
+                    // Direct map from Hub (single values)
+                    momentum5d = ti.momentum5d
+                    momentum10d = ti.momentum10d
+                    pivotPoints = ti.pivotPoints
+                }
+
+                // Check for cached recs
+                if (hubData!.recommendations.length > 0) {
+                    recs = { data: hubData!.recommendations }
+                } else {
+                    recs = await fetchStockRecommendations(symbol).catch(() => ({ data: [] }))
+                    if (recs.data) stockHub?.setRecommendations(recs.data)
+                }
+
+                // Check for cached profitability
+                if (hubData!.profitability) {
+                    profits = hubData!.profitability
+                } else {
+                    profits = await fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`).then(r => r.json()).catch(() => null)
+                    if (profits) stockHub?.setProfitability(profits)
+                }
+
             } else {
                 // Fetch all data
                 setStatusMsg('Đang tải dữ liệu thị trường...')
@@ -251,7 +281,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 recs = recsResult
                 profits = profitsResult
 
-                // Push to Stock Hub if available
+                // Push to Stock Hub
                 if (stockHub) {
                     stockHub.setPrices(prices)
                     stockHub.setRatios(ratiosResult.data)
@@ -260,67 +290,87 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 }
             }
 
-            // STEP 2: Local Processing
+            // STEP 2: Local Processing (Only if needed)
             setStatus('processing')
-            setStatusMsg('Tính toán chỉ báo kỹ thuật...')
 
-            // Calculate technical indicators for Gemini
             const closePrices = prices.map(d => d.adClose)
             const lastIdx = closePrices.length - 1
             const currentPrice = closePrices[lastIdx]
 
-            // Calculate MA10 and MA30
-            const ma10Values = calculateSMA(closePrices, 10)
-            const ma30Values = calculateSMA(closePrices, 30)
-            const ma10 = ma10Values[lastIdx]
-            const ma30 = ma30Values[lastIdx]
+            // If we didn't get indicators from Hub, calculate them now
+            if (ma10 === null || ma30 === null) {
+                setStatusMsg('Đang tính toán chỉ báo...')
+                const ma10Values = calculateSMA(closePrices, 10)
+                const ma30Values = calculateSMA(closePrices, 30)
+                ma10 = ma10Values[lastIdx]
+                ma30 = ma30Values[lastIdx]
+            }
 
-            // Calculate Bollinger Bands
-            const bb = calculateBollingerBands(closePrices, 20, 2)
+            // Calculate BB locally if needed (since Hub gives single values, but we might want arrays for charts? 
+            // actually for Gemini we only need the latest value).
+            // Let's rely on Hub's single value if available, else calc
+            let bbCurrent: { upper: number, middle: number, lower: number } | undefined
 
-            // Calculate Momentum
-            const momentum5d = closePrices.length >= 6
-                ? ((currentPrice - closePrices[lastIdx - 5]) / closePrices[lastIdx - 5]) * 100
-                : null
-            const momentum10d = closePrices.length >= 11
-                ? ((currentPrice - closePrices[lastIdx - 10]) / closePrices[lastIdx - 10]) * 100
-                : null
+            if (hubData?.technicalIndicators?.bollinger) {
+                bbCurrent = hubData.technicalIndicators.bollinger
+            } else {
+                const bbCalc = calculateBollingerBands(closePrices, 20, 2)
+                if (bbCalc) {
+                    bbCurrent = {
+                        upper: bbCalc.upper[lastIdx],
+                        middle: bbCalc.middle[lastIdx],
+                        lower: bbCalc.lower[lastIdx]
+                    }
+                }
+            }
 
-            // Calculate volume metrics
-            const volumes = prices.map(d => d.nmVolume)
-            const currentVolume = volumes[lastIdx]
-            const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
-            const volumeRatio = avgVolume10 > 0 ? (currentVolume / avgVolume10) * 100 : 100
+            // Pivot Points
+            if (!pivotPoints) {
+                const lastDay = prices[lastIdx]
+                pivotPoints = calculateWoodiePivotPoints(lastDay.adHigh, lastDay.adLow, lastDay.adClose)
+            }
 
-            // Calculate 52-week high/low
-            const last52Weeks = closePrices.slice(-252) // ~252 trading days in a year
-            const week52High = Math.max(...last52Weeks)
-            const week52Low = Math.min(...last52Weeks)
+            // Momentum
+            if (momentum5d === null) {
+                momentum5d = closePrices.length >= 6
+                    ? ((currentPrice - closePrices[lastIdx - 5]) / closePrices[lastIdx - 5]) * 100
+                    : null
+            }
+            if (momentum10d === null) {
+                momentum10d = closePrices.length >= 11
+                    ? ((currentPrice - closePrices[lastIdx - 10]) / closePrices[lastIdx - 10]) * 100
+                    : null
+            }
 
-            // Calculate pivot points
-            const lastDay = prices[lastIdx]
-            const pivotPoints = calculateWoodiePivotPoints(lastDay.adHigh, lastDay.adLow, lastDay.adClose)
-
+            // Data for Rule-Based Analysis (needs arrays for technical)
+            // We still re-run this locally because analyzeTechnical needs the arrays
+            // Optimization: if we trust Hub signals we could skip this, but it's fast enough 
             const ruleAnalysis: RuleBasedAnalysis = {
                 shortTerm: analyzeTechnical(prices),
                 longTerm: analyzeFundamental(ratiosMap, profits)
             }
 
+            // Other metrics
+            const volumes = prices.map(d => d.nmVolume)
+            const currentVolume = volumes[lastIdx]
+            const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
+            const volumeRatio = avgVolume10 > 0 ? (currentVolume / avgVolume10) * 100 : 100
+
+            const last52Weeks = closePrices.slice(-252)
+            const week52High = Math.max(...last52Weeks)
+            const week52Low = Math.min(...last52Weeks)
+
             // STEP 3: AI Generation
             setStatus('ai_generating')
             setStatusMsg('Gemini AI đang phân tích...')
 
-            // Build comprehensive technical data for Gemini
+            // Build payload
             const technicalData = {
                 currentPrice,
                 buyPrice: pivotPoints?.S2,
                 ma10,
                 ma30,
-                bollinger: bb ? {
-                    upper: bb.upper[lastIdx],
-                    middle: bb.middle[lastIdx],
-                    lower: bb.lower[lastIdx]
-                } : undefined,
+                bollinger: bbCurrent,
                 momentum: {
                     day5: momentum5d,
                     day10: momentum10d
@@ -337,7 +387,6 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 maSignal: ruleAnalysis.shortTerm.reasons[0]
             }
 
-            // Build fundamental data
             const fundamentalData = {
                 pe: ratiosMap['PRICE_TO_EARNINGS']?.value,
                 pb: ratiosMap['PRICE_TO_BOOK']?.value,
@@ -349,7 +398,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
                 profitability: profits
             }
 
-            console.log('📊 Sending to Gemini API:', { symbol, technicalData, fundamentalData })
+            console.log('📊 Sending to Gemini API:', { symbol, source: hasTechnicalIndicators ? 'StockHub' : 'Direct', technicalData })
 
             const res = await fetch('/api/gemini/stock-analysis', {
                 method: 'POST',
@@ -366,7 +415,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
             if (!res.ok) throw new Error('Kết nối AI thất bại')
             const data = await res.json()
 
-            // STEP 4: Success - Save to Stock Hub
+            // STEP 4: Success
             setResult(data)
             setStatus('success')
             setStatusMsg('Phân tích hoàn tất')
@@ -387,7 +436,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
 
     if (!isPremium) return (
         <div className="relative overflow-hidden rounded-xl border border-indigo-500/30 bg-[--panel] p-8 text-center">
-            <div className="absolute inset-0 bg-indigo-900/20 opacity-50"/>
+            <div className="absolute inset-0 bg-indigo-900/20 opacity-50" />
             <div className="relative z-10">
                 <span className="text-4xl">🔒</span>
                 <h3 className="text-xl font-bold text-white mt-2">Tính năng Premium</h3>
@@ -403,7 +452,13 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
             {/* HEADER & STATUS */}
             <div className="flex flex-wrap justify-between items-center mb-6 border-b border-indigo-500/20 pb-4 gap-3">
                 <h3 className="text-xl font-bold text-white flex gap-2 items-center">
-                    🤖 Gemini AI <span className="bg-amber-500 text-xs px-2 rounded">PRO</span>
+                    🤖 Gemini AI
+                    <span className="bg-amber-500 text-xs px-2 rounded">PRO</span>
+                    {stockHub?.stockData?.technicalIndicators && (
+                        <span className="bg-emerald-800/50 text-emerald-400 text-[10px] px-2 py-0.5 rounded border border-emerald-700/50 flex items-center gap-1">
+                            ⚡ Hub Data
+                        </span>
+                    )}
                 </h3>
 
                 {/* Status Indicator */}
