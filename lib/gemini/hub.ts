@@ -7,7 +7,7 @@ import type { DeepAnalysisResult } from "./types"; // Đảm bảo import đúng
 
 // --- Configuration ---
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-1.5-flash";
 
 const GENERATION_CONFIG = {
   temperature: 0.7,
