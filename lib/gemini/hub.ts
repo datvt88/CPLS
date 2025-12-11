@@ -1,29 +1,13 @@
 /**
  * Gemini Hub - Central Coordinator & Router for StockHub
- * * Architecture Implementation:
- * ┌──────┐      ┌──────────────────────────┐
- * │ User │ ────►│      API Gemini AI       │◄───┐
- * └─┬──▲─┘      └──────┬────────────▲──────┘    │
- * │  │               │            │           │
- * │  │          (Call API)    (Call API)      │
- * │  │               ▼            ▼           │
- * ┌─▼──┴─────┐  ┌──────────────┐  ┌─────────────┴─────┐
- * │ Chat Room│◄►│ Gemini Alpha │  │Gemini Deep Analysis│
- * └──────────┘  └──────┬───────┘  └──────▲────────────┘
- * │                  │                 │
- * │ (Forward Ticker) │                 │
- * ▼                  ▼                 │
- * ┌──────────────┐   ┌─────────────────┐ │
- * │    /stock    │──►│       HUB       │─┘
- * │ (User Input) │   │ (Router Logic)  │
- * └──────────────┘   └─────────────────┘
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { DeepAnalysisResult } from "./types"; // Đảm bảo import đúng type
 
 // --- Configuration ---
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL = "gemini-1.5-flash"; // Hoặc gemini-pro tùy cấu hình
+const DEFAULT_MODEL = "gemini-1.5-flash";
 
 const GENERATION_CONFIG = {
   temperature: 0.7,
@@ -40,9 +24,25 @@ export interface AlphaResponse {
 
 export interface DeepAnalysisContext {
   symbol: string;
-  technicalData: any; // Dữ liệu chỉ báo từ Frontend gửi về
-  fundamentalData: any; // Dữ liệu tài chính từ Frontend gửi về
+  technicalData: any;
+  fundamentalData: any;
   recommendations: any[];
+}
+
+// --- UTILITIES (Exported to fix the error) ---
+
+/**
+ * Hàm parse phản hồi từ Gemini (Xử lý chuỗi JSON có thể bị bao bởi markdown code block)
+ */
+export function parseDeepAnalysisResponse(text: string): DeepAnalysisResult {
+  try {
+    // Loại bỏ markdown code block (```json ... ```) nếu có
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse JSON from Gemini:", text);
+    throw new Error("Invalid JSON response from AI");
+  }
 }
 
 /**
@@ -66,20 +66,15 @@ class GeminiHub {
 
   /**
    * ROUTER: Hàm trung tâm xử lý đầu vào từ Hub
-   * @param input Ticker hoặc Context dữ liệu đầy đủ
-   * @param type Loại yêu cầu ('simple_ticker' | 'full_context')
    */
   async processInputHub(input: string | DeepAnalysisContext, type: 'simple_ticker' | 'full_context') {
     console.log(`💎 [HUB] Routing request. Type: ${type}`);
 
     if (type === 'full_context') {
-      // Luồng chính: User xem chart -> Deep Analysis (có full data)
       return await this.analyzeDeeplyWithContext(input as DeepAnalysisContext);
     } 
     
     if (type === 'simple_ticker') {
-      // Luồng phụ: Alpha signal hoặc User gõ nhanh -> Deep Analysis (tự fetch data hoặc phân tích sơ bộ)
-      // Ở đây tạm thời gọi phân tích cơ bản
       return await this.analyzeDeeplySimple(input as string);
     }
 
@@ -97,8 +92,6 @@ class GeminiHub {
 
     const result = await this.model.generateContent(prompt);
     const responseText = result.response.text();
-    
-    // Logic phát hiện mã chứng khoán để gửi tín hiệu cho Hub
     const detectedTicker = this.detectTickerFromText(userMessage) || this.detectTickerFromText(responseText);
 
     if (detectedTicker) {
@@ -111,12 +104,8 @@ class GeminiHub {
     };
   }
 
-  // --- Module: Gemini Deep Analysis (Core Intelligence) ---
+  // --- Module: Gemini Deep Analysis ---
 
-  /**
-   * Phân tích sâu dựa trên dữ liệu ngữ cảnh (Context) từ Frontend gửi về.
-   * Giúp AI không bị ảo giác số liệu (Hallucination).
-   */
   private async analyzeDeeplyWithContext(ctx: DeepAnalysisContext) {
     console.log(`🧠 [Gemini Deep Analysis] Analyzing Context for: ${ctx.symbol}`);
 
@@ -154,49 +143,38 @@ class GeminiHub {
         "summary": "Nhận định về định giá và tăng trưởng...",
         "reasons": ["Lý do 1", "Lý do 2"]
       },
-      "buyPrice": number | null (Vùng mua khuyến nghị),
-      "targetPrice": number | null (Mục tiêu chốt lời),
-      "stopLoss": number | null (Điểm cắt lỗ),
+      "buyPrice": number | null,
+      "targetPrice": number | null,
+      "stopLoss": number | null,
       "risks": ["Rủi ro 1", "Rủi ro 2"],
       "opportunities": ["Cơ hội 1", "Cơ hội 2"]
     }
-    Chỉ trả về JSON, không thêm markdown 'json'.
+    Chỉ trả về JSON.
     `;
 
     try {
       const result = await this.model.generateContent(prompt);
       const text = result.response.text();
-      return this.cleanAndParseJSON(text);
+      // Sử dụng hàm đã export
+      const parsed = parseDeepAnalysisResponse(text);
+      
+      // Gán thêm timestamp
+      return { ...parsed, timestamp: Date.now() };
     } catch (error) {
       console.error("Deep Analysis Error:", error);
       throw error;
     }
   }
 
-  /**
-   * Phân tích sơ bộ khi chỉ có mã CK (Chưa có full data).
-   */
   private async analyzeDeeplySimple(ticker: string) {
     const prompt = `Phân tích nhanh mã cổ phiếu ${ticker}. Trả về định dạng JSON (cấu trúc tương tự như full analysis nhưng đánh dấu là dữ liệu ước tính).`;
     const result = await this.model.generateContent(prompt);
-    return this.cleanAndParseJSON(result.response.text());
+    return parseDeepAnalysisResponse(result.response.text());
   }
-
-  // --- Utilities ---
 
   private detectTickerFromText(text: string): string | null {
     const match = text.match(/\b[A-Z]{3}\b/);
     return match ? match[0] : null;
-  }
-
-  private cleanAndParseJSON(text: string): any {
-    try {
-      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleaned);
-    } catch (e) {
-      console.error("Failed to parse JSON from Gemini:", text);
-      throw new Error("Invalid JSON response from AI");
-    }
   }
 }
 
