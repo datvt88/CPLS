@@ -21,6 +21,7 @@ import { formatPrice } from '@/utils/formatters'
 // Contexts & Types
 import { usePermissions } from '@/contexts/PermissionsContext'
 import { useStockHubOptional, type TechnicalIndicators } from '@/contexts/StockHubContext'
+import { useGeminiUsageLimit } from '@/hooks/useGeminiUsageLimit'
 import type { StockPriceData } from '@/types/vndirect'
 import type { DeepAnalysisResult, AnalysisSection } from '@/lib/gemini/types'
 
@@ -140,6 +141,15 @@ interface GeminiAnalysisWidgetProps {
 export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnalysisWidgetProps) {
   const { isPremium, isAuthenticated, isLoading: authLoading } = usePermissions()
   const stockHub = useStockHubOptional()
+  const {
+    canUse: canUseGemini,
+    remainingUsage,
+    usageLimit,
+    isUnlimited,
+    isGuest,
+    incrementUsage,
+    limitMessage
+  } = useGeminiUsageLimit()
 
   // Resolve Symbol
   const symbol = stockHub?.currentSymbol ?? propSymbol ?? 'HPG'
@@ -210,12 +220,26 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
 
   // --- MAIN ANALYSIS HANDLER ---
   const handleAnalyze = useCallback(async () => {
-    if (!symbol || (!isPremium && !isAuthenticated)) return
+    if (!symbol) return
     if (!stockHub) return
+
+    // Check usage limit first
+    if (!canUseGemini) {
+      setErrorMsg(limitMessage)
+      setLocalStatus('error')
+      return
+    }
 
     // Check API first
     if (!apiStatus.ready) {
       setErrorMsg('Gemini API chưa sẵn sàng. Vui lòng thử lại sau.')
+      setLocalStatus('error')
+      return
+    }
+
+    // Increment usage (if not unlimited)
+    if (!incrementUsage()) {
+      setErrorMsg(limitMessage)
       setLocalStatus('error')
       return
     }
@@ -379,7 +403,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
       setStatusMsg('Lỗi')
       setErrorMsg(err.message || 'Có lỗi xảy ra')
     }
-  }, [symbol, isPremium, isAuthenticated, stockHub, apiStatus.ready])
+  }, [symbol, stockHub, apiStatus.ready, canUseGemini, incrementUsage, limitMessage])
 
   // --- RENDER ---
 
@@ -387,15 +411,16 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
     return <div className="h-48 bg-[--panel] animate-pulse rounded-xl" />
   }
 
-  if (!isPremium) {
+  // Guest users: require login
+  if (isGuest) {
     return (
       <div className="relative overflow-hidden rounded-xl border border-indigo-500/30 bg-[--panel] p-8 text-center h-full flex flex-col justify-center items-center">
         <div className="absolute inset-0 bg-indigo-900/20 opacity-50" />
         <div className="relative z-10">
-          <h3 className="text-xl font-bold text-white">Premium Only</h3>
-          <p className="text-gray-400 my-4 text-sm">Mở khóa phân tích chuyên sâu từ Gemini AI</p>
-          <Link href="/pricing" className="bg-indigo-600 px-6 py-2 rounded-lg text-white font-bold text-sm hover:bg-indigo-500 transition-colors">
-            Nâng cấp ngay
+          <h3 className="text-xl font-bold text-white">Yêu cầu đăng nhập</h3>
+          <p className="text-gray-400 my-4 text-sm">Đăng nhập để sử dụng phân tích chuyên sâu từ Gemini AI</p>
+          <Link href="/auth/login" className="bg-indigo-600 px-6 py-2 rounded-lg text-white font-bold text-sm hover:bg-indigo-500 transition-colors">
+            Đăng nhập ngay
           </Link>
         </div>
       </div>
@@ -442,6 +467,13 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
         <StatusIndicator ready={dataStatus.ratios} label={`Chỉ số ${dataStatus.ratios ? '✓' : '○'}`} />
         <StatusIndicator ready={dataStatus.technical} label={`Kỹ thuật ${dataStatus.technical ? '✓' : '○'}`} />
         <StatusIndicator ready={dataStatus.recommendations} label={`CTCK ${dataStatus.recommendations ? '✓' : '○'}`} />
+        {/* Usage Limit Badge */}
+        <div className="flex items-center gap-1.5 text-[10px] ml-auto">
+          <span className={`w-1.5 h-1.5 rounded-full ${isUnlimited ? 'bg-purple-500' : canUseGemini ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+          <span className={isUnlimited ? 'text-purple-400' : canUseGemini ? 'text-emerald-400' : 'text-rose-400'}>
+            {isUnlimited ? '∞ Không giới hạn' : `${remainingUsage}/${usageLimit} lượt`}
+          </span>
+        </div>
       </div>
 
       {/* BODY */}
@@ -472,11 +504,23 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
               </p>
             )}
 
+            {/* Out of usage warning */}
+            {!canUseGemini && !isGuest && (
+              <div className="mb-3 p-2 bg-amber-900/20 border border-amber-500/30 rounded-lg">
+                <p className="text-amber-400 text-xs">{limitMessage}</p>
+                {!isPremium && (
+                  <Link href="/pricing" className="text-indigo-400 text-xs underline mt-1 inline-block">
+                    Nâng cấp Premium để có thêm lượt
+                  </Link>
+                )}
+              </div>
+            )}
+
             <button
               onClick={handleAnalyze}
-              disabled={!apiStatus.ready}
+              disabled={!apiStatus.ready || !canUseGemini}
               className={`px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all flex items-center gap-2
-                ${apiStatus.ready
+                ${apiStatus.ready && canUseGemini
                   ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
                   : 'bg-slate-700 text-slate-400 cursor-not-allowed'
                 }`}
@@ -511,7 +555,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <ActionBox label="Vùng Mua" value={result.buyPrice} color="text-emerald-400" />
-                <ActionBox label="Mục Tiêu" value={result.targetPrice} color="text-blue-400" />
+                <ActionBox label="Mục Tiêu" value={result.targetPrice} color="text-purple-400" />
                 <ActionBox label="Cắt Lỗ" value={result.stopLoss} color="text-rose-400" />
               </div>
             </div>
