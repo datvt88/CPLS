@@ -1,180 +1,214 @@
 /**
- * Gemini Hub - Central Coordinator & Router for StockHub
+ * Gemini Hub - Central Coordinator & Router
+ *
+ * Architecture Implementation based on Diagram:
+ *
+ * ┌──────┐      ┌──────────────────────────┐
+ * │ User │ ────►│      API Gemini AI       │◄───┐
+ * └─┬──▲─┘      └──────┬────────────▲──────┘    │
+ * │  │               │            │           │
+ * │  │          (Call API)    (Call API)      │
+ * │  │               ▼            ▼           │
+ * ┌─▼──┴─────┐  ┌──────────────┐  ┌─────────────┴─────┐
+ * │ Chat Room│◄►│ Gemini Alpha │  │Gemini Deep Analysis│
+ * └──────────┘  └──────┬───────┘  └──────▲────────────┘
+ * │                 │
+ * │ (Forward Ticker)│
+ * ▼                 │
+ * ┌──────────────┐         │
+ * /stock (User)─►│     HUB      │─────────┘
+ * Input HPG     └──────────────┘
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { DeepAnalysisResult } from "./types";
+import { GEMINI_API_BASE, getValidatedModel, DEFAULT_GEMINI_MODEL } from './models'
+import { parseSignalResponse, parseDeepAnalysisResponse } from './parser'
+import type { AnalysisResult, DeepAnalysisResult, DeepAnalysisRequest, AlphaResponse } from './types'
 
-// --- Configuration ---
-const DEFAULT_MODEL = "gemini-1.5-flash";
-
+// Generation config for Gemini API
 const GENERATION_CONFIG = {
   temperature: 0.7,
   topK: 40,
   topP: 0.95,
   maxOutputTokens: 2048,
-};
-
-// --- Interfaces ---
-export interface AlphaResponse {
-  text: string;
-  relatedTicker?: string | null;
-}
-
-export interface DeepAnalysisContext {
-  symbol: string;
-  technicalData: any;
-  fundamentalData: any;
-  recommendations: any[];
-}
-
-// --- UTILITIES (Exported) ---
-
-/**
- * Hàm parse phản hồi từ Gemini
- */
-export function parseDeepAnalysisResponse(text: string): DeepAnalysisResult {
-  try {
-    // Loại bỏ markdown code block nếu có
-    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Failed to parse JSON from Gemini:", text);
-    throw new Error("Invalid JSON response from AI");
-  }
 }
 
 /**
- * GeminiHub: Singleton Class quản lý luồng dữ liệu AI
+ * GeminiHub: Lớp trung tâm quản lý luồng dữ liệu (The HUB)
  */
 class GeminiHub {
-  private genAI: GoogleGenerativeAI | null = null;
-  private model: any = null;
-  private apiKey: string | undefined;
+  private apiKey: string | undefined
 
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY;
-    
-    if (this.apiKey) {
-      this.genAI = new GoogleGenerativeAI(this.apiKey);
-      this.model = this.genAI.getGenerativeModel({ 
-        model: DEFAULT_MODEL, 
-        generationConfig: GENERATION_CONFIG 
-      });
-    } else {
-      console.warn("⚠️ GeminiHub: API Key is missing. AI features will be disabled.");
-    }
+    this.apiKey = process.env.GEMINI_API_KEY
   }
 
-  /**
-   * Kiểm tra xem API Key đã được cấu hình chưa (Sửa lỗi build của bạn)
-   */
+  // --- Configuration & Utilities ---
+
   isConfigured(): boolean {
-    return !!this.apiKey && !!this.model;
+    return !!this.apiKey
   }
 
-  /**
-   * Kiểm tra kết nối thực tế tới Google (Health Check)
-   */
-  async healthCheck(): Promise<{ status: 'ok' | 'error', message: string }> {
-    if (!this.isConfigured()) {
-      return { status: 'error', message: 'API key not configured' };
+  private getApiKey(): string {
+    if (!this.apiKey) {
+      console.error('❌ GeminiHub: API Key is missing!')
+      throw new Error('Gemini API key not configured')
     }
-    try {
-      // Gửi prompt test siêu ngắn
-      await this.model.generateContent("Ping");
-      return { status: 'ok', message: 'Gemini API is connected' };
-    } catch (error: any) {
-      return { status: 'error', message: error.message || 'Connection failed' };
+    return this.apiKey
+  }
+
+  private getErrorMessage(status: number): string {
+    switch (status) {
+      case 400: return 'Invalid request to Gemini API'
+      case 403: return 'API key is invalid or has been disabled'
+      case 404: return 'Gemini API model not found'
+      case 429: return 'Rate limit exceeded. Please try again later.'
+      default: return status >= 500
+        ? 'Gemini API server error. Please try again later.'
+        : 'Failed to connect to Gemini API'
     }
   }
 
+  // --- Core API Layer (Node: API Gemini AI) ---
+
   /**
-   * ROUTER: Hàm trung tâm xử lý đầu vào từ Hub
+   * Hàm gọi API gốc (Core function interacting with Google Gemini)
+   * Các module Alpha và Deep Analysis đều sử dụng hàm này.
    */
-  async processInputHub(input: string | DeepAnalysisContext, type: 'simple_ticker' | 'full_context') {
-    if (!this.isConfigured()) throw new Error("Gemini API Key is missing");
+  async callGeminiAPI(prompt: string, model?: string): Promise<string> {
+    const apiKey = this.getApiKey()
+    const selectedModel = getValidatedModel(model)
 
-    console.log(`💎 [HUB] Routing request. Type: ${type}`);
+    console.log(`🤖 [API Call] Model: ${selectedModel}`)
 
-    if (type === 'full_context') {
-      return await this.analyzeDeeplyWithContext(input as DeepAnalysisContext);
-    } 
-    
-    if (type === 'simple_ticker') {
-      return await this.analyzeDeeplySimple(input as string);
+    const response = await fetch(
+      `${GEMINI_API_BASE}/${selectedModel}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: GENERATION_CONFIG,
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('GeminiHub API error:', response.status, errorText)
+      throw new Error(this.getErrorMessage(response.status))
     }
 
-    throw new Error("HUB: Invalid input type");
+    const data = await response.json()
+    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+    if (!generatedText) {
+      throw new Error('No content generated from Gemini')
+    }
+
+    return generatedText
   }
 
   // --- Module: Gemini Alpha (Chat & Quick Signal) ---
 
+  /**
+   * Xử lý hội thoại thông thường.
+   * Nếu Alpha phát hiện mã chứng khoán, nó có thể trả về tín hiệu để HUB xử lý tiếp.
+   */
   async chatWithAlpha(userMessage: string): Promise<AlphaResponse> {
-    if (!this.isConfigured()) return { text: "Hệ thống AI chưa được cấu hình.", relatedTicker: null };
+    console.log(`🗣️ [Gemini Alpha] Processing: "${userMessage}"`)
+    
+    // Prompt được thiết kế để Alpha đóng vai trò trợ lý nhanh
+    const prompt = `Bạn là Gemini Alpha, trợ lý AI chứng khoán. 
+    Câu hỏi: "${userMessage}". 
+    Trả lời ngắn gọn. Nếu người dùng hỏi sâu về một mã chứng khoán cụ thể, hãy đề xuất phân tích sâu.`
 
-    const prompt = `Bạn là Gemini Alpha, trợ lý chứng khoán thông minh trên StockHub.
-    User hỏi: "${userMessage}".
-    Trả lời ngắn gọn, vui vẻ. Nếu phát hiện mã chứng khoán (3 chữ cái in hoa), hãy nhắc đến nó.`;
-
-    const result = await this.model.generateContent(prompt);
-    const responseText = result.response.text();
-    const detectedTicker = this.detectTickerFromText(userMessage) || this.detectTickerFromText(responseText);
+    const rawResponse = await this.callGeminiAPI(prompt, DEFAULT_GEMINI_MODEL)
+    
+    // Giả lập logic: Kiểm tra xem Alpha có gợi ý mã chứng khoán nào để gửi xuống HUB không
+    // Trong thực tế, bạn sẽ dùng parser để tách mã CK từ rawResponse
+    const detectedTicker = this.detectTickerFromText(userMessage) 
+    
+    // Nếu có ticker, Alpha gửi tín hiệu xuống HUB (Logic ẩn trong sơ đồ)
+    if (detectedTicker) {
+        console.log(`🔄 [Gemini Alpha] -> [HUB]: Detected Interest in ${detectedTicker}`)
+    }
 
     return {
-      text: responseText,
-      relatedTicker: detectedTicker
-    };
+      text: rawResponse,
+      relatedTicker: detectedTicker // Dữ liệu này sẽ được UI hoặc HUB sử dụng
+    }
+  }
+
+  // --- Module: HUB (Router Logic) ---
+
+  /**
+   * HUB trung tâm (Hình thoi trong sơ đồ).
+   * Nhận đầu vào từ /stock hoặc từ Alpha, quyết định gọi Deep Analysis.
+   */
+  async processInputHub(input: string, type: 'stock_code' | 'alpha_signal'): Promise<DeepAnalysisResult | string> {
+    console.log(`💎 [HUB] Routing request. Type: ${type}, Input: ${input}`)
+
+    if (type === 'stock_code') {
+      // Luồng: User input HPG -> /stock -> HUB -> Deep Analysis
+      return await this.analyzeDeeply(input)
+    } 
+    
+    if (type === 'alpha_signal') {
+      // Luồng: Alpha phát hiện mã -> HUB -> Deep Analysis (nếu được cấu hình tự động)
+      return await this.analyzeDeeply(input)
+    }
+
+    return "HUB: Invalid input type"
   }
 
   // --- Module: Gemini Deep Analysis ---
 
-  private async analyzeDeeplyWithContext(ctx: DeepAnalysisContext) {
-    if (!this.model) throw new Error("Model not initialized");
-    console.log(`🧠 [Gemini Deep Analysis] Analyzing Context for: ${ctx.symbol}`);
-
-    const prompt = `
-    Đóng vai trò chuyên gia CFA. Phân tích cổ phiếu ${ctx.symbol} dựa trên dữ liệu thật:
+  /**
+   * Phân tích sâu (Deep Analysis).
+   * Được gọi bởi HUB hoặc khi User click "Gemini phân tích HPG".
+   */
+  async analyzeDeeply(ticker: string): Promise<DeepAnalysisResult> {
+    console.log(`🧠 [Gemini Deep Analysis] Analyzing: ${ticker}`)
     
-    TECHNICAL:
-    - Price: ${ctx.technicalData.currentPrice}
-    - MA Signal: ${ctx.technicalData.maSignal}
-    - Pivot S2 (Buy Zone): ${ctx.technicalData.buyPrice || 'N/A'}
-    - Bollinger: ${JSON.stringify(ctx.technicalData.bollinger)}
-    - Momentum: ${JSON.stringify(ctx.technicalData.momentum)}
-    
-    FUNDAMENTAL:
-    - P/E: ${ctx.fundamentalData.pe}, P/B: ${ctx.fundamentalData.pb}
-    - ROE: ${ctx.fundamentalData.roe}%, Profitability: ${JSON.stringify(ctx.fundamentalData.profitability?.data || 'N/A')}
-    
-    RECOMMENDATIONS: ${JSON.stringify(ctx.recommendations)}
+    const prompt = `Thực hiện phân tích chuyên sâu (Deep Analysis) cho mã cổ phiếu: ${ticker}.
+    Bao gồm: Xu hướng kỹ thuật, Định giá cơ bản, và Rủi ro tiềm ẩn.
+    Trả về định dạng JSON.`
 
-    OUTPUT JSON ONLY (No Markdown):
-    {
-      "shortTerm": { "signal": "MUA"|"BÁN"|"NẮM GIỮ", "confidence": 0-100, "summary": "...", "reasons": ["..."] },
-      "longTerm": { "signal": "MUA"|"BÁN"|"NẮM GIỮ", "confidence": 0-100, "summary": "...", "reasons": ["..."] },
-      "buyPrice": number|null, "targetPrice": number|null, "stopLoss": number|null,
-      "risks": ["..."], "opportunities": ["..."]
-    }
-    `;
-
-    const result = await this.model.generateContent(prompt);
-    const parsed = parseDeepAnalysisResponse(result.response.text());
-    return { ...parsed, timestamp: Date.now() };
+    // Deep Analysis gọi lại API Gemini AI (theo mũi tên đi lên trong sơ đồ)
+    const rawData = await this.callGeminiAPI(prompt, DEFAULT_GEMINI_MODEL)
+    
+    // Parse kết quả
+    return parseDeepAnalysisResponse(rawData)
   }
 
-  private async analyzeDeeplySimple(ticker: string) {
-    if (!this.model) throw new Error("Model not initialized");
-    const prompt = `Phân tích nhanh mã ${ticker}. Trả về JSON cấu trúc chuẩn StockHub.`;
-    const result = await this.model.generateContent(prompt);
-    return parseDeepAnalysisResponse(result.response.text());
-  }
+  // --- Utilities ---
 
   private detectTickerFromText(text: string): string | null {
-    const match = text.match(/\b[A-Z]{3}\b/);
-    return match ? match[0] : null;
+    // Logic đơn giản để tìm mã CK (VD: 3 chữ cái in hoa)
+    const match = text.match(/\b[A-Z]{3}\b/)
+    return match ? match[0] : null
+  }
+
+  async healthCheck(): Promise<{ status: 'ok' | 'error', message: string }> {
+    try {
+      if (!this.isConfigured()) {
+        return { status: 'error', message: 'API key not configured' }
+      }
+      await this.callGeminiAPI('Ping', DEFAULT_GEMINI_MODEL)
+      return { status: 'ok', message: 'Gemini API is working' }
+    } catch (error: any) {
+      return { status: 'error', message: error.message }
+    }
   }
 }
 
 // Export singleton instance
-export const geminiHub = new GeminiHub();
+export const geminiHub = new GeminiHub()
+
+// Re-export types and utilities
+export { parseSignalResponse, parseDeepAnalysisResponse } from './parser'
+export { getValidatedModel, DEFAULT_GEMINI_MODEL, isValidModel, getActiveModels } from './models'
+export type { AnalysisResult, DeepAnalysisResult, DeepAnalysisRequest, AlphaResponse } from './types'
