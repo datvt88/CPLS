@@ -21,7 +21,7 @@ export const GEMINI_MODELS: GeminiModel[] = [
 ]
 
 // Default model
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite'
 
 // Gemini API base URL
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
