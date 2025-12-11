@@ -264,6 +264,43 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
             setStatus('processing')
             setStatusMsg('Tính toán chỉ báo kỹ thuật...')
 
+            // Calculate technical indicators for Gemini
+            const closePrices = prices.map(d => d.adClose)
+            const lastIdx = closePrices.length - 1
+            const currentPrice = closePrices[lastIdx]
+
+            // Calculate MA10 and MA30
+            const ma10Values = calculateSMA(closePrices, 10)
+            const ma30Values = calculateSMA(closePrices, 30)
+            const ma10 = ma10Values[lastIdx]
+            const ma30 = ma30Values[lastIdx]
+
+            // Calculate Bollinger Bands
+            const bb = calculateBollingerBands(closePrices, 20, 2)
+
+            // Calculate Momentum
+            const momentum5d = closePrices.length >= 6
+                ? ((currentPrice - closePrices[lastIdx - 5]) / closePrices[lastIdx - 5]) * 100
+                : null
+            const momentum10d = closePrices.length >= 11
+                ? ((currentPrice - closePrices[lastIdx - 10]) / closePrices[lastIdx - 10]) * 100
+                : null
+
+            // Calculate volume metrics
+            const volumes = prices.map(d => d.nmVolume)
+            const currentVolume = volumes[lastIdx]
+            const avgVolume10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
+            const volumeRatio = avgVolume10 > 0 ? (currentVolume / avgVolume10) * 100 : 100
+
+            // Calculate 52-week high/low
+            const last52Weeks = closePrices.slice(-252) // ~252 trading days in a year
+            const week52High = Math.max(...last52Weeks)
+            const week52Low = Math.min(...last52Weeks)
+
+            // Calculate pivot points
+            const lastDay = prices[lastIdx]
+            const pivotPoints = calculateWoodiePivotPoints(lastDay.adHigh, lastDay.adLow, lastDay.adClose)
+
             const ruleAnalysis: RuleBasedAnalysis = {
                 shortTerm: analyzeTechnical(prices),
                 longTerm: analyzeFundamental(ratiosMap, profits)
@@ -273,24 +310,55 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
             setStatus('ai_generating')
             setStatusMsg('Gemini AI đang phân tích...')
 
+            // Build comprehensive technical data for Gemini
+            const technicalData = {
+                currentPrice,
+                buyPrice: pivotPoints?.S2,
+                ma10,
+                ma30,
+                bollinger: bb ? {
+                    upper: bb.upper[lastIdx],
+                    middle: bb.middle[lastIdx],
+                    lower: bb.lower[lastIdx]
+                } : undefined,
+                momentum: {
+                    day5: momentum5d,
+                    day10: momentum10d
+                },
+                volume: {
+                    current: currentVolume,
+                    avg10: avgVolume10,
+                    ratio: volumeRatio
+                },
+                week52: {
+                    high: week52High,
+                    low: week52Low
+                },
+                maSignal: ruleAnalysis.shortTerm.reasons[0]
+            }
+
+            // Build fundamental data
+            const fundamentalData = {
+                pe: ratiosMap['PRICE_TO_EARNINGS']?.value,
+                pb: ratiosMap['PRICE_TO_BOOK']?.value,
+                roe: ratiosMap['ROAE_TR_AVG5Q']?.value,
+                roa: ratiosMap['ROAA_TR_AVG5Q']?.value,
+                eps: ratiosMap['EPS']?.value,
+                dividendYield: ratiosMap['DIVIDEND_YIELD']?.value,
+                marketCap: ratiosMap['MARKETCAP']?.value,
+                profitability: profits
+            }
+
+            console.log('📊 Sending to Gemini API:', { symbol, technicalData, fundamentalData })
+
             const res = await fetch('/api/gemini/stock-analysis', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     symbol,
-                    technicalData: {
-                        currentPrice: ruleAnalysis.shortTerm.currentPrice,
-                        buyPrice: ruleAnalysis.shortTerm.buyPrice,
-                        maSignal: ruleAnalysis.shortTerm.reasons[0]
-                    },
-                    fundamentalData: {
-                        pe: ratiosMap['PRICE_TO_EARNINGS']?.value,
-                        roe: ratiosMap['ROAE_TR_AVG5Q']?.value,
-                        pb: ratiosMap['PRICE_TO_BOOK']?.value,
-                        marketCap: ratiosMap['MARKETCAP']?.value
-                    },
+                    technicalData,
+                    fundamentalData,
                     recommendations: recs.data.slice(0, 5),
-                    ruleBasedAnalysis: ruleAnalysis,
                     model: DEFAULT_GEMINI_MODEL
                 })
             })
