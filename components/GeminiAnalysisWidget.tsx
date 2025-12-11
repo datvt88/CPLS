@@ -211,6 +211,114 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
     checkAPI()
   }, [])
 
+  // --- AUTO-FETCH DATA WHEN SYMBOL CHANGES ---
+  useEffect(() => {
+    if (!symbol || !stockHub) return
+
+    const fetchMissingData = async () => {
+      const sd = stockHub.stockData
+
+      // Check what data is missing
+      const needsRatios = !sd?.ratios || Object.keys(sd.ratios).length === 0
+      const needsRecs = !sd?.recommendations || sd.recommendations.length === 0
+      const needsProfitability = !sd?.profitability
+      const needsProfitStructure = !sd?.profitStructure
+
+      if (!needsRatios && !needsRecs && !needsProfitability && !needsProfitStructure) {
+        return // All data already loaded
+      }
+
+      console.log('[GeminiWidget] Auto-fetching missing data for:', symbol)
+
+      const fetchPromises: Promise<any>[] = []
+
+      if (needsRatios) {
+        fetchPromises.push(
+          fetchFinancialRatiosClient(symbol)
+            .then(res => ({ type: 'ratios', data: res.data }))
+            .catch(err => {
+              console.warn('[GeminiWidget] Failed to fetch ratios:', err)
+              return { type: 'ratios', data: [] }
+            })
+        )
+      }
+
+      if (needsRecs) {
+        fetchPromises.push(
+          fetchRecommendationsClient(symbol)
+            .then(res => ({ type: 'recs', data: res.data }))
+            .catch(err => {
+              console.warn('[GeminiWidget] Failed to fetch recommendations:', err)
+              return { type: 'recs', data: [] }
+            })
+        )
+      }
+
+      if (needsProfitability) {
+        fetchPromises.push(
+          fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`)
+            .then(r => r.json())
+            .then(data => ({ type: 'profitability', data }))
+            .catch(err => {
+              console.warn('[GeminiWidget] Failed to fetch profitability:', err)
+              return { type: 'profitability', data: null }
+            })
+        )
+      }
+
+      if (needsProfitStructure) {
+        fetchPromises.push(
+          fetch(`/api/dnse/profit-structure?symbol=${symbol}&code=PROFIT_BEFORE_TAX&cycleType=quy&cycleNumber=5`)
+            .then(r => r.json())
+            .then(data => ({ type: 'profitStructure', data }))
+            .catch(err => {
+              console.warn('[GeminiWidget] Failed to fetch profitStructure:', err)
+              return { type: 'profitStructure', data: null }
+            })
+        )
+      }
+
+      if (fetchPromises.length === 0) return
+
+      try {
+        const results = await Promise.all(fetchPromises)
+
+        for (const result of results) {
+          switch (result.type) {
+            case 'ratios':
+              if (result.data && result.data.length > 0) {
+                stockHub.setRatios(result.data)
+              }
+              break
+            case 'recs':
+              if (result.data && result.data.length > 0) {
+                stockHub.setRecommendations(result.data)
+              }
+              break
+            case 'profitability':
+              if (result.data) {
+                stockHub.setProfitability(result.data)
+              }
+              break
+            case 'profitStructure':
+              if (result.data) {
+                stockHub.setProfitStructure(result.data)
+              }
+              break
+          }
+        }
+
+        console.log('[GeminiWidget] Auto-fetch completed')
+      } catch (err) {
+        console.error('[GeminiWidget] Auto-fetch error:', err)
+      }
+    }
+
+    // Small delay to avoid racing with other widgets
+    const timer = setTimeout(fetchMissingData, 500)
+    return () => clearTimeout(timer)
+  }, [symbol, stockHub])
+
   // --- SYNC STATUS WITH CACHE ---
   useEffect(() => {
     if (hasAnalysis) {
