@@ -202,11 +202,18 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
     if (hasAnalysis) {
       setLocalStatus('success')
       setStatusMsg('Dữ liệu từ cache')
-    } else if (localStatus === 'success') {
-      setLocalStatus('idle')
-      setStatusMsg('Sẵn sàng')
     }
-  }, [hasAnalysis, symbol])
+    // Don't reset to idle when hasAnalysis becomes false
+    // This prevents the widget from closing when user switches apps
+  }, [hasAnalysis])
+
+  // --- RESET WHEN SYMBOL CHANGES ---
+  useEffect(() => {
+    // Reset status when symbol changes (user selects different stock)
+    setLocalStatus('idle')
+    setStatusMsg('Sẵn sàng')
+    setErrorMsg(null)
+  }, [symbol])
 
   // --- MAIN ANALYSIS HANDLER ---
   const handleAnalyze = useCallback(async () => {
@@ -511,7 +518,7 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <ActionBox label="Vùng Mua" value={result.buyPrice} color="text-emerald-400" />
-                <ActionBox label="Mục Tiêu" value={result.targetPrice} color="text-blue-400" />
+                <ActionBox label="Mục Tiêu" value={result.targetPrice} color="text-violet-400" />
                 <ActionBox label="Cắt Lỗ" value={result.stopLoss} color="text-rose-400" />
               </div>
             </div>
