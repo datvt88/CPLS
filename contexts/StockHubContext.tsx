@@ -2,24 +2,20 @@
 
 /**
  * Stock Hub Context
- *
- * Central state management for stock data across the application.
- * Provides cached data sharing between widgets and enables Alpha AI
- * to access current stock context.
- *
- * Features:
- * - Centralized symbol management
- * - Cached stock data (prices, ratios, recommendations, profitability)
- * - Gemini analysis result caching
- * - Prevents duplicate API calls across widgets
+ * * Central Nervous System for StockHub.
+ * - Caches Market Data (Prices, Ratios) to reduce API calls.
+ * - Caches AI Analysis Results (Gemini Hub).
+ * - Generates Context for Gemini Alpha (Chatbot).
  */
 
-import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, ReactNode, useMemo } from 'react'
 import type { StockPriceData, FinancialRatio, StockRecommendation } from '@/types/vndirect'
 import type { DeepAnalysisResult } from '@/lib/gemini/types'
 
-// Profitability data type
-interface ProfitabilityData {
+// --- 1. LOCAL TYPES ---
+
+// Profitability data structure (chart format)
+export interface ProfitabilityData {
   data: Array<{
     label: string
     y: number[]
@@ -27,8 +23,8 @@ interface ProfitabilityData {
   }>
 }
 
-// Technical indicators calculated from price data
-interface TechnicalIndicators {
+// Technical indicators calculated locally or fetched
+export interface TechnicalIndicators {
   ma10: number | null
   ma30: number | null
   bollinger: {
@@ -37,19 +33,14 @@ interface TechnicalIndicators {
     lower: number
   } | null
   pivotPoints: {
-    pivot: number
-    R1: number
-    R2: number
-    R3: number
-    S1: number
     S2: number
-    S3: number
+    R3: number
+    pivot: number
   } | null
   momentum5d: number | null
-  momentum10d: number | null
 }
 
-// Complete stock data bundle
+// The Big Object: Holds everything about a stock
 export interface StockData {
   symbol: string
   prices: StockPriceData[]
@@ -60,7 +51,6 @@ export interface StockData {
   lastUpdated: number
 }
 
-// Loading states for different data types
 interface LoadingStates {
   prices: boolean
   ratios: boolean
@@ -69,58 +59,43 @@ interface LoadingStates {
   geminiAnalysis: boolean
 }
 
-// Stock Hub Context value
 interface StockHubContextValue {
-  // Current symbol
+  // State
   currentSymbol: string
-  setCurrentSymbol: (symbol: string) => void
-
-  // Cached stock data
   stockData: StockData | null
+  geminiAnalysis: DeepAnalysisResult | null
+  loading: LoadingStates
+  error: string | null
 
-  // Individual setters for widgets to push data
+  // Actions
+  setCurrentSymbol: (symbol: string) => void
   setPrices: (prices: StockPriceData[]) => void
-  setRatios: (ratios: FinancialRatio[]) => void
+  setRatios: (ratiosArray: FinancialRatio[]) => void
   setRecommendations: (recs: StockRecommendation[]) => void
   setProfitability: (data: ProfitabilityData | null) => void
   setTechnicalIndicators: (indicators: TechnicalIndicators) => void
-
-  // Gemini analysis result
-  geminiAnalysis: DeepAnalysisResult | null
   setGeminiAnalysis: (result: DeepAnalysisResult | null) => void
-
-  // Loading states
-  loading: LoadingStates
   setLoading: (key: keyof LoadingStates, value: boolean) => void
-
-  // Error state
-  error: string | null
   setError: (error: string | null) => void
-
-  // Check if data is stale (older than cache duration)
-  isDataStale: () => boolean
-
-  // Clear all cached data
   clearCache: () => void
-
-  // Format stock context for Alpha AI
-  formatStockContextForAlpha: () => string
+  
+  // Utilities
+  isDataStale: () => boolean
+  formatStockContextForAlpha: () => string // Crucial for Chat
 }
 
 const StockHubContext = createContext<StockHubContextValue | null>(null)
 
-// Cache duration: 2 minutes for stock data
-const CACHE_DURATION = 2 * 60 * 1000
+// Cache duration: 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000
 
-interface StockHubProviderProps {
-  children: ReactNode
-  initialSymbol?: string
-}
+// --- 2. PROVIDER COMPONENT ---
 
-export function StockHubProvider({ children, initialSymbol = 'VNM' }: StockHubProviderProps) {
+export function StockHubProvider({ children, initialSymbol = 'HPG' }: { children: ReactNode, initialSymbol?: string }) {
   const [currentSymbol, setCurrentSymbolState] = useState(initialSymbol)
   const [stockData, setStockData] = useState<StockData | null>(null)
   const [geminiAnalysis, setGeminiAnalysisState] = useState<DeepAnalysisResult | null>(null)
+  
   const [loading, setLoadingState] = useState<LoadingStates>({
     prices: false,
     ratios: false,
@@ -130,25 +105,37 @@ export function StockHubProvider({ children, initialSymbol = 'VNM' }: StockHubPr
   })
   const [error, setError] = useState<string | null>(null)
 
-  // Use ref to track current symbol for async operations
+  // Ref to prevent race conditions in async callbacks
   const currentSymbolRef = useRef(currentSymbol)
 
-  // Set current symbol and clear cache if symbol changes
+  // --- ACTIONS ---
+
   const setCurrentSymbol = useCallback((symbol: string) => {
-    const upperSymbol = symbol.toUpperCase().trim()
-    if (upperSymbol !== currentSymbolRef.current) {
-      currentSymbolRef.current = upperSymbol
-      setCurrentSymbolState(upperSymbol)
-      // Clear cache when symbol changes
+    const upper = symbol.toUpperCase().trim()
+    if (upper !== currentSymbolRef.current) {
+      console.log(`🔄 StockHub: Switching symbol ${currentSymbolRef.current} -> ${upper}`)
+      currentSymbolRef.current = upper
+      setCurrentSymbolState(upper)
+      
+      // Reset logic: Clear old data immediately to avoid showing wrong stock info
       setStockData(null)
       setGeminiAnalysisState(null)
       setError(null)
     }
   }, [])
 
-  // Set prices data
+  // Generic setter for stock data to avoid repetition
+  const updateStockData = useCallback((updater: (prev: StockData | null) => StockData) => {
+    setStockData(prev => {
+      // Safety check: ensure we are updating data for the current symbol
+      const newData = updater(prev)
+      if (newData.symbol !== currentSymbolRef.current) return prev
+      return newData
+    })
+  }, [])
+
   const setPrices = useCallback((prices: StockPriceData[]) => {
-    setStockData(prev => ({
+    updateStockData(prev => ({
       symbol: currentSymbolRef.current,
       prices,
       ratios: prev?.ratios ?? {},
@@ -157,16 +144,13 @@ export function StockHubProvider({ children, initialSymbol = 'VNM' }: StockHubPr
       technicalIndicators: prev?.technicalIndicators ?? null,
       lastUpdated: Date.now(),
     }))
-  }, [])
+  }, [updateStockData])
 
-  // Set ratios data
   const setRatios = useCallback((ratiosArray: FinancialRatio[]) => {
     const ratiosMap: Record<string, FinancialRatio> = {}
-    ratiosArray.forEach(r => {
-      ratiosMap[r.ratioCode] = r
-    })
+    ratiosArray.forEach(r => ratiosMap[r.ratioCode] = r)
 
-    setStockData(prev => ({
+    updateStockData(prev => ({
       symbol: currentSymbolRef.current,
       prices: prev?.prices ?? [],
       ratios: ratiosMap,
@@ -175,151 +159,96 @@ export function StockHubProvider({ children, initialSymbol = 'VNM' }: StockHubPr
       technicalIndicators: prev?.technicalIndicators ?? null,
       lastUpdated: Date.now(),
     }))
-  }, [])
+  }, [updateStockData])
 
-  // Set recommendations data
   const setRecommendations = useCallback((recs: StockRecommendation[]) => {
-    setStockData(prev => ({
-      symbol: currentSymbolRef.current,
-      prices: prev?.prices ?? [],
-      ratios: prev?.ratios ?? {},
-      recommendations: recs,
-      profitability: prev?.profitability ?? null,
-      technicalIndicators: prev?.technicalIndicators ?? null,
-      lastUpdated: Date.now(),
-    }))
-  }, [])
+    updateStockData(prev => ({ ...prev!, recommendations: recs, symbol: currentSymbolRef.current } as StockData))
+  }, [updateStockData])
 
-  // Set profitability data
   const setProfitability = useCallback((data: ProfitabilityData | null) => {
-    setStockData(prev => ({
-      symbol: currentSymbolRef.current,
-      prices: prev?.prices ?? [],
-      ratios: prev?.ratios ?? {},
-      recommendations: prev?.recommendations ?? [],
-      profitability: data,
-      technicalIndicators: prev?.technicalIndicators ?? null,
-      lastUpdated: Date.now(),
-    }))
-  }, [])
+    updateStockData(prev => ({ ...prev!, profitability: data, symbol: currentSymbolRef.current } as StockData))
+  }, [updateStockData])
 
-  // Set technical indicators
   const setTechnicalIndicators = useCallback((indicators: TechnicalIndicators) => {
-    setStockData(prev => ({
-      symbol: currentSymbolRef.current,
-      prices: prev?.prices ?? [],
-      ratios: prev?.ratios ?? {},
-      recommendations: prev?.recommendations ?? [],
-      profitability: prev?.profitability ?? null,
-      technicalIndicators: indicators,
-      lastUpdated: Date.now(),
-    }))
-  }, [])
+    updateStockData(prev => ({ ...prev!, technicalIndicators: indicators, symbol: currentSymbolRef.current } as StockData))
+  }, [updateStockData])
 
-  // Set Gemini analysis result
   const setGeminiAnalysis = useCallback((result: DeepAnalysisResult | null) => {
     setGeminiAnalysisState(result)
   }, [])
 
-  // Set loading state for specific key
   const setLoading = useCallback((key: keyof LoadingStates, value: boolean) => {
     setLoadingState(prev => ({ ...prev, [key]: value }))
   }, [])
 
-  // Check if data is stale
+  const clearCache = useCallback(() => {
+    setStockData(null)
+    setGeminiAnalysisState(null)
+  }, [])
+
   const isDataStale = useCallback(() => {
     if (!stockData || stockData.symbol !== currentSymbol) return true
     return Date.now() - stockData.lastUpdated > CACHE_DURATION
   }, [stockData, currentSymbol])
 
-  // Clear all cached data
-  const clearCache = useCallback(() => {
-    setStockData(null)
-    setGeminiAnalysisState(null)
-    setError(null)
-  }, [])
-
-  // Format stock context for Alpha AI
+  // --- ALPHA CONTEXT GENERATOR ---
+  // Hàm này tạo chuỗi text tóm tắt để gửi kèm vào prompt chat với Gemini Alpha
   const formatStockContextForAlpha = useCallback((): string => {
-    if (!stockData || stockData.symbol !== currentSymbol) {
-      return ''
-    }
+    if (!stockData || stockData.symbol !== currentSymbol) return ''
 
     const lines: string[] = []
-    lines.push(`📊 DỮ LIỆU CỔ PHIẾU ${stockData.symbol} ĐANG XEM:`)
-    lines.push('=' .repeat(50))
+    lines.push(`📊 THÔNG TIN CỔ PHIẾU ${stockData.symbol}:`)
+    lines.push('--------------------------------')
 
-    // Price data
+    // 1. Price
     if (stockData.prices.length > 0) {
       const latest = stockData.prices[stockData.prices.length - 1]
-      lines.push(`\n📈 GIÁ HIỆN TẠI:`)
-      lines.push(`- Giá đóng cửa: ${latest.close.toLocaleString('vi-VN')} VNĐ`)
-      lines.push(`- Thay đổi: ${latest.change > 0 ? '+' : ''}${latest.change.toLocaleString('vi-VN')} (${latest.pctChange > 0 ? '+' : ''}${latest.pctChange.toFixed(2)}%)`)
-      lines.push(`- Khối lượng: ${latest.nmVolume.toLocaleString('vi-VN')}`)
-      lines.push(`- Ngày: ${new Date(latest.date).toLocaleDateString('vi-VN')}`)
+      const changeSym = latest.change >= 0 ? '+' : ''
+      lines.push(`- Giá: ${latest.close.toLocaleString()} đ`)
+      lines.push(`- Biến động: ${changeSym}${latest.change.toLocaleString()} (${changeSym}${latest.pctChange.toFixed(2)}%)`)
+      lines.push(`- Vol: ${(latest.nmVolume / 1000).toFixed(0)}K cổ phiếu`)
     }
 
-    // Technical indicators
+    // 2. Technical Signals
     if (stockData.technicalIndicators) {
       const ti = stockData.technicalIndicators
-      lines.push(`\n📊 CHỈ BÁO KỸ THUẬT:`)
-      if (ti.ma10 !== null) lines.push(`- MA10: ${ti.ma10.toLocaleString('vi-VN')}`)
-      if (ti.ma30 !== null) lines.push(`- MA30: ${ti.ma30.toLocaleString('vi-VN')}`)
-      if (ti.bollinger) {
-        lines.push(`- Bollinger Upper: ${ti.bollinger.upper.toLocaleString('vi-VN')}`)
-        lines.push(`- Bollinger Lower: ${ti.bollinger.lower.toLocaleString('vi-VN')}`)
+      const signals = []
+      if (ti.ma10 !== null && ti.ma30 !== null) {
+        signals.push(ti.ma10 > ti.ma30 ? 'MA10 > MA30 (Tăng)' : 'MA10 < MA30 (Giảm)')
       }
-      if (ti.pivotPoints) {
-        lines.push(`- Buy T+ (S2): ${ti.pivotPoints.S2.toLocaleString('vi-VN')}`)
-        lines.push(`- Sell T+ (R3): ${ti.pivotPoints.R3.toLocaleString('vi-VN')}`)
+      if (ti.momentum5d !== null) {
+        signals.push(`Momentum 5D: ${ti.momentum5d > 0 ? 'Tích cực' : 'Tiêu cực'}`)
       }
-      if (ti.momentum5d !== null) lines.push(`- Momentum 5D: ${ti.momentum5d > 0 ? '+' : ''}${ti.momentum5d.toFixed(2)}%`)
-    }
-
-    // Fundamental ratios
-    if (Object.keys(stockData.ratios).length > 0) {
-      lines.push(`\n💰 CHỈ SỐ CƠ BẢN:`)
-      const pe = stockData.ratios['PRICE_TO_EARNINGS']?.value
-      const pb = stockData.ratios['PRICE_TO_BOOK']?.value
-      const roe = stockData.ratios['ROAE_TR_AVG5Q']?.value
-      const marketCap = stockData.ratios['MARKETCAP']?.value
-
-      if (pe) lines.push(`- P/E: ${pe.toFixed(2)}x`)
-      if (pb) lines.push(`- P/B: ${pb.toFixed(2)}x`)
-      if (roe) lines.push(`- ROE: ${(roe * 100).toFixed(2)}%`)
-      if (marketCap) lines.push(`- Vốn hóa: ${(marketCap / 1e9).toFixed(2)} tỷ VNĐ`)
-    }
-
-    // Recommendations
-    if (stockData.recommendations.length > 0) {
-      lines.push(`\n🎯 KHUYẾN NGHỊ ANALYST (${stockData.recommendations.length} công ty):`)
-      const buyCount = stockData.recommendations.filter(r => r.type === 'BUY').length
-      const holdCount = stockData.recommendations.filter(r => r.type === 'HOLD').length
-      const sellCount = stockData.recommendations.filter(r => r.type === 'SELL').length
-      lines.push(`- MUA: ${buyCount} | NẮM GIỮ: ${holdCount} | BÁN: ${sellCount}`)
-
-      const avgTarget = stockData.recommendations.reduce((sum, r) => sum + (r.targetPrice || 0), 0) / stockData.recommendations.length
-      if (avgTarget > 0) {
-        lines.push(`- Giá mục tiêu TB: ${avgTarget.toLocaleString('vi-VN')} VNĐ`)
+      if (signals.length > 0) lines.push(`- Kỹ thuật: ${signals.join(', ')}`)
+      
+      if (ti.pivotPoints?.S2) {
+        lines.push(`- Hỗ trợ mạnh (S2): ${ti.pivotPoints.S2.toLocaleString()}`)
       }
     }
 
-    // Gemini analysis if available
+    // 3. Fundamentals
+    const r = stockData.ratios
+    if (Object.keys(r).length > 0) {
+      const pe = r['PRICE_TO_EARNINGS']?.value
+      const roe = r['ROAE_TR_AVG5Q']?.value
+      if (pe) lines.push(`- P/E: ${pe.toFixed(1)}x`)
+      if (roe) lines.push(`- ROE: ${(roe * 100).toFixed(1)}%`)
+    }
+
+    // 4. Gemini Deep Analysis Result (Nếu có)
     if (geminiAnalysis) {
-      lines.push(`\n🤖 PHÂN TÍCH GEMINI AI:`)
-      lines.push(`- Ngắn hạn: ${geminiAnalysis.shortTerm.signal} (${geminiAnalysis.shortTerm.confidence}%)`)
-      lines.push(`- Dài hạn: ${geminiAnalysis.longTerm.signal} (${geminiAnalysis.longTerm.confidence}%)`)
-      if (geminiAnalysis.buyPrice) lines.push(`- Vùng mua: ${geminiAnalysis.buyPrice}`)
-      if (geminiAnalysis.targetPrice) lines.push(`- Mục tiêu: ${geminiAnalysis.targetPrice}`)
-      if (geminiAnalysis.stopLoss) lines.push(`- Cắt lỗ: ${geminiAnalysis.stopLoss}`)
+      lines.push('--------------------------------')
+      lines.push('🤖 NHẬN ĐỊNH TỪ HUB (AI):')
+      lines.push(`- Ngắn hạn: ${geminiAnalysis.shortTerm.signal} (${geminiAnalysis.shortTerm.summary})`)
+      lines.push(`- Dài hạn: ${geminiAnalysis.longTerm.signal}`)
+      if (geminiAnalysis.buyPrice) lines.push(`- Vùng mua AI gợi ý: ${geminiAnalysis.buyPrice.toLocaleString()}`)
     }
-
-    lines.push('\n' + '=' .repeat(50))
 
     return lines.join('\n')
   }, [stockData, currentSymbol, geminiAnalysis])
 
-  const value: StockHubContextValue = {
+  // --- RENDER ---
+  const value = useMemo(() => ({
     currentSymbol,
     setCurrentSymbol,
     stockData,
@@ -337,7 +266,7 @@ export function StockHubProvider({ children, initialSymbol = 'VNM' }: StockHubPr
     isDataStale,
     clearCache,
     formatStockContextForAlpha,
-  }
+  }), [currentSymbol, stockData, geminiAnalysis, loading, error, isDataStale, formatStockContextForAlpha])
 
   return (
     <StockHubContext.Provider value={value}>
@@ -346,16 +275,14 @@ export function StockHubProvider({ children, initialSymbol = 'VNM' }: StockHubPr
   )
 }
 
-// Custom hook to use Stock Hub
+// Hook for components inside Provider
 export function useStockHub() {
   const context = useContext(StockHubContext)
-  if (!context) {
-    throw new Error('useStockHub must be used within a StockHubProvider')
-  }
+  if (!context) throw new Error('useStockHub must be used within a StockHubProvider')
   return context
 }
 
-// Optional hook that returns null if not in provider (for components that may be used outside)
+// Hook for optional usage (returns null if no provider)
 export function useStockHubOptional() {
   return useContext(StockHubContext)
 }
