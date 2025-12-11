@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import dynamic from 'next/dynamic'
+import { StockHubProvider, useStockHub } from '@/contexts/StockHubContext'
 import StockFinancialsWidget from '@/components/StockFinancialsWidget'
 import StockProfitabilityWidget from '@/components/StockProfitabilityWidget'
 import StockProfitStructureWidget from '@/components/StockProfitStructureWidget'
@@ -27,8 +27,9 @@ const StockDetailsWidget = dynamic(
   }
 )
 
-export default function StocksPage() {
-  const [currentSymbol, setCurrentSymbol] = useState('VNM')
+// Inner component that uses Stock Hub
+function StocksPageContent() {
+  const { currentSymbol } = useStockHub()
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-5">
@@ -42,10 +43,7 @@ export default function StocksPage() {
       </div>
 
       {/* Stock Details Widget with Chart */}
-      <StockDetailsWidget
-        initialSymbol={currentSymbol}
-        onSymbolChange={setCurrentSymbol}
-      />
+      <StockDetailsWidget />
 
       {/* Stock Financials Widget */}
       <StockFinancialsWidget key={currentSymbol} symbol={currentSymbol} />
@@ -63,7 +61,15 @@ export default function StocksPage() {
       <StockSummaryWidget key={`summary-${currentSymbol}`} symbol={currentSymbol} />
 
       {/* Gemini Analysis Widget */}
-      <GeminiAnalysisWidget key={`gemini-${currentSymbol}`} symbol={currentSymbol} />
+      <GeminiAnalysisWidget key={`gemini-${currentSymbol}`} />
     </div>
+  )
+}
+
+export default function StocksPage() {
+  return (
+    <StockHubProvider initialSymbol="VNM">
+      <StocksPageContent />
+    </StockHubProvider>
   )
 }

@@ -7,6 +7,7 @@ import { calculateBollingerBands, calculateWoodiePivotPoints } from '@/services/
 import { fetchStockPricesClient } from '@/services/vndirect-client'
 import type { StockPriceData, WoodiePivotPoints } from '@/types/vndirect'
 import { formatVolume, formatCurrency, formatPrice, formatChange } from '@/utils/formatters'
+import { useStockHubOptional } from '@/contexts/StockHubContext'
 
 interface StockDetailsWidgetProps {
   initialSymbol?: string
@@ -45,8 +46,14 @@ function getVietnamDate(): Date {
 }
 
 const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: StockDetailsWidgetProps) => {
-  const [symbol, setSymbol] = useState(initialSymbol)
-  const [inputSymbol, setInputSymbol] = useState(initialSymbol)
+  // Stock Hub integration (optional - works with or without provider)
+  const stockHub = useStockHubOptional()
+
+  // Use Stock Hub symbol if available, otherwise fall back to props
+  const effectiveInitialSymbol = stockHub?.currentSymbol ?? initialSymbol
+
+  const [symbol, setSymbol] = useState(effectiveInitialSymbol)
+  const [inputSymbol, setInputSymbol] = useState(effectiveInitialSymbol)
   const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M'>('1D')
   const [chartType, setChartType] = useState<'candlestick' | 'line'>('candlestick')
   const [loading, setLoading] = useState(false)
@@ -118,16 +125,19 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
   const switchToSymbol = useCallback((newSymbol: string) => {
     setSymbol(newSymbol)
     setInputSymbol(newSymbol)
+    // Update Stock Hub if available
+    stockHub?.setCurrentSymbol(newSymbol)
     onSymbolChange?.(newSymbol)
-  }, [onSymbolChange])
+  }, [onSymbolChange, stockHub])
 
-  // Sync with external symbol changes only when initialSymbol changes
+  // Sync with external symbol changes (from props or Stock Hub)
   useEffect(() => {
-    if (initialSymbol && initialSymbol !== inputSymbol) {
-      setSymbol(initialSymbol)
-      setInputSymbol(initialSymbol)
+    const targetSymbol = stockHub?.currentSymbol ?? initialSymbol
+    if (targetSymbol && targetSymbol !== symbol) {
+      setSymbol(targetSymbol)
+      setInputSymbol(targetSymbol)
     }
-  }, [initialSymbol])
+  }, [stockHub?.currentSymbol, initialSymbol])
 
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -371,10 +381,58 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       }
 
       // Calculate pivot points from previous day (using adjusted prices)
+      let calculatedPivots: WoodiePivotPoints | null = null
       if (sortedData.length >= 2) {
         const prevDay = sortedData[sortedData.length - 2]
-        const pivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
-        setPivotPoints(pivots)
+        calculatedPivots = calculateWoodiePivotPoints(prevDay.adHigh, prevDay.adLow, prevDay.adClose)
+        setPivotPoints(calculatedPivots)
+      }
+
+      // Push data to Stock Hub if available
+      if (stockHub) {
+        stockHub.setPrices(sortedData)
+
+        // Calculate and push technical indicators
+        if (sortedData.length >= 30) {
+          const closePrices = sortedData.map(d => d.adClose)
+          const bb = calculateBollingerBands(closePrices, 30, 3)
+          const lastIdx = closePrices.length - 1
+
+          // Calculate MA10
+          let ma10: number | null = null
+          if (closePrices.length >= 10) {
+            const sum10 = closePrices.slice(-10).reduce((acc, val) => acc + val, 0)
+            ma10 = sum10 / 10
+          }
+
+          // Calculate MA30
+          let ma30: number | null = null
+          if (closePrices.length >= 30) {
+            const sum30 = closePrices.slice(-30).reduce((acc, val) => acc + val, 0)
+            ma30 = sum30 / 30
+          }
+
+          // Calculate momentum
+          const momentum5d = closePrices.length >= 5
+            ? ((closePrices[lastIdx] - closePrices[lastIdx - 5]) / closePrices[lastIdx - 5]) * 100
+            : null
+          const momentum10d = closePrices.length >= 10
+            ? ((closePrices[lastIdx] - closePrices[lastIdx - 10]) / closePrices[lastIdx - 10]) * 100
+            : null
+
+          stockHub.setTechnicalIndicators({
+            ma10,
+            ma30,
+            bollinger: {
+              upper: bb.upper[lastIdx],
+              middle: bb.middle[lastIdx],
+              lower: bb.lower[lastIdx],
+            },
+            pivotPoints: calculatedPivots,
+            momentum5d,
+            momentum10d,
+          })
+        }
       }
     } catch (err) {
       // Ignore abort errors (user cancelled the request)
@@ -390,7 +448,7 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
         setIsRefreshing(false)
       }
     }
-  }, [])
+  }, [stockHub])
 
   // Handle manual refresh
   const handleRefresh = useCallback(() => {
@@ -638,9 +696,12 @@ const StockDetailsWidget = memo(({ initialSymbol = 'VNM', onSymbolChange }: Stoc
       const newSymbol = inputSymbol.trim().toUpperCase()
       console.log('🔍 Symbol changed to:', newSymbol)
       setSymbol(newSymbol)
+      // Update Stock Hub if available (this will trigger other widgets to update)
+      stockHub?.setCurrentSymbol(newSymbol)
+      // Also call legacy callback for backwards compatibility
       onSymbolChange?.(newSymbol)
     }
-  }, [inputSymbol, onSymbolChange])
+  }, [inputSymbol, onSymbolChange, stockHub])
 
   const latestData = stockData[stockData.length - 1]
 

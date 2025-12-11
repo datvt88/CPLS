@@ -12,6 +12,9 @@ export { geminiHub } from './hub'
 export { geminiAlpha } from './alpha'
 export { geminiDeepAnalysis } from './deep-analysis'
 
+// Alpha types
+export type { StockContext } from './alpha'
+
 // Models & Config
 export {
   DEFAULT_GEMINI_MODEL,

@@ -1,17 +1,18 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { 
-    fetchStockPrices, 
-    fetchFinancialRatios, 
-    fetchStockRecommendations, 
-    calculateSMA, 
-    calculateBollingerBands, 
-    calculateWoodiePivotPoints 
+import { useState, useCallback, useEffect } from 'react'
+import {
+    fetchStockPrices,
+    fetchFinancialRatios,
+    fetchStockRecommendations,
+    calculateSMA,
+    calculateBollingerBands,
+    calculateWoodiePivotPoints
 } from '@/services/vndirect'
-import type { FinancialRatio } from '@/types/vndirect'
-import { formatPrice } from '@/utils/formatters' // Import hàm format giá
+import type { FinancialRatio, StockPriceData } from '@/types/vndirect'
+import { formatPrice } from '@/utils/formatters'
 import { usePermissions } from '@/contexts/PermissionsContext'
+import { useStockHubOptional } from '@/contexts/StockHubContext'
 import { DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 import Link from 'next/link'
 
@@ -19,22 +20,22 @@ import Link from 'next/link'
 type Signal = 'MUA' | 'BÁN' | 'NẮM GIỮ'
 type ConnectionStatus = 'idle' | 'fetching' | 'processing' | 'ai_generating' | 'success' | 'error'
 
-interface Evaluation { 
-    signal: Signal; 
-    confidence: number; 
-    reasons: string[]; 
-    currentPrice?: number; 
-    buyPrice?: number; 
-    cutLossPrice?: number 
+interface Evaluation {
+    signal: Signal;
+    confidence: number;
+    reasons: string[];
+    currentPrice?: number;
+    buyPrice?: number;
+    cutLossPrice?: number
 }
 
-export interface RuleBasedAnalysis { 
-    shortTerm: Evaluation; 
-    longTerm: Evaluation 
+export interface RuleBasedAnalysis {
+    shortTerm: Evaluation;
+    longTerm: Evaluation
 }
 
 // --- 2. PURE LOGIC HELPER FUNCTIONS ---
-const analyzeTechnical = (priceData: any[]): Evaluation => {
+const analyzeTechnical = (priceData: StockPriceData[]): Evaluation => {
     const reasons: string[] = []
     let score = 0
     const close = priceData.map(d => d.adClose)
@@ -70,17 +71,17 @@ const analyzeTechnical = (priceData: any[]): Evaluation => {
         if (p) { buyPrice = p.S2; cutLossPrice = p.S2 * 0.93 }
     }
 
-    return { 
-        signal: score > 15 ? 'MUA' : score < -15 ? 'BÁN' : 'NẮM GIỮ', 
-        confidence: Math.min(Math.abs(score), 100), 
-        reasons, currentPrice, buyPrice, cutLossPrice 
+    return {
+        signal: score > 15 ? 'MUA' : score < -15 ? 'BÁN' : 'NẮM GIỮ',
+        confidence: Math.min(Math.abs(score), 100),
+        reasons, currentPrice, buyPrice, cutLossPrice
     }
 }
 
 const analyzeFundamental = (ratios: Record<string, FinancialRatio>, profit: any): Evaluation => {
     const reasons: string[] = []
     let score = 0
-    
+
     const pe = ratios['PRICE_TO_EARNINGS']?.value
     if (pe) {
         if (pe > 0 && pe < 12) { score += 25; reasons.push(`P/E thấp (${pe.toFixed(1)}x)`) }
@@ -93,14 +94,14 @@ const analyzeFundamental = (ratios: Record<string, FinancialRatio>, profit: any)
          const roeItem = profit.data.find((x: any) => x.label === 'ROE')
          if (roeItem?.y?.length) roe = roeItem.y[roeItem.y.length - 1]
     }
-    
+
     if (roe > 15) { score += 30; reasons.push(`ROE ấn tượng (${roe.toFixed(1)}%)`) }
     else if (roe < 8) { score -= 20; reasons.push(`ROE thấp (${roe.toFixed(1)}%)`) }
 
-    return { 
-        signal: score > 10 ? 'MUA' : score < -10 ? 'BÁN' : 'NẮM GIỮ', 
-        confidence: Math.min(Math.abs(score) + 20, 100), 
-        reasons 
+    return {
+        signal: score > 10 ? 'MUA' : score < -10 ? 'BÁN' : 'NẮM GIỮ',
+        confidence: Math.min(Math.abs(score) + 20, 100),
+        reasons
     }
 }
 
@@ -116,7 +117,7 @@ const StatusBadge = ({ status, message }: { status: ConnectionStatus, message: s
             default: return 'bg-slate-500'
         }
     }
-    
+
     return (
         <div className="flex items-center gap-2 text-xs font-medium bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700">
             <span className={`h-2 w-2 rounded-full ${getColor()}`}></span>
@@ -152,46 +153,119 @@ const ActionBox = ({ label, value, color }: { label: string, value: number | nul
 }
 
 // --- 4. MAIN WIDGET ---
-export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
+interface GeminiAnalysisWidgetProps {
+    symbol?: string // Optional - will use Stock Hub if available
+}
+
+export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnalysisWidgetProps) {
     const { isPremium, isAuthenticated, isLoading: authLoading } = usePermissions()
-    const [result, setResult] = useState<any>(null)
-    const [status, setStatus] = useState<ConnectionStatus>('idle')
-    const [statusMsg, setStatusMsg] = useState('Sẵn sàng')
+
+    // Stock Hub integration
+    const stockHub = useStockHubOptional()
+
+    // Use Stock Hub symbol if available, otherwise fall back to prop
+    const symbol = stockHub?.currentSymbol ?? propSymbol ?? 'VNM'
+
+    // Use cached analysis from Stock Hub if available
+    const cachedAnalysis = stockHub?.geminiAnalysis
+
+    const [result, setResult] = useState<any>(cachedAnalysis)
+    const [status, setStatus] = useState<ConnectionStatus>(cachedAnalysis ? 'success' : 'idle')
+    const [statusMsg, setStatusMsg] = useState(cachedAnalysis ? 'Phân tích hoàn tất' : 'Sẵn sàng')
     const [error, setError] = useState<string | null>(null)
 
-    const handleAnalyze = async () => {
+    // Reset state when symbol changes
+    useEffect(() => {
+        // Check if Stock Hub has cached analysis for current symbol
+        if (stockHub?.geminiAnalysis) {
+            setResult(stockHub.geminiAnalysis)
+            setStatus('success')
+            setStatusMsg('Phân tích hoàn tất')
+        } else {
+            setResult(null)
+            setStatus('idle')
+            setStatusMsg('Sẵn sàng')
+        }
+        setError(null)
+    }, [symbol, stockHub?.geminiAnalysis])
+
+    const handleAnalyze = useCallback(async () => {
         if (!symbol || (!isPremium && !isAuthenticated)) return
-        
+
         setError(null)
         setResult(null)
-        
-        try {
-            // STEP 1: Fetching
-            setStatus('fetching')
-            setStatusMsg('Đang tải dữ liệu thị trường...')
-            
-            const [prices, ratios, recs, profits] = await Promise.all([
-                fetchStockPrices(symbol, 270),
-                fetchFinancialRatios(symbol),
-                fetchStockRecommendations(symbol).catch(() => ({ data: [] })),
-                fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`).then(r => r.json()).catch(() => null)
-            ])
 
-            // Validation: Đảm bảo có dữ liệu giá
-            if (!prices.data || prices.data.length < 30) {
-                throw new Error('Không đủ dữ liệu giá (cần >30 phiên)')
+        try {
+            // Check if Stock Hub has cached data we can use
+            const hasCachedPrices = stockHub?.stockData?.prices && stockHub.stockData.prices.length >= 30
+            const hasCachedRatios = stockHub?.stockData?.ratios && Object.keys(stockHub.stockData.ratios).length > 0
+
+            let prices: StockPriceData[]
+            let ratiosMap: Record<string, FinancialRatio>
+            let recs: { data: any[] }
+            let profits: any
+
+            // STEP 1: Fetching (use cached data where available)
+            setStatus('fetching')
+
+            if (hasCachedPrices && hasCachedRatios) {
+                // Use cached data from Stock Hub
+                setStatusMsg('Sử dụng dữ liệu đã cache...')
+                prices = stockHub!.stockData!.prices
+                ratiosMap = stockHub!.stockData!.ratios
+
+                // Only fetch recommendations and profitability
+                const [recsResult, profitsResult] = await Promise.all([
+                    fetchStockRecommendations(symbol).catch(() => ({ data: [] })),
+                    fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`).then(r => r.json()).catch(() => null)
+                ])
+                recs = recsResult
+                profits = profitsResult
+
+                // Push to Stock Hub
+                if (recsResult.data) stockHub?.setRecommendations(recsResult.data)
+                if (profitsResult) stockHub?.setProfitability(profitsResult)
+            } else {
+                // Fetch all data
+                setStatusMsg('Đang tải dữ liệu thị trường...')
+
+                const [pricesResult, ratiosResult, recsResult, profitsResult] = await Promise.all([
+                    fetchStockPrices(symbol, 270),
+                    fetchFinancialRatios(symbol),
+                    fetchStockRecommendations(symbol).catch(() => ({ data: [] })),
+                    fetch(`/api/dnse/profitability?symbol=${symbol}&code=PROFITABLE_EFFICIENCY&cycleType=quy&cycleNumber=5`).then(r => r.json()).catch(() => null)
+                ])
+
+                // Validation
+                if (!pricesResult.data || pricesResult.data.length < 30) {
+                    throw new Error('Không đủ dữ liệu giá (cần >30 phiên)')
+                }
+
+                prices = pricesResult.data.sort((a: StockPriceData, b: StockPriceData) =>
+                    new Date(a.date).getTime() - new Date(b.date).getTime()
+                )
+
+                ratiosMap = {}
+                ratiosResult.data.forEach((r: any) => ratiosMap[r.ratioCode] = r)
+
+                recs = recsResult
+                profits = profitsResult
+
+                // Push to Stock Hub if available
+                if (stockHub) {
+                    stockHub.setPrices(prices)
+                    stockHub.setRatios(ratiosResult.data)
+                    if (recsResult.data) stockHub.setRecommendations(recsResult.data)
+                    if (profitsResult) stockHub.setProfitability(profitsResult)
+                }
             }
 
             // STEP 2: Local Processing
             setStatus('processing')
             setStatusMsg('Tính toán chỉ báo kỹ thuật...')
 
-            const validData = prices.data.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            const ratiosMap: Record<string, FinancialRatio> = {}
-            ratios.data.forEach((r: any) => ratiosMap[r.ratioCode] = r)
-
             const ruleAnalysis: RuleBasedAnalysis = {
-                shortTerm: analyzeTechnical(validData),
+                shortTerm: analyzeTechnical(prices),
                 longTerm: analyzeFundamental(ratiosMap, profits)
             }
 
@@ -207,7 +281,6 @@ export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
                     technicalData: {
                         currentPrice: ruleAnalysis.shortTerm.currentPrice,
                         buyPrice: ruleAnalysis.shortTerm.buyPrice,
-                        // Thêm context cho AI
                         maSignal: ruleAnalysis.shortTerm.reasons[0]
                     },
                     fundamentalData: {
@@ -225,10 +298,13 @@ export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
             if (!res.ok) throw new Error('Kết nối AI thất bại')
             const data = await res.json()
 
-            // STEP 4: Success
+            // STEP 4: Success - Save to Stock Hub
             setResult(data)
             setStatus('success')
             setStatusMsg('Phân tích hoàn tất')
+
+            // Cache analysis result in Stock Hub
+            stockHub?.setGeminiAnalysis(data)
 
         } catch (err: any) {
             console.error(err)
@@ -236,11 +312,11 @@ export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
             setStatusMsg('Lỗi phân tích')
             setError(err.message || 'Có lỗi xảy ra, vui lòng thử lại')
         }
-    }
+    }, [symbol, isPremium, isAuthenticated, stockHub])
 
     // --- RENDER ---
     if (authLoading) return <div className="h-40 bg-[--panel] animate-pulse rounded-xl border border-gray-800" />
-    
+
     if (!isPremium) return (
         <div className="relative overflow-hidden rounded-xl border border-indigo-500/30 bg-[--panel] p-8 text-center">
             <div className="absolute inset-0 bg-indigo-900/20 opacity-50"/>
@@ -261,7 +337,7 @@ export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
                 <h3 className="text-xl font-bold text-white flex gap-2 items-center">
                     🤖 Gemini AI <span className="bg-amber-500 text-xs px-2 rounded">PRO</span>
                 </h3>
-                
+
                 {/* Status Indicator */}
                 <div className="flex items-center gap-3">
                     <StatusBadge status={status} message={statusMsg} />
@@ -302,7 +378,7 @@ export default function GeminiAnalysisWidget({ symbol }: { symbol: string }) {
                     {(result.buyPrice || result.targetPrice) && (
                         <div className="bg-emerald-900/10 border border-emerald-500/20 p-4 rounded-xl">
                             <h4 className="text-emerald-400 font-bold mb-3 text-sm flex items-center gap-2">
-                                🎯 KHUYẾN NGHỊ HÀNH ĐỘNG 
+                                🎯 KHUYẾN NGHỊ HÀNH ĐỘNG
                                 <span className="text-xs font-normal text-emerald-600">(Dựa trên Pivot Points & AI)</span>
                             </h4>
                             <div className="grid grid-cols-3 gap-3">
