@@ -47,6 +47,7 @@ export interface TechnicalIndicators {
     R3: number
   } | null
   momentum5d: number | null
+  momentum10d?: number | null
   week52?: {
     high: number
     low: number

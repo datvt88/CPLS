@@ -100,18 +100,26 @@ export function normalizeConfidence(confidence: any): number {
 }
 
 /**
- * Format price value
+ * Parse price value to number
  */
-export function formatPriceValue(price: any): string | null {
+export function parsePriceValue(price: any): number | null {
   if (price === null || price === undefined || price === 'null') return null
 
   const num = Number(price)
   if (isNaN(num)) return null
 
   // If too small, multiply by 1000 (assuming x1000 VND format)
-  const finalNum = num < 1000 ? num * 1000 : num
+  return num < 1000 ? num * 1000 : num
+}
 
-  return finalNum.toLocaleString('en-US', {
+/**
+ * Format price value (for display - legacy support)
+ */
+export function formatPriceValue(price: any): string | null {
+  const num = parsePriceValue(price)
+  if (num === null) return null
+
+  return num.toLocaleString('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   })
@@ -150,18 +158,21 @@ function normalizeDeepAnalysis(parsed: any, currentPrice?: number): DeepAnalysis
     shortTerm: {
       signal: 'THEO DÕI',
       confidence: 50,
-      summary: 'Không đủ dữ liệu phân tích ngắn hạn.'
+      summary: 'Không đủ dữ liệu phân tích ngắn hạn.',
+      reasons: []
     },
     longTerm: {
       signal: 'THEO DÕI',
       confidence: 50,
-      summary: 'Không đủ dữ liệu phân tích dài hạn.'
+      summary: 'Không đủ dữ liệu phân tích dài hạn.',
+      reasons: []
     },
     buyPrice: null,
     targetPrice: null,
     stopLoss: null,
     risks: [],
-    opportunities: []
+    opportunities: [],
+    timestamp: Date.now()
   }
 
   // Normalize shortTerm
@@ -169,7 +180,8 @@ function normalizeDeepAnalysis(parsed: any, currentPrice?: number): DeepAnalysis
     result.shortTerm = {
       signal: normalizeSignal(parsed.shortTerm.signal),
       confidence: normalizeConfidence(parsed.shortTerm.confidence),
-      summary: String(parsed.shortTerm.summary || '').trim() || 'Phân tích kỹ thuật cho thấy cần theo dõi thêm các chỉ báo.'
+      summary: String(parsed.shortTerm.summary || '').trim() || 'Phân tích kỹ thuật cho thấy cần theo dõi thêm các chỉ báo.',
+      reasons: Array.isArray(parsed.shortTerm.reasons) ? parsed.shortTerm.reasons.filter((r: any) => typeof r === 'string') : []
     }
   }
 
@@ -178,7 +190,8 @@ function normalizeDeepAnalysis(parsed: any, currentPrice?: number): DeepAnalysis
     result.longTerm = {
       signal: normalizeSignal(parsed.longTerm.signal),
       confidence: normalizeConfidence(parsed.longTerm.confidence),
-      summary: String(parsed.longTerm.summary || '').trim() || 'Phân tích cơ bản cho thấy cần theo dõi các chỉ số tài chính.'
+      summary: String(parsed.longTerm.summary || '').trim() || 'Phân tích cơ bản cho thấy cần theo dõi các chỉ số tài chính.',
+      reasons: Array.isArray(parsed.longTerm.reasons) ? parsed.longTerm.reasons.filter((r: any) => typeof r === 'string') : []
     }
   }
 
@@ -187,9 +200,9 @@ function normalizeDeepAnalysis(parsed: any, currentPrice?: number): DeepAnalysis
 
   // Normalize prices (only if buy signal)
   if (hasBuySignal) {
-    result.buyPrice = formatPriceValue(parsed.buyPrice)
-    result.targetPrice = formatPriceValue(parsed.targetPrice)
-    result.stopLoss = formatPriceValue(parsed.stopLoss)
+    result.buyPrice = parsePriceValue(parsed.buyPrice)
+    result.targetPrice = parsePriceValue(parsed.targetPrice)
+    result.stopLoss = parsePriceValue(parsed.stopLoss)
   }
 
   // Normalize risks and opportunities (exactly 3 each)
@@ -216,12 +229,14 @@ function createDefaultDeepAnalysis(currentPrice?: number): DeepAnalysisResult {
     shortTerm: {
       signal: 'THEO DÕI',
       confidence: 50,
-      summary: 'Cần theo dõi thêm các chỉ báo kỹ thuật trước khi đưa ra quyết định.'
+      summary: 'Cần theo dõi thêm các chỉ báo kỹ thuật trước khi đưa ra quyết định.',
+      reasons: []
     },
     longTerm: {
       signal: 'THEO DÕI',
       confidence: 50,
-      summary: 'Cần phân tích thêm các chỉ số cơ bản để đánh giá dài hạn.'
+      summary: 'Cần phân tích thêm các chỉ số cơ bản để đánh giá dài hạn.',
+      reasons: []
     },
     buyPrice: null,
     targetPrice: null,
@@ -235,6 +250,7 @@ function createDefaultDeepAnalysis(currentPrice?: number): DeepAnalysisResult {
       'Tiềm năng tăng trưởng từ ngành',
       'Định giá có thể hấp dẫn so với các chỉ số cơ bản',
       'Cơ hội từ xu hướng kỹ thuật'
-    ]
+    ],
+    timestamp: Date.now()
   }
 }
