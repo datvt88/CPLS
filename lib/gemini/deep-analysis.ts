@@ -7,7 +7,8 @@
  * - AI-powered insights
  */
 
-import { geminiHub, parseDeepAnalysisResponse } from './hub'
+import { geminiAPI } from './gemini-api'
+import { parseDeepAnalysisResponse } from './parser'
 import type { DeepAnalysisRequest, DeepAnalysisResult } from './types'
 
 /**
@@ -20,14 +21,14 @@ class GeminiDeepAnalysis {
   async analyze(request: DeepAnalysisRequest): Promise<DeepAnalysisResult & { rawText?: string }> {
     const { symbol, technicalData, fundamentalData, recommendations, model } = request
 
-    if (!geminiHub.isConfigured()) {
+    if (!geminiAPI.isConfigured()) {
       throw new Error('Gemini API key not configured')
     }
 
     console.log('📊 GeminiDeepAnalysis: Analyzing stock:', symbol)
 
     const prompt = this.buildPrompt(symbol, technicalData, fundamentalData, recommendations)
-    const rawText = await geminiHub.callGeminiAPI(prompt, model)
+    const rawText = await geminiAPI.callAPI(prompt, model)
 
     console.log('📝 GeminiDeepAnalysis: Raw response length:', rawText.length)
 
