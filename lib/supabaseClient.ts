@@ -1,25 +1,32 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 /* -------------------------------------------------
-   VALIDATE ENV — Không dùng placeholder nữa
+   LAZY INITIALIZATION - Allows build without env vars
+   but throws error when actually used without config
 --------------------------------------------------*/
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+let _supabase: SupabaseClient | null = null
 
-if (!supabaseUrl || !supabaseUrl.startsWith('https://')) {
-  throw new Error(
-    '❌ Missing NEXT_PUBLIC_SUPABASE_URL — Please add it in Vercel → Environment Variables'
-  )
-}
+function getSupabaseConfig() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseAnonKey || !supabaseAnonKey.startsWith('eyJ')) {
-  throw new Error(
-    '❌ Missing NEXT_PUBLIC_SUPABASE_ANON_KEY — Must be a JWT starting with "eyJ"'
-  )
+  if (!supabaseUrl || !supabaseUrl.startsWith('https://')) {
+    throw new Error(
+      '❌ Missing NEXT_PUBLIC_SUPABASE_URL — Please add it in Vercel → Environment Variables'
+    )
+  }
+
+  if (!supabaseAnonKey || !supabaseAnonKey.startsWith('eyJ')) {
+    throw new Error(
+      '❌ Missing NEXT_PUBLIC_SUPABASE_ANON_KEY — Must be a JWT starting with "eyJ"'
+    )
+  }
+
+  return { supabaseUrl, supabaseAnonKey }
 }
 
 /* -------------------------------------------------
-   COOKIE STORAGE — chạy an toàn cả server & client
+   COOKIE STORAGE — runs safely on server & client
 --------------------------------------------------*/
 class CookieAuthStorage {
   private storageKey: string
@@ -28,7 +35,6 @@ class CookieAuthStorage {
     this.storageKey = key
   }
 
-  /* SAFE: luôn return null khi chạy server */
   getItem(key: string): string | null {
     if (typeof window === 'undefined') return null
     try {
@@ -58,7 +64,6 @@ class CookieAuthStorage {
     }
   }
 
-  /* COOKIE HELPERS */
   private getCookie(name: string): string | null {
     if (typeof document === 'undefined') return null
     const nameEQ = name + '='
@@ -88,32 +93,51 @@ class CookieAuthStorage {
 const cookieStorage = new CookieAuthStorage()
 
 /* -------------------------------------------------
-    CREATE SUPABASE CLIENT — phiên bản chính xác nhất
+   GET SUPABASE CLIENT — Lazy initialization
 --------------------------------------------------*/
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
+function getSupabaseClient(): SupabaseClient {
+  if (_supabase) return _supabase
 
-    // Storage cho client
-    storage:
-      typeof window !== 'undefined'
-        ? {
-            getItem: (key) => cookieStorage.getItem(key),
-            setItem: (key, value) => cookieStorage.setItem(key, value),
-            removeItem: (key) => cookieStorage.removeItem(key),
-          }
-        : undefined,
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig()
 
-    storageKey: 'cpls-auth-token',
-  },
-  global: {
-    headers: {
-      'x-application-name': 'CPLS',
+  _supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce',
+      storage:
+        typeof window !== 'undefined'
+          ? {
+              getItem: (key) => cookieStorage.getItem(key),
+              setItem: (key, value) => cookieStorage.setItem(key, value),
+              removeItem: (key) => cookieStorage.removeItem(key),
+            }
+          : undefined,
+      storageKey: 'cpls-auth-token',
     },
-  },
+    global: {
+      headers: {
+        'x-application-name': 'CPLS',
+      },
+    },
+  })
+
+  return _supabase
+}
+
+/* -------------------------------------------------
+   EXPORT - Proxy object for lazy access
+--------------------------------------------------*/
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    const client = getSupabaseClient()
+    const value = (client as any)[prop]
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  }
 })
 
 /* -------------------------------------------------

@@ -2,11 +2,11 @@
  * Gemini Module - Central exports
  *
  * Usage:
- * import { geminiHub, geminiAlpha, geminiDeepAnalysis } from '@/lib/gemini'
+ * import { geminiAPI, geminiAlpha, geminiDeepAnalysis } from '@/lib/gemini'
  */
 
-// Core Hub
-export { geminiHub } from './hub'
+// Core API Service
+export { geminiAPI } from './gemini-api'
 
 // Services
 export { geminiAlpha } from './alpha'

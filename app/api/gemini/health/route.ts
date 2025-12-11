@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { geminiHub, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
+import { geminiAPI, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 
 /**
  * Health check endpoint for Gemini API
@@ -8,7 +8,7 @@ import { geminiHub, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 export async function GET(request: NextRequest) {
   try {
     // Check if API key exists
-    if (!geminiHub.isConfigured()) {
+    if (!geminiAPI.isConfigured()) {
       return NextResponse.json({
         status: 'error',
         message: 'Gemini API key not configured',
@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Check health via Hub
-    const health = await geminiHub.healthCheck()
+    // Check health via API
+    const health = await geminiAPI.healthCheck()
 
     if (health.status === 'ok') {
       return NextResponse.json({
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       status: 'error',
       message: 'Failed to check Gemini API',
       details: error instanceof Error ? error.message : 'Unknown error',
-      configured: geminiHub.isConfigured(),
+      configured: geminiAPI.isConfigured(),
       available: false,
     })
   }

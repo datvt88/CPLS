@@ -9,7 +9,7 @@
  * - Stock Hub integration for current stock context
  */
 
-import { geminiHub } from './hub'
+import { geminiAPI } from './gemini-api'
 import type { AlphaResponse, DeepAnalysisResult } from './types'
 
 // Stock context interface (matches StockHubContext output)
@@ -73,9 +73,9 @@ class GeminiAlpha {
    */
   async checkConnection(): Promise<boolean> {
     try {
-      if (!geminiHub.isConfigured()) return false
+      if (!geminiAPI.isConfigured()) return false
 
-      const health = await geminiHub.healthCheck()
+      const health = await geminiAPI.healthCheck()
       return health.status === 'ok'
     } catch (error) {
       console.error('Gemini Alpha Connection Error:', error)
@@ -95,7 +95,7 @@ class GeminiAlpha {
     stockContext?: string
   ): Promise<AlphaResponse> {
     try {
-      if (!geminiHub.isConfigured()) {
+      if (!geminiAPI.isConfigured()) {
         return { error: 'Server chưa cấu hình API Key.' }
       }
 
@@ -133,7 +133,7 @@ Nếu có dữ liệu cổ phiếu đang xem, hãy ưu tiên phân tích cổ ph
 Câu hỏi: "${prompt}"
 `
 
-      const text = await geminiHub.callGeminiAPI(chatPrompt, 'gemini-2.5-flash-lite')
+      const text = await geminiAPI.callAPI(chatPrompt, 'gemini-2.5-flash-lite')
       return { text }
     } catch (error: any) {
       console.error('Gemini Alpha Error:', error)

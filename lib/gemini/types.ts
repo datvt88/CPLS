@@ -20,22 +20,23 @@ export interface AnalysisResult {
   summary: string
 }
 
+// Analysis section (used in DeepAnalysisResult)
+export interface AnalysisSection {
+  signal: Signal
+  confidence: number
+  summary: string
+  reasons?: string[]
+}
+
 export interface DeepAnalysisResult {
-  shortTerm: {
-    signal: Signal
-    confidence: number
-    summary: string
-  }
-  longTerm: {
-    signal: Signal
-    confidence: number
-    summary: string
-  }
-  buyPrice: string | null
-  targetPrice: string | null
-  stopLoss: string | null
+  shortTerm: AnalysisSection
+  longTerm: AnalysisSection
+  buyPrice: number | null
+  targetPrice: number | null
+  stopLoss: number | null
   risks: string[]
   opportunities: string[]
+  timestamp?: number
   rawText?: string
 }
 

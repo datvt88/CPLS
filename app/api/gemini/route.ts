@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { geminiHub, parseSignalResponse, isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
+import { geminiAPI, parseSignalResponse, isValidModel, DEFAULT_GEMINI_MODEL } from '@/lib/gemini'
 
 // Helper function to get current date in Vietnam timezone (GMT+7)
 function getVietnamDate(): Date {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check API configuration
-    if (!geminiHub.isConfigured()) {
+    if (!geminiAPI.isConfigured()) {
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 })
     }
 
@@ -217,8 +217,8 @@ Vui lòng phân tích tổng hợp các tín hiệu trên và đưa ra khuyến 
 
     console.log('🔄 Calling Gemini API via Hub for:', stockCode)
 
-    // Call Gemini via Hub
-    const generatedText = await geminiHub.callGeminiAPI(finalPrompt, selectedModel)
+    // Call Gemini API
+    const generatedText = await geminiAPI.callAPI(finalPrompt, selectedModel)
 
     // Parse response
     const result = parseSignalResponse(generatedText)
