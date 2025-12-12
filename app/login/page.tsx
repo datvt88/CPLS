@@ -1,34 +1,62 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { authService } from '@/services/auth.service' // 👇 Dùng service chuẩn
 import { AuthForm } from '@/components/AuthForm'
 import { Suspense } from 'react' // Cần thiết cho useSearchParams trong Next.js
 
+// Timeout cho session check (giảm xuống để form hiện nhanh hơn)
+const SESSION_CHECK_TIMEOUT = 3000 // 3 giây
+
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isChecking, setIsChecking] = useState(true)
+  const hasRedirected = useRef(false)
 
   // Lấy trang đích muốn đến (nếu có), hoặc mặc định về dashboard
   const nextUrl = searchParams.get('next') || '/dashboard'
 
   useEffect(() => {
     let mounted = true
+    let timeoutId: NodeJS.Timeout | null = null
 
     const checkSession = async () => {
-      // 1. Kiểm tra session với Timeout an toàn từ authService
-      const { session } = await authService.getSession()
+      try {
+        // Đặt timeout để đảm bảo form sẽ hiện nếu session check quá lâu
+        timeoutId = setTimeout(() => {
+          if (mounted && !hasRedirected.current) {
+            console.log('⏰ [LoginPage] Session check timeout - showing login form')
+            setIsChecking(false)
+          }
+        }, SESSION_CHECK_TIMEOUT)
 
-      if (!mounted) return
+        // 1. Kiểm tra session với Timeout an toàn từ authService
+        const { session, error } = await authService.getSession()
 
-      if (session) {
-        // Đã đăng nhập -> Chuyển hướng ngay
-        router.replace(nextUrl)
-      } else {
-        // Chưa đăng nhập -> Tắt loading để hiện Form
-        setIsChecking(false)
+        // Clear timeout vì đã có kết quả
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+
+        if (!mounted) return
+
+        if (session && !error) {
+          // Đã đăng nhập -> Chuyển hướng ngay
+          hasRedirected.current = true
+          router.replace(nextUrl)
+        } else {
+          // Chưa đăng nhập hoặc có lỗi -> Tắt loading để hiện Form
+          setIsChecking(false)
+        }
+      } catch (err) {
+        console.error('❌ [LoginPage] Session check error:', err)
+        // Nếu có lỗi, hiện form đăng nhập
+        if (mounted) {
+          setIsChecking(false)
+        }
       }
     }
 
@@ -36,13 +64,17 @@ function LoginContent() {
 
     // 2. Lắng nghe sự kiện login thành công (từ AuthForm hoặc OAuth)
     const { data: authListener } = authService.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      if (event === 'SIGNED_IN' && session && !hasRedirected.current) {
+        hasRedirected.current = true
         router.replace(nextUrl)
       }
     })
 
     return () => {
       mounted = false
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       authListener.subscription.unsubscribe()
     }
   }, [router, nextUrl])

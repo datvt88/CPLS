@@ -123,7 +123,7 @@ const fetchPermissions = async (): Promise<PermissionData> => {
 // Helper function để fetch profile data
 const fetchProfileData = async (userId: string): Promise<PermissionData> => {
   try {
-    // Fetch profile with timeout (tăng lên 8s)
+    // Fetch profile with timeout (giảm xuống 5s để responsive hơn)
     const profilePromise = supabase
       .from('profiles')
       .select('membership, membership_expires_at, role')
@@ -132,7 +132,7 @@ const fetchProfileData = async (userId: string): Promise<PermissionData> => {
 
     // Race with timeout
     const timeoutPromise = new Promise<{ data: null; error: Error }>((_, reject) =>
-      setTimeout(() => reject(new Error('Profile fetch timeout')), 8000)
+      setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
     )
 
     const { data: profile, error } = await Promise.race([profilePromise, timeoutPromise])
@@ -189,6 +189,9 @@ const fetchProfileData = async (userId: string): Promise<PermissionData> => {
   }
 }
 
+// Timeout cho initialization (giảm xuống 3s để responsive hơn)
+const INIT_TIMEOUT = 3000
+
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { mutate } = useSWRConfig()
   const [isInitialized, setIsInitialized] = useState(false)
@@ -206,18 +209,23 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       keepPreviousData: true,
       onSuccess: () => {
         setIsInitialized(true)
+      },
+      onError: () => {
+        // Khi có lỗi, vẫn set initialized để không bị stuck
+        console.warn('⚠️ [PermissionsContext] Error during fetch - setting initialized')
+        setIsInitialized(true)
       }
     }
   )
 
-  // Safety timeout: force initialize after 5s to prevent infinite loading
+  // Safety timeout: force initialize after 3s to prevent infinite loading
   useEffect(() => {
     initTimeoutRef.current = setTimeout(() => {
       if (!isInitialized) {
         console.warn('⏱️ [PermissionsContext] Init timeout - forcing ready state')
         setIsInitialized(true)
       }
-    }, 5000)
+    }, INIT_TIMEOUT)
 
     return () => {
       if (initTimeoutRef.current) {

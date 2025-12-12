@@ -14,6 +14,9 @@ interface ProtectedRouteProps {
 // Helper: retry với delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+// Timeout cho quá trình verify (tổng cộng tất cả attempts)
+const MAX_VERIFY_TIMEOUT = 5000 // 5 giây max cho toàn bộ quá trình verify
+
 export default function ProtectedRoute({
   children,
   requirePremium = false,
@@ -24,6 +27,7 @@ export default function ProtectedRoute({
   const [verifyAttempts, setVerifyAttempts] = useState(0)
   const hasRedirected = useRef(false)
   const verificationInProgress = useRef(false)
+  const verifyStartTime = useRef<number>(0)
 
   const {
     isAuthenticated,
@@ -35,31 +39,40 @@ export default function ProtectedRoute({
   } = usePermissions()
 
   const needsPremium = requirePremium || requireVIP
-  const MAX_VERIFY_ATTEMPTS = 3
+  const MAX_VERIFY_ATTEMPTS = 2 // Giảm xuống 2 để nhanh hơn
 
-  // Session verification với retry logic
+  // Session verification với timeout
   const verifySession = useCallback(async (): Promise<boolean> => {
     try {
-      // Bước 1: Kiểm tra session hiện tại
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        console.log('✅ [ProtectedRoute] Session found')
-        return true
+      // Đặt timeout cho toàn bộ verify process
+      const verifyPromise = async () => {
+        // Bước 1: Kiểm tra session hiện tại
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session?.user) {
+          console.log('✅ [ProtectedRoute] Session found')
+          return true
+        }
+
+        // Bước 2: Thử refresh token nếu không có session
+        console.log('🔄 [ProtectedRoute] No session, attempting token refresh...')
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+        
+        if (refreshData.session && !refreshError) {
+          console.log('✅ [ProtectedRoute] Token refresh successful')
+          return true
+        }
+
+        console.log('⚠️ [ProtectedRoute] No valid session found after refresh')
+        return false
       }
 
-      // Bước 2: Thử refresh token nếu không có session
-      console.log('🔄 [ProtectedRoute] No session, attempting token refresh...')
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-      
-      if (refreshData.session && !refreshError) {
-        console.log('✅ [ProtectedRoute] Token refresh successful')
-        return true
-      }
+      // Race với timeout 3 giây cho mỗi attempt
+      const timeoutPromise = new Promise<boolean>((_, reject) => 
+        setTimeout(() => reject(new Error('Verify timeout')), 3000)
+      )
 
-      // Bước 3: Kiểm tra localStorage/cookie backup
-      console.log('⚠️ [ProtectedRoute] No valid session found after refresh')
-      return false
+      return await Promise.race([verifyPromise(), timeoutPromise])
     } catch (error) {
       console.error('❌ [ProtectedRoute] Session verification error:', error)
       return false
@@ -82,6 +95,7 @@ export default function ProtectedRoute({
       if (isAuthenticated) {
         // Reset verify attempts khi thành công
         setVerifyAttempts(0)
+        verifyStartTime.current = 0
         
         // Kiểm tra premium nếu cần
         if (needsPremium && !isPremium) {
@@ -93,6 +107,21 @@ export default function ProtectedRoute({
 
       // Context nói chưa authenticated -> verify lại session thực sự
       // Tránh trường hợp context chưa cập nhật sau khi quay lại app
+      
+      // Bắt đầu đếm thời gian verify
+      if (verifyStartTime.current === 0) {
+        verifyStartTime.current = Date.now()
+      }
+      
+      // Kiểm tra timeout tổng
+      const elapsedTime = Date.now() - verifyStartTime.current
+      if (elapsedTime > MAX_VERIFY_TIMEOUT) {
+        console.log('⏱️ [ProtectedRoute] Verification timeout exceeded, redirecting to login')
+        hasRedirected.current = true
+        router.push('/login')
+        return
+      }
+
       verificationInProgress.current = true
       setIsVerifying(true)
 
@@ -100,17 +129,17 @@ export default function ProtectedRoute({
         const hasValidSession = await verifySession()
 
         if (!hasValidSession) {
-          // Nếu còn attempts, thử lại với delay
-          if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1) {
+          // Nếu còn attempts VÀ chưa timeout, thử lại
+          if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1 && elapsedTime < MAX_VERIFY_TIMEOUT - 1000) {
             console.log(`🔄 [ProtectedRoute] Verify attempt ${verifyAttempts + 1}/${MAX_VERIFY_ATTEMPTS}`)
             setVerifyAttempts(prev => prev + 1)
-            // True exponential backoff: 500ms, 1000ms, 2000ms
-            await delay(500 * Math.pow(2, verifyAttempts))
+            // Delay ngắn hơn: 300ms, 600ms
+            await delay(300 * Math.pow(2, verifyAttempts))
             verificationInProgress.current = false
             return // Sẽ trigger lại effect
           }
 
-          // Hết attempts -> redirect
+          // Hết attempts hoặc gần timeout -> redirect
           console.log('🔒 [ProtectedRoute] No session after retries, redirecting to login')
           hasRedirected.current = true
           router.push('/login')
@@ -119,11 +148,15 @@ export default function ProtectedRoute({
           console.log('🔄 [ProtectedRoute] Session exists, refreshing permissions...')
           await refresh()
           setVerifyAttempts(0)
+          verifyStartTime.current = 0
         }
       } catch (error) {
         console.error('❌ [ProtectedRoute] Session verification error:', error)
-        // Lỗi verify -> không redirect ngay, thử lại
-        if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1) {
+        // Lỗi verify -> redirect ngay nếu đã thử nhiều lần
+        if (verifyAttempts >= MAX_VERIFY_ATTEMPTS - 1 || elapsedTime > MAX_VERIFY_TIMEOUT - 1000) {
+          hasRedirected.current = true
+          router.push('/login')
+        } else {
           setVerifyAttempts(prev => prev + 1)
         }
       } finally {
@@ -135,11 +168,12 @@ export default function ProtectedRoute({
     verifyAndRedirect()
   }, [isLoading, isRevalidating, isAuthenticated, isPremium, needsPremium, router, refresh, verifySession, verifyAttempts])
 
-  // Reset redirect flag khi unmount
+  // Reset khi unmount
   useEffect(() => {
     return () => {
       hasRedirected.current = false
       verificationInProgress.current = false
+      verifyStartTime.current = 0
     }
   }, [])
 
