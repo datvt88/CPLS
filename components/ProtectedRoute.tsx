@@ -104,7 +104,8 @@ export default function ProtectedRoute({
           if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1) {
             console.log(`🔄 [ProtectedRoute] Verify attempt ${verifyAttempts + 1}/${MAX_VERIFY_ATTEMPTS}`)
             setVerifyAttempts(prev => prev + 1)
-            await delay(500 * (verifyAttempts + 1)) // Exponential backoff
+            // True exponential backoff: 500ms, 1000ms, 2000ms
+            await delay(500 * Math.pow(2, verifyAttempts))
             verificationInProgress.current = false
             return // Sẽ trigger lại effect
           }

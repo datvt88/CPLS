@@ -153,9 +153,9 @@ export const authService = {
   // 👇 HÀM RÚT GỌN (SWR sẽ lo cache) - Với retry logic
   async getSession() {
     try {
-      // Sử dụng retry để tăng độ tin cậy
+      // Sử dụng retry để tăng độ tin cậy (sử dụng default timeout 10s từ withTimeout)
       const result = await withRetry(async () => {
-        const { data, error } = await withTimeout(supabase.auth.getSession(), 10000)
+        const { data, error } = await withTimeout(supabase.auth.getSession())
         if (error) throw error
         return { session: data.session, error: null }
       }, 2, 300)
@@ -168,7 +168,7 @@ export const authService = {
 
   async getUser() {
     try {
-      const { data, error } = await withTimeout(supabase.auth.getUser(), 10000)
+      const { data, error } = await withTimeout(supabase.auth.getUser())
       return { user: data.user, error }
     } catch (error) {
       return { user: null, error }

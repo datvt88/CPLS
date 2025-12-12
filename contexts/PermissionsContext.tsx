@@ -84,7 +84,8 @@ const fetchPermissions = async (): Promise<PermissionData> => {
       const result = await authService.getSession()
       // Nếu có lỗi nhưng có lastKnownAuthState đã auth, throw để retry
       if (result.error && lastKnownAuthState?.isAuthenticated) {
-        throw new Error('Session check failed, retrying...')
+        const errorMsg = result.error instanceof Error ? result.error.message : 'Unknown error'
+        throw new Error(`Session check failed (${errorMsg}), will retry...`)
       }
       return result
     }, 2, 500)

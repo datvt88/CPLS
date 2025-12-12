@@ -31,6 +31,8 @@ function getSupabaseConfig() {
 --------------------------------------------------*/
 class CookieAuthStorage {
   private storageKey: string
+  private lastSyncTime: number = 0
+  private readonly SYNC_INTERVAL = 5000 // Chỉ sync mỗi 5 giây
 
   constructor(key = 'cpls-auth-token') {
     this.storageKey = key
@@ -43,11 +45,16 @@ class CookieAuthStorage {
       const cookieValue = this.getCookie(key)
       const localValue = localStorage.getItem(key)
       
+      // Chỉ sync nếu đã qua SYNC_INTERVAL kể từ lần sync trước
+      const now = Date.now()
+      const shouldSync = now - this.lastSyncTime > this.SYNC_INTERVAL
+      
       if (cookieValue) {
         // Nếu có cookie nhưng localStorage khác -> sync lại localStorage
-        if (localValue !== cookieValue) {
+        if (shouldSync && localValue !== cookieValue) {
           try {
             localStorage.setItem(key, cookieValue)
+            this.lastSyncTime = now
           } catch { /* ignore */ }
         }
         return cookieValue
@@ -55,9 +62,12 @@ class CookieAuthStorage {
       
       // Nếu không có cookie nhưng có localStorage -> khôi phục cookie
       if (localValue) {
-        try {
-          this.setCookie(key, localValue, 30)
-        } catch { /* ignore */ }
+        if (shouldSync) {
+          try {
+            this.setCookie(key, localValue, 30)
+            this.lastSyncTime = now
+          } catch { /* ignore */ }
+        }
         return localValue
       }
       
