@@ -157,44 +157,76 @@ export default function PersistentSessionManager() {
         clearTimeout(refreshTimerRef.current)
       }
 
+      // Helper: Refresh với retry
+      const refreshWithRetry = async (maxRetries: number = 3): Promise<boolean> => {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            console.log(`🔄 [SessionManager] Refreshing token (attempt ${attempt}/${maxRetries})...`)
+            
+            const { data, error } = await supabase.auth.refreshSession()
+
+            if (error) {
+              console.error(`❌ [SessionManager] Refresh attempt ${attempt} failed:`, error.message)
+              
+              if (attempt < maxRetries) {
+                // Exponential backoff: 1s, 2s, 4s
+                const backoffDelay = Math.pow(2, attempt - 1) * 1000
+                console.log(`⏳ [SessionManager] Retrying in ${backoffDelay}ms...`)
+                await new Promise(resolve => setTimeout(resolve, backoffDelay))
+                continue
+              }
+              return false
+            }
+
+            if (data.session) {
+              console.log('✅ [SessionManager] Token refreshed successfully')
+
+              // Update session activity
+              if (sessionIdRef.current) {
+                await updateSessionActivity(data.session.access_token)
+              }
+
+              // Schedule next refresh
+              scheduleRefresh()
+              return true
+            }
+          } catch (err) {
+            console.error(`❌ [SessionManager] Refresh attempt ${attempt} error:`, err)
+            if (attempt < maxRetries) {
+              const backoffDelay = Math.pow(2, attempt - 1) * 1000
+              await new Promise(resolve => setTimeout(resolve, backoffDelay))
+            }
+          }
+        }
+        return false
+      }
+
       // Schedule refresh
       if (timeUntilRefresh > 0) {
         refreshTimerRef.current = setTimeout(async () => {
-          console.log('🔄 [SessionManager] Refreshing token...')
-
-          const { data, error } = await supabase.auth.refreshSession()
-
-          if (error) {
-            console.error('❌ [SessionManager] Refresh failed:', error.message)
-            return
-          }
-
-          if (data.session) {
-            console.log('✅ [SessionManager] Token refreshed successfully')
-
-            // Update session activity
-            if (sessionIdRef.current) {
-              await updateSessionActivity(data.session.access_token)
-            }
-
-            // Schedule next refresh
-            scheduleRefresh()
+          const success = await refreshWithRetry(3)
+          if (!success) {
+            console.error('❌ [SessionManager] All refresh attempts failed')
+            // Không tự động logout, để user có cơ hội retry
+            // Thử lại sau 1 phút
+            refreshTimerRef.current = setTimeout(() => {
+              console.log('🔄 [SessionManager] Retrying token refresh after failure...')
+              scheduleRefresh()
+            }, 60 * 1000)
           }
         }, timeUntilRefresh * 1000)
       } else {
         // Session expired or about to expire, refresh now
         console.log('⚠️ [SessionManager] Session expiring soon, refreshing now...')
 
-        const { data, error } = await supabase.auth.refreshSession()
-
-        if (error) {
-          console.error('❌ [SessionManager] Refresh failed:', error.message)
-          return
-        }
-
-        if (data.session) {
-          console.log('✅ [SessionManager] Token refreshed successfully')
-          scheduleRefresh()
+        const success = await refreshWithRetry(3)
+        if (!success) {
+          console.error('❌ [SessionManager] All refresh attempts failed')
+          // Schedule retry sau 30 giây
+          refreshTimerRef.current = setTimeout(() => {
+            console.log('🔄 [SessionManager] Retrying after immediate refresh failure...')
+            scheduleRefresh()
+          }, 30 * 1000)
         }
       }
     }
