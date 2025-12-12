@@ -1,8 +1,13 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+
+// Auth callback configuration constants
+const AUTH_CALLBACK_TIMEOUT = 15000 // 15 seconds total timeout
+const RETRY_MAX_ATTEMPTS = 4
+const RETRY_BASE_DELAY_MS = 500 // Exponential backoff: 500ms, 1000ms, 2000ms, 4000ms
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -11,128 +16,199 @@ export default function AuthCallbackPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [progressMessage, setProgressMessage] = useState('Đang kiểm tra phiên đăng nhập...')
   const statusRef = useRef<'loading' | 'success' | 'error'>('loading')
+  const isProcessingRef = useRef(false)
+
+  // Helper: Success handler
+  const handleSuccess = useCallback((isMounted: boolean) => {
+    if (isMounted && statusRef.current !== 'success') {
+      console.log('✅ [AuthCallback] Authentication successful!')
+      statusRef.current = 'success'
+      setStatus('success')
+      setProgressMessage('Đăng nhập thành công!')
+      
+      // Clean up URL parameters
+      window.history.replaceState({}, '', '/auth/callback')
+      
+      // Redirect to dashboard
+      setTimeout(() => router.push('/dashboard'), 800)
+    }
+  }, [router])
+
+  // Helper: Error handler
+  const handleError = useCallback((message: string, isMounted: boolean) => {
+    if (isMounted && statusRef.current !== 'error') {
+      console.error('❌ [AuthCallback] Error:', message)
+      statusRef.current = 'error'
+      setStatus('error')
+      setErrorMessage(message)
+      setTimeout(() => router.push('/login'), 2500)
+    }
+  }, [router])
 
   useEffect(() => {
     let isMounted = true
     let timeoutId: NodeJS.Timeout | null = null
 
     const handleAuth = async () => {
+      // Prevent duplicate processing
+      if (isProcessingRef.current) {
+        console.log('⏳ [AuthCallback] Already processing, skipping...')
+        return
+      }
+      isProcessingRef.current = true
+
       try {
         // Set timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
           if (isMounted && statusRef.current === 'loading') {
             console.warn('⏱️ [AuthCallback] Timeout - redirecting to login')
-            statusRef.current = 'error'
-            setStatus('error')
-            setErrorMessage('Quá thời gian xác thực. Vui lòng thử lại.')
-            setTimeout(() => router.push('/login'), 2000)
+            handleError('Quá thời gian xác thực. Vui lòng thử lại.', isMounted)
           }
-        }, 10000) // 10 second timeout
+        }, AUTH_CALLBACK_TIMEOUT)
 
         setProgressMessage('Đang kiểm tra phiên đăng nhập...')
 
-        // Check if we have a code in URL (OAuth callback)
+        // Parse URL parameters
         const url = new URL(window.location.href)
+        const hashParams = new URLSearchParams(url.hash.substring(1))
         const code = url.searchParams.get('code')
-        const errorParam = url.searchParams.get('error')
-        const errorDescription = url.searchParams.get('error_description')
+        const errorParam = url.searchParams.get('error') || hashParams.get('error')
+        const errorDescription = url.searchParams.get('error_description') || hashParams.get('error_description')
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
 
-        // Handle OAuth error
+        console.log('🔑 [AuthCallback] URL params:', {
+          hasCode: !!code,
+          hasAccessToken: !!accessToken,
+          hasError: !!errorParam,
+          codePrefix: code?.substring(0, 10)
+        })
+
+        // Handle OAuth error from provider
         if (errorParam) {
-          console.error('❌ [AuthCallback] OAuth error:', errorParam, errorDescription)
-          if (isMounted) {
-            statusRef.current = 'error'
-            setStatus('error')
-            setErrorMessage(errorDescription || 'Lỗi xác thực OAuth')
-            setTimeout(() => router.push('/login'), 2500)
-          }
+          console.error('❌ [AuthCallback] OAuth error from provider:', errorParam, errorDescription)
+          handleError(errorDescription || `Lỗi xác thực: ${errorParam}`, isMounted)
           return
         }
 
-        // If we have a code, Supabase will handle the exchange automatically
+        // Case 1: Implicit flow - tokens in hash fragment
+        if (accessToken && refreshToken) {
+          console.log('🔐 [AuthCallback] Implicit flow detected, setting session...')
+          setProgressMessage('Đang thiết lập phiên đăng nhập...')
+
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (sessionError) {
+            console.error('❌ [AuthCallback] Failed to set session:', sessionError)
+            handleError(`Không thể thiết lập phiên: ${sessionError.message}`, isMounted)
+            return
+          }
+
+          handleSuccess(isMounted)
+          return
+        }
+
+        // Case 2: PKCE flow - authorization code in query params
         if (code) {
+          console.log('🔐 [AuthCallback] PKCE flow detected, exchanging code for session...')
           setProgressMessage('Đang xác thực với máy chủ...')
-          console.log('🔑 [AuthCallback] OAuth code detected, waiting for session exchange...')
-        }
 
-        // Wait a short moment for Supabase to process the code
-        await new Promise((r) => setTimeout(r, 500))
+          // Method 1: Try to exchange code directly using exchangeCodeForSession
+          try {
+            const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
-        // Try to get the session
-        const { data: { session }, error } = await supabase.auth.getSession()
+            if (exchangeError) {
+              console.error('❌ [AuthCallback] Code exchange error:', exchangeError.message)
+              
+              // Check if error is due to code already being used (possible page refresh)
+              if (exchangeError.message.includes('already used') || 
+                  exchangeError.message.includes('invalid') ||
+                  exchangeError.message.includes('expired')) {
+                // Try to check if we already have a valid session
+                const { data: existingSession } = await supabase.auth.getSession()
+                if (existingSession?.session?.user) {
+                  console.log('✅ [AuthCallback] Found existing session after code error')
+                  handleSuccess(isMounted)
+                  return
+                }
+              }
 
-        if (error) {
-          console.error('❌ [AuthCallback] Session error:', error)
-          if (isMounted) {
-            statusRef.current = 'error'
-            setStatus('error')
-            setErrorMessage('Lỗi xác thực: ' + error.message)
-            setTimeout(() => router.push('/login'), 2500)
+              handleError(`Không thể xác thực: ${exchangeError.message}`, isMounted)
+              return
+            }
+
+            if (data?.session?.user) {
+              console.log('✅ [AuthCallback] Code exchange successful')
+              handleSuccess(isMounted)
+              return
+            }
+          } catch (exchangeErr) {
+            console.error('❌ [AuthCallback] Exchange code exception:', exchangeErr)
+            // Continue to fallback methods
           }
-          return
         }
 
-        if (session?.user) {
-          console.log('✅ [AuthCallback] Session valid, redirecting to dashboard')
-          if (isMounted) {
-            statusRef.current = 'success'
-            setStatus('success')
-            setProgressMessage('Đăng nhập thành công!')
-            
-            // Clean up URL
-            window.history.replaceState({}, '', '/auth/callback')
-            
-            setTimeout(() => router.push('/dashboard'), 600)
+        // Case 3: No code/tokens - check if session already exists (e.g., page refresh)
+        console.log('🔍 [AuthCallback] Checking for existing session...')
+        setProgressMessage('Đang kiểm tra phiên đăng nhập...')
+
+        // Retry logic with exponential backoff
+        for (let attempt = 1; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+          if (sessionError) {
+            console.error(`❌ [AuthCallback] Session check error (attempt ${attempt}):`, sessionError)
           }
-          return
-        }
 
-        // No session yet, try one more time after a delay
-        console.log('⏳ [AuthCallback] No session yet, retrying...')
-        await new Promise((r) => setTimeout(r, 1000))
-        
-        const { data: { session: retrySession } } = await supabase.auth.getSession()
-        
-        if (retrySession?.user) {
-          console.log('✅ [AuthCallback] Session found on retry')
-          if (isMounted) {
-            statusRef.current = 'success'
-            setStatus('success')
-            setProgressMessage('Đăng nhập thành công!')
-            window.history.replaceState({}, '', '/auth/callback')
-            setTimeout(() => router.push('/dashboard'), 600)
+          if (session?.user) {
+            console.log(`✅ [AuthCallback] Session found on attempt ${attempt}`)
+            handleSuccess(isMounted)
+            return
           }
-          return
+
+          if (attempt < RETRY_MAX_ATTEMPTS) {
+            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1) // 500ms, 1000ms, 2000ms, 4000ms
+            console.log(`⏳ [AuthCallback] No session yet, retrying in ${delay}ms (attempt ${attempt}/${RETRY_MAX_ATTEMPTS})...`)
+            await new Promise(r => setTimeout(r, delay))
+          }
         }
 
-        // Still no session
-        console.warn('⚠️ [AuthCallback] No session after retries')
-        if (isMounted) {
-          statusRef.current = 'error'
-          setStatus('error')
-          setErrorMessage('Không thể xác thực phiên đăng nhập.')
-          setTimeout(() => router.push('/login'), 2500)
-        }
+        // All retries exhausted
+        console.warn('⚠️ [AuthCallback] No session found after all retries')
+        handleError('Không thể xác thực phiên đăng nhập. Vui lòng thử đăng nhập lại.', isMounted)
+
       } catch (err) {
         console.error('❌ [AuthCallback] Unexpected error:', err)
-        if (isMounted) {
-          statusRef.current = 'error'
-          setStatus('error')
-          setErrorMessage('Lỗi không xác định khi xác thực.')
-          setTimeout(() => router.push('/login'), 2500)
-        }
+        handleError('Lỗi không xác định khi xác thực. Vui lòng thử lại.', isMounted)
+      } finally {
+        isProcessingRef.current = false
       }
     }
 
     handleAuth()
 
+    // Also listen for auth state changes as a fallback
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`🔔 [AuthCallback] Auth state change: ${event}`)
+      
+      if (event === 'SIGNED_IN' && session?.user && isMounted && statusRef.current === 'loading') {
+        console.log('✅ [AuthCallback] Signed in via auth state change')
+        handleSuccess(isMounted)
+      }
+    })
+
     return () => {
       isMounted = false
+      isProcessingRef.current = false
       if (timeoutId) {
         clearTimeout(timeoutId)
       }
+      authListener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, handleSuccess, handleError])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[--bg] p-4">

@@ -14,6 +14,7 @@ export interface ZaloAuthOptions {
 
 // Default timeout for auth operations
 const AUTH_TIMEOUT = 10000 // 10 seconds
+const OAUTH_TIMEOUT = 15000 // 15 seconds for OAuth operations (requires network round-trips)
 
 // Timeout helper
 const withTimeout = <T>(promise: Promise<T>, ms: number = AUTH_TIMEOUT): Promise<T> => {
@@ -80,15 +81,41 @@ export const authService = {
   },
 
   async signInWithGoogle(options?: { redirectTo?: string }) {
-    const redirectTo = options?.redirectTo || `${window.location.origin}/auth/callback`
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-      },
-    })
-    return { data, error }
+    try {
+      const redirectTo = options?.redirectTo || `${window.location.origin}/auth/callback`
+      
+      console.log('🔐 [Auth] Starting Google OAuth...')
+      console.log('🔐 [Auth] Redirect URL:', redirectTo)
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: { 
+            access_type: 'offline', 
+            prompt: 'consent',
+            // Add additional scopes if needed
+            scope: 'openid email profile',
+          },
+          // Skip browser redirect for testing/debugging
+          skipBrowserRedirect: false,
+        },
+      })
+      
+      if (error) {
+        console.error('❌ [Auth] Google OAuth error:', error.message)
+        return { data: null, error }
+      }
+      
+      console.log('✅ [Auth] Google OAuth initiated, redirecting to:', data?.url?.substring(0, 50))
+      return { data, error: null }
+    } catch (err) {
+      console.error('❌ [Auth] Google OAuth exception:', err)
+      return { 
+        data: null, 
+        error: { message: err instanceof Error ? err.message : 'Lỗi không xác định' } as any
+      }
+    }
   },
 
   async signInWithZalo(options?: ZaloAuthOptions) {
@@ -106,9 +133,60 @@ export const authService = {
 
   async handleOAuthCallback() {
     try {
+      console.log('🔐 [Auth] Handling OAuth callback...')
+      
+      // First, try to get the URL parameters
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
+        
+        // If we have a code, try to exchange it
+        if (code) {
+          console.log('🔐 [Auth] Found OAuth code, exchanging for session...')
+          
+          const { data, error } = await withTimeout(
+            supabase.auth.exchangeCodeForSession(code),
+            OAUTH_TIMEOUT
+          )
+          
+          if (error) {
+            console.error('❌ [Auth] Code exchange error:', error.message)
+            // If code is already used, try to get existing session
+            if (error.message.includes('already used') || error.message.includes('invalid')) {
+              const { data: existingSession } = await withTimeout(supabase.auth.getSession(), OAUTH_TIMEOUT)
+              if (existingSession.session?.user) {
+                console.log('✅ [Auth] Found existing session after code error')
+                this.trackUserDevice(existingSession.session.user.id).catch(console.error)
+                return { session: existingSession.session, error: null }
+              }
+            }
+            return { session: null, error }
+          }
+          
+          if (data?.session?.user) {
+            console.log('✅ [Auth] OAuth callback successful')
+            this.trackUserDevice(data.session.user.id).catch(console.error)
+            return { session: data.session, error: null }
+          }
+        }
+      }
+      
+      // Fallback: try to get existing session
       const { data, error } = await withTimeout(supabase.auth.getSession())
-      return { session: data.session, error }
+      
+      if (error) {
+        console.error('❌ [Auth] Session error:', error.message)
+        return { session: null, error }
+      }
+      
+      if (data.session?.user) {
+        console.log('✅ [Auth] Found existing session')
+        this.trackUserDevice(data.session.user.id).catch(console.error)
+      }
+      
+      return { session: data.session, error: null }
     } catch (error) {
+      console.error('❌ [Auth] OAuth callback exception:', error)
       return { session: null, error }
     }
   },

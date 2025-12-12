@@ -12,23 +12,38 @@ export default function GoogleLoginButton({ onError, className }: GoogleLoginBut
   const [loading, setLoading] = useState(false)
 
   const handleGoogleLogin = async () => {
+    if (loading) return // Prevent double-click
+    
     setLoading(true)
+    console.log('🔐 [GoogleLogin] Starting Google login...')
+    
     try {
-      const { error } = await authService.signInWithGoogle()
+      const { data, error } = await authService.signInWithGoogle()
 
       if (error) {
-        console.error('Google login error:', error)
-        onError?.(error.message || 'Không thể đăng nhập bằng Google')
+        console.error('❌ [GoogleLogin] Error:', error)
+        const errorMessage = error.message || 'Không thể đăng nhập bằng Google'
+        onError?.(errorMessage)
+        setLoading(false)
+        return
       }
-      // Note: User will be redirected to Google OAuth page
-      // After successful auth, they'll be redirected back to /auth/callback
+      
+      if (data?.url) {
+        console.log('✅ [GoogleLogin] Redirecting to Google OAuth...')
+        // User will be redirected to Google OAuth page
+        // After successful auth, they'll be redirected back to /auth/callback
+      } else {
+        console.warn('⚠️ [GoogleLogin] No redirect URL received')
+        onError?.('Không nhận được URL đăng nhập từ Google')
+        setLoading(false)
+      }
     } catch (err) {
-      console.error('Google login error:', err)
-      onError?.(err instanceof Error ? err.message : 'Có lỗi xảy ra')
-    } finally {
-      // Don't set loading to false as user will be redirected
-      // setLoading(false)
+      console.error('❌ [GoogleLogin] Exception:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Có lỗi xảy ra khi đăng nhập Google'
+      onError?.(errorMessage)
+      setLoading(false)
     }
+    // Note: Don't set loading to false on success as user will be redirected
   }
 
   return (
@@ -42,7 +57,10 @@ export default function GoogleLoginButton({ onError, className }: GoogleLoginBut
       }
     >
       {loading ? (
-        <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+        <>
+          <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+          <span>Đang chuyển hướng...</span>
+        </>
       ) : (
         <>
           <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -63,7 +81,7 @@ export default function GoogleLoginButton({ onError, className }: GoogleLoginBut
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          <span>{loading ? 'Đang chuyển hướng...' : 'Đăng nhập bằng Google'}</span>
+          <span>Đăng nhập bằng Google</span>
         </>
       )}
     </button>
