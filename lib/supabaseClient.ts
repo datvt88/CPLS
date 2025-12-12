@@ -27,12 +27,13 @@ function getSupabaseConfig() {
 
 /* -------------------------------------------------
    COOKIE STORAGE — runs safely on server & client
-   Cải thiện sync giữa cookie và localStorage
+   Cải thiện sync giữa cookie và localStorage với mutex
 --------------------------------------------------*/
 class CookieAuthStorage {
   private storageKey: string
   private lastSyncTime: number = 0
-  private readonly SYNC_INTERVAL = 5000 // Chỉ sync mỗi 5 giây
+  private readonly SYNC_INTERVAL = 10000 // Tăng lên 10 giây để giảm conflicts
+  private isWriting: boolean = false // Mutex để tránh concurrent writes
 
   constructor(key = 'cpls-auth-token') {
     this.storageKey = key
@@ -41,34 +42,38 @@ class CookieAuthStorage {
   getItem(key: string): string | null {
     if (typeof window === 'undefined') return null
     try {
-      // Ưu tiên cookie trước (tin cậy hơn)
-      const cookieValue = this.getCookie(key)
-      const localValue = localStorage.getItem(key)
-      
-      // Chỉ sync nếu đã qua SYNC_INTERVAL kể từ lần sync trước
-      const now = Date.now()
-      const shouldSync = now - this.lastSyncTime > this.SYNC_INTERVAL
-      
-      if (cookieValue) {
-        // Nếu có cookie nhưng localStorage khác -> sync lại localStorage
-        if (shouldSync && localValue !== cookieValue) {
-          try {
-            localStorage.setItem(key, cookieValue)
-            this.lastSyncTime = now
-          } catch { /* ignore */ }
-        }
-        return cookieValue
+      // Nếu đang write thì chờ đợi từ localStorage trước
+      if (this.isWriting) {
+        return localStorage.getItem(key)
       }
       
-      // Nếu không có cookie nhưng có localStorage -> khôi phục cookie
+      // Ưu tiên localStorage trước (ít race condition hơn cookie)
+      const localValue = localStorage.getItem(key)
+      const cookieValue = this.getCookie(key)
+      
+      // Nếu cả hai đều có, ưu tiên giá trị mới nhất (có thể so sánh timestamp nếu cần)
+      // Trong trường hợp này, ưu tiên localStorage vì nó được cập nhật đồng bộ
       if (localValue) {
-        if (shouldSync) {
+        // Chỉ sync cookie nếu khác và đã qua SYNC_INTERVAL
+        const now = Date.now()
+        const shouldSync = now - this.lastSyncTime > this.SYNC_INTERVAL
+        
+        if (shouldSync && cookieValue !== localValue) {
           try {
             this.setCookie(key, localValue, 30)
             this.lastSyncTime = now
           } catch { /* ignore */ }
         }
         return localValue
+      }
+      
+      // Nếu không có localStorage nhưng có cookie -> khôi phục localStorage
+      if (cookieValue) {
+        try {
+          localStorage.setItem(key, cookieValue)
+          this.lastSyncTime = Date.now()
+        } catch { /* ignore */ }
+        return cookieValue
       }
       
       return null
@@ -79,23 +84,39 @@ class CookieAuthStorage {
 
   setItem(key: string, value: string): void {
     if (typeof window === 'undefined') return
+    
+    // Set mutex để tránh concurrent writes
+    this.isWriting = true
+    
     try {
-      // Lưu vào cả cookie và localStorage để đảm bảo persistence
-      this.setCookie(key, value, 30)
+      // Lưu vào localStorage trước (atomic và nhanh hơn)
       localStorage.setItem(key, value)
+      
+      // Sau đó lưu vào cookie (backup)
+      this.setCookie(key, value, 30)
+      
+      this.lastSyncTime = Date.now()
     } catch (e) {
       // Log lỗi nhưng không crash
       console.warn('[CookieAuthStorage] Error saving auth data:', e)
+    } finally {
+      // Release mutex
+      this.isWriting = false
     }
   }
 
   removeItem(key: string): void {
     if (typeof window === 'undefined') return
+    
+    this.isWriting = true
+    
     try {
-      this.deleteCookie(key)
       localStorage.removeItem(key)
+      this.deleteCookie(key)
     } catch {
       /* ignore */
+    } finally {
+      this.isWriting = false
     }
   }
 

@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 // Auth callback configuration constants
-const AUTH_CALLBACK_TIMEOUT = 15000 // 15 seconds total timeout
-const RETRY_MAX_ATTEMPTS = 4
-const RETRY_BASE_DELAY_MS = 500 // Exponential backoff: 500ms, 1000ms, 2000ms, 4000ms
+const AUTH_CALLBACK_TIMEOUT = 20000 // 20 seconds total timeout (increased)
+const RETRY_MAX_ATTEMPTS = 5 // Increased retry attempts
+const RETRY_BASE_DELAY_MS = 800 // Exponential backoff: 800ms, 1600ms, 3200ms, 6400ms
+const POST_AUTH_STABILIZATION_DELAY = 1500 // Wait for auth to stabilize before redirect
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -17,10 +18,12 @@ export default function AuthCallbackPage() {
   const [progressMessage, setProgressMessage] = useState('Đang kiểm tra phiên đăng nhập...')
   const statusRef = useRef<'loading' | 'success' | 'error'>('loading')
   const isProcessingRef = useRef(false)
+  const hasHandledRef = useRef(false)
 
   // Helper: Success handler
   const handleSuccess = useCallback((isMounted: boolean) => {
-    if (isMounted && statusRef.current !== 'success') {
+    if (isMounted && statusRef.current !== 'success' && !hasHandledRef.current) {
+      hasHandledRef.current = true
       console.log('✅ [AuthCallback] Authentication successful!')
       statusRef.current = 'success'
       setStatus('success')
@@ -29,19 +32,28 @@ export default function AuthCallbackPage() {
       // Clean up URL parameters
       window.history.replaceState({}, '', '/auth/callback')
       
-      // Redirect to dashboard
-      setTimeout(() => router.push('/dashboard'), 800)
+      // Wait for auth to stabilize before redirect
+      setTimeout(() => {
+        if (isMounted) {
+          router.push('/dashboard')
+        }
+      }, POST_AUTH_STABILIZATION_DELAY)
     }
   }, [router])
 
   // Helper: Error handler
   const handleError = useCallback((message: string, isMounted: boolean) => {
-    if (isMounted && statusRef.current !== 'error') {
+    if (isMounted && statusRef.current !== 'error' && !hasHandledRef.current) {
+      hasHandledRef.current = true
       console.error('❌ [AuthCallback] Error:', message)
       statusRef.current = 'error'
       setStatus('error')
       setErrorMessage(message)
-      setTimeout(() => router.push('/login'), 2500)
+      setTimeout(() => {
+        if (isMounted) {
+          router.push('/login')
+        }
+      }, 2500)
     }
   }, [router])
 
@@ -51,8 +63,8 @@ export default function AuthCallbackPage() {
 
     const handleAuth = async () => {
       // Prevent duplicate processing
-      if (isProcessingRef.current) {
-        console.log('⏳ [AuthCallback] Already processing, skipping...')
+      if (isProcessingRef.current || hasHandledRef.current) {
+        console.log('⏳ [AuthCallback] Already processing or handled, skipping...')
         return
       }
       isProcessingRef.current = true
@@ -60,9 +72,20 @@ export default function AuthCallbackPage() {
       try {
         // Set timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
-          if (isMounted && statusRef.current === 'loading') {
-            console.warn('⏱️ [AuthCallback] Timeout - redirecting to login')
-            handleError('Quá thời gian xác thực. Vui lòng thử lại.', isMounted)
+          if (isMounted && statusRef.current === 'loading' && !hasHandledRef.current) {
+            console.warn('⏱️ [AuthCallback] Timeout - checking session one more time')
+            // One final attempt before giving up
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session?.user && isMounted && !hasHandledRef.current) {
+                handleSuccess(isMounted)
+              } else if (isMounted && !hasHandledRef.current) {
+                handleError('Quá thời gian xác thực. Vui lòng thử lại.', isMounted)
+              }
+            }).catch(() => {
+              if (isMounted && !hasHandledRef.current) {
+                handleError('Quá thời gian xác thực. Vui lòng thử lại.', isMounted)
+              }
+            })
           }
         }, AUTH_CALLBACK_TIMEOUT)
 
@@ -107,6 +130,9 @@ export default function AuthCallbackPage() {
             return
           }
 
+          // Wait a bit for session to be saved
+          await new Promise(r => setTimeout(r, 500))
+          
           handleSuccess(isMounted)
           return
         }
@@ -128,6 +154,7 @@ export default function AuthCallbackPage() {
                   exchangeError.message.includes('invalid') ||
                   exchangeError.message.includes('expired')) {
                 // Try to check if we already have a valid session
+                await new Promise(r => setTimeout(r, 500)) // Small delay
                 const { data: existingSession } = await supabase.auth.getSession()
                 if (existingSession?.session?.user) {
                   console.log('✅ [AuthCallback] Found existing session after code error')
@@ -142,6 +169,8 @@ export default function AuthCallbackPage() {
 
             if (data?.session?.user) {
               console.log('✅ [AuthCallback] Code exchange successful')
+              // Wait a bit for session to be saved
+              await new Promise(r => setTimeout(r, 500))
               handleSuccess(isMounted)
               return
             }
@@ -157,32 +186,47 @@ export default function AuthCallbackPage() {
 
         // Retry logic with exponential backoff
         for (let attempt = 1; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          if (!isMounted || hasHandledRef.current) break
+          
+          try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-          if (sessionError) {
-            console.error(`❌ [AuthCallback] Session check error (attempt ${attempt}):`, sessionError)
-          }
+            if (sessionError) {
+              console.error(`❌ [AuthCallback] Session check error (attempt ${attempt}):`, sessionError)
+            }
 
-          if (session?.user) {
-            console.log(`✅ [AuthCallback] Session found on attempt ${attempt}`)
-            handleSuccess(isMounted)
-            return
-          }
+            if (session?.user) {
+              console.log(`✅ [AuthCallback] Session found on attempt ${attempt}`)
+              handleSuccess(isMounted)
+              return
+            }
 
-          if (attempt < RETRY_MAX_ATTEMPTS) {
-            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1) // 500ms, 1000ms, 2000ms, 4000ms
-            console.log(`⏳ [AuthCallback] No session yet, retrying in ${delay}ms (attempt ${attempt}/${RETRY_MAX_ATTEMPTS})...`)
-            await new Promise(r => setTimeout(r, delay))
+            if (attempt < RETRY_MAX_ATTEMPTS) {
+              const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1)
+              console.log(`⏳ [AuthCallback] No session yet, retrying in ${delay}ms (attempt ${attempt}/${RETRY_MAX_ATTEMPTS})...`)
+              setProgressMessage(`Đang xác thực... (${attempt}/${RETRY_MAX_ATTEMPTS})`)
+              await new Promise(r => setTimeout(r, delay))
+            }
+          } catch (error) {
+            console.error(`❌ [AuthCallback] Session check exception (attempt ${attempt}):`, error)
+            if (attempt < RETRY_MAX_ATTEMPTS) {
+              const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1)
+              await new Promise(r => setTimeout(r, delay))
+            }
           }
         }
 
         // All retries exhausted
-        console.warn('⚠️ [AuthCallback] No session found after all retries')
-        handleError('Không thể xác thực phiên đăng nhập. Vui lòng thử đăng nhập lại.', isMounted)
+        if (!hasHandledRef.current) {
+          console.warn('⚠️ [AuthCallback] No session found after all retries')
+          handleError('Không thể xác thực phiên đăng nhập. Vui lòng thử đăng nhập lại.', isMounted)
+        }
 
       } catch (err) {
         console.error('❌ [AuthCallback] Unexpected error:', err)
-        handleError('Lỗi không xác định khi xác thực. Vui lòng thử lại.', isMounted)
+        if (!hasHandledRef.current) {
+          handleError('Lỗi không xác định khi xác thực. Vui lòng thử lại.', isMounted)
+        }
       } finally {
         isProcessingRef.current = false
       }
@@ -194,7 +238,7 @@ export default function AuthCallbackPage() {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(`🔔 [AuthCallback] Auth state change: ${event}`)
       
-      if (event === 'SIGNED_IN' && session?.user && isMounted && statusRef.current === 'loading') {
+      if (event === 'SIGNED_IN' && session?.user && isMounted && statusRef.current === 'loading' && !hasHandledRef.current) {
         console.log('✅ [AuthCallback] Signed in via auth state change')
         handleSuccess(isMounted)
       }

@@ -10,6 +10,8 @@ import {
 } from '@/lib/session-manager'
 
 const INACTIVITY_TIMEOUT = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
+const VISIBILITY_DEBOUNCE = 2000 // 2 seconds debounce for visibility changes
+const SESSION_CHECK_DEBOUNCE = 5000 // 5 seconds debounce for session checks
 
 /**
  * PersistentSessionManager Component
@@ -20,16 +22,20 @@ const INACTIVITY_TIMEOUT = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
  * 3. Device fingerprinting & multi-device management (max 3 devices)
  * 4. Profile sync khi đăng nhập
  * 5. Inactivity logout (30 ngày không hoạt động)
- * 6. Tab visibility handling
+ * 6. Tab visibility handling với debounce
  */
 export default function PersistentSessionManager() {
   const refreshTimerRef = useRef<NodeJS.Timeout>()
   const lastActivityRef = useRef<number>(Date.now())
   const sessionIdRef = useRef<string | null>(null)
   const checkIntervalRef = useRef<NodeJS.Timeout>()
+  const isInitializingRef = useRef<boolean>(false)
+  const lastVisibilityCheckRef = useRef<number>(0)
+  const lastSessionCheckRef = useRef<number>(0)
 
   useEffect(() => {
     console.log('🔐 [SessionManager] Initializing...')
+    let isMounted = true
 
     // === BACKGROUND TASK RUNNER ===
     const runInBackground = async (task: () => Promise<any>, name?: string) => {
@@ -72,68 +78,90 @@ export default function PersistentSessionManager() {
       }
     }
 
-    // === INITIALIZE SESSION ===
+    // === INITIALIZE SESSION với debounce ===
     const initializeSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!session) {
-        console.log('ℹ️ [SessionManager] No active session')
+      // Debounce session checks
+      const now = Date.now()
+      if (now - lastSessionCheckRef.current < SESSION_CHECK_DEBOUNCE) {
+        console.log('⏳ [SessionManager] Session check debounced')
         return
       }
-
-      // Get device fingerprint
-      const fingerprint = await getDeviceFingerprint()
-
-      // Check if session exists for this device
-      const { data: existingSession, error: checkError } = await supabase
-        .from('user_sessions')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('fingerprint', fingerprint)
-        .eq('is_active', true)
-        .maybeSingle()
-
-      if (checkError) {
-        console.error('❌ [SessionManager] Error checking session:', checkError)
+      lastSessionCheckRef.current = now
+      
+      // Prevent concurrent initialization
+      if (isInitializingRef.current) {
+        console.log('⏳ [SessionManager] Already initializing, skipping...')
         return
       }
+      isInitializingRef.current = true
 
-      if (existingSession) {
-        console.log('✅ [SessionManager] Found existing session for this device')
-        sessionIdRef.current = existingSession.id
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
 
-        // Check if inactive for > 30 days
-        const lastActivity = new Date(existingSession.last_activity).getTime()
-        const daysSinceActivity = (Date.now() - lastActivity) / (24 * 60 * 60 * 1000)
-
-        if (daysSinceActivity > 30) {
-          console.log(`⏰ [SessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
-          await handleInactivityLogout(existingSession.id)
+        if (!session) {
+          console.log('ℹ️ [SessionManager] No active session')
+          isInitializingRef.current = false
           return
         }
 
-        // Update activity timestamp
-        await updateSessionActivity(session.access_token)
-      } else {
-        console.log('🆕 [SessionManager] New device detected - creating session record')
+        // Get device fingerprint
+        const fingerprint = await getDeviceFingerprint()
 
-        // Create new session record for this device
-        const sessionId = await createSessionRecord(
-          session.user.id,
-          session.access_token,
-          fingerprint
-        )
+        // Check if session exists for this device
+        const { data: existingSession, error: checkError } = await supabase
+          .from('user_sessions')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('fingerprint', fingerprint)
+          .eq('is_active', true)
+          .maybeSingle()
 
-        if (sessionId) {
-          sessionIdRef.current = sessionId
+        if (checkError) {
+          console.error('❌ [SessionManager] Error checking session:', checkError)
+          isInitializingRef.current = false
+          return
         }
+
+        if (existingSession) {
+          console.log('✅ [SessionManager] Found existing session for this device')
+          sessionIdRef.current = existingSession.id
+
+          // Check if inactive for > 30 days
+          const lastActivity = new Date(existingSession.last_activity).getTime()
+          const daysSinceActivity = (Date.now() - lastActivity) / (24 * 60 * 60 * 1000)
+
+          if (daysSinceActivity > 30) {
+            console.log(`⏰ [SessionManager] Session inactive for ${daysSinceActivity.toFixed(1)} days - logging out`)
+            await handleInactivityLogout(existingSession.id)
+            isInitializingRef.current = false
+            return
+          }
+
+          // Update activity timestamp
+          await updateSessionActivity(session.access_token)
+        } else {
+          console.log('🆕 [SessionManager] New device detected - creating session record')
+
+          // Create new session record for this device
+          const sessionId = await createSessionRecord(
+            session.user.id,
+            session.access_token,
+            fingerprint
+          )
+
+          if (sessionId) {
+            sessionIdRef.current = sessionId
+          }
+        }
+
+        // Schedule token refresh
+        scheduleRefresh()
+
+        // Start inactivity checker
+        startInactivityChecker()
+      } finally {
+        isInitializingRef.current = false
       }
-
-      // Schedule token refresh
-      scheduleRefresh()
-
-      // Start inactivity checker
-      startInactivityChecker()
     }
 
     // === SCHEDULE TOKEN REFRESH ===
@@ -187,7 +215,9 @@ export default function PersistentSessionManager() {
               }
 
               // Schedule next refresh
-              scheduleRefresh()
+              if (isMounted) {
+                scheduleRefresh()
+              }
               return true
             }
           } catch (err) {
@@ -204,15 +234,18 @@ export default function PersistentSessionManager() {
       // Schedule refresh
       if (timeUntilRefresh > 0) {
         refreshTimerRef.current = setTimeout(async () => {
+          if (!isMounted) return
           const success = await refreshWithRetry(3)
           if (!success) {
             console.error('❌ [SessionManager] All refresh attempts failed')
             // Không tự động logout, để user có cơ hội retry
             // Thử lại sau 1 phút
-            refreshTimerRef.current = setTimeout(() => {
-              console.log('🔄 [SessionManager] Retrying token refresh after failure...')
-              scheduleRefresh()
-            }, 60 * 1000)
+            if (isMounted) {
+              refreshTimerRef.current = setTimeout(() => {
+                console.log('🔄 [SessionManager] Retrying token refresh after failure...')
+                scheduleRefresh()
+              }, 60 * 1000)
+            }
           }
         }, timeUntilRefresh * 1000)
       } else {
@@ -223,18 +256,27 @@ export default function PersistentSessionManager() {
         if (!success) {
           console.error('❌ [SessionManager] All refresh attempts failed')
           // Schedule retry sau 30 giây
-          refreshTimerRef.current = setTimeout(() => {
-            console.log('🔄 [SessionManager] Retrying after immediate refresh failure...')
-            scheduleRefresh()
-          }, 30 * 1000)
+          if (isMounted) {
+            refreshTimerRef.current = setTimeout(() => {
+              console.log('🔄 [SessionManager] Retrying after immediate refresh failure...')
+              scheduleRefresh()
+            }, 30 * 1000)
+          }
         }
       }
     }
 
     // === INACTIVITY CHECKER ===
     const startInactivityChecker = () => {
+      // Clear existing interval
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current)
+      }
+      
       // Check every hour
       checkIntervalRef.current = setInterval(async () => {
+        if (!isMounted) return
+        
         const timeSinceActivity = Date.now() - lastActivityRef.current
 
         if (timeSinceActivity > INACTIVITY_TIMEOUT) {
@@ -272,15 +314,23 @@ export default function PersistentSessionManager() {
       }
     }
 
-    // === TAB VISIBILITY HANDLER ===
+    // === TAB VISIBILITY HANDLER với debounce ===
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        // Debounce visibility changes
+        const now = Date.now()
+        if (now - lastVisibilityCheckRef.current < VISIBILITY_DEBOUNCE) {
+          console.log('⏳ [SessionManager] Visibility check debounced')
+          return
+        }
+        lastVisibilityCheckRef.current = now
+        
         console.log('👁️ [SessionManager] Tab became visible, checking session...')
 
         // Update last activity
         lastActivityRef.current = Date.now()
 
-        // Check session validity
+        // Check session validity (debounced)
         initializeSession()
       }
     }
@@ -292,6 +342,8 @@ export default function PersistentSessionManager() {
 
     // === AUTH STATE CHANGE LISTENER ===
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return
+      
       console.log(`🔔 [SessionManager] Auth event: ${event}`)
 
       if (session?.user) {
@@ -302,8 +354,12 @@ export default function PersistentSessionManager() {
           runInBackground(() => syncUserProfile(session.user), 'syncProfile')
           runInBackground(() => cleanupExpiredSessions(), 'cleanup')
 
-          // Initialize session
-          initializeSession()
+          // Initialize session with delay to let auth stabilize
+          setTimeout(() => {
+            if (isMounted) {
+              initializeSession()
+            }
+          }, 1000)
         }
 
         if (event === 'TOKEN_REFRESHED') {
@@ -324,14 +380,24 @@ export default function PersistentSessionManager() {
         }
 
         sessionIdRef.current = null
+        isInitializingRef.current = false
       }
     })
 
     // === INITIAL SETUP ===
-    initializeSession()
+    // Delay initial setup to let other components initialize first
+    setTimeout(() => {
+      if (isMounted) {
+        initializeSession()
+      }
+    }, 2000)
 
-    // Run cleanup on startup
-    runInBackground(() => cleanupExpiredSessions(), 'initialCleanup')
+    // Run cleanup on startup (delayed)
+    setTimeout(() => {
+      if (isMounted) {
+        runInBackground(() => cleanupExpiredSessions(), 'initialCleanup')
+      }
+    }, 5000)
 
     // === EVENT LISTENERS ===
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -344,6 +410,7 @@ export default function PersistentSessionManager() {
     // === CLEANUP ===
     return () => {
       console.log('🛑 [SessionManager] Cleaning up...')
+      isMounted = false
 
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current)

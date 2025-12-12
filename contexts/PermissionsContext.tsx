@@ -50,41 +50,104 @@ const DEFAULT_PERMISSIONS: PermissionData = {
   userId: null
 }
 
-// --- FETCHER with timeout ---
+// Session cache để tránh race condition - singleton pattern
+let sessionCache: { session: any; timestamp: number } | null = null
+const SESSION_CACHE_TTL = 10000 // 10 seconds cache
+let fetchInProgress: Promise<PermissionData> | null = null
+
+// Helper function to get cached session or fetch new one
+const getCachedSession = async () => {
+  // Check if cache is still valid
+  if (sessionCache && (Date.now() - sessionCache.timestamp) < SESSION_CACHE_TTL) {
+    return sessionCache.session
+  }
+  
+  // Fetch fresh session
+  const { data: { session } } = await supabase.auth.getSession()
+  sessionCache = { session, timestamp: Date.now() }
+  return session
+}
+
+// Clear session cache when auth state changes
+const clearSessionCache = () => {
+  sessionCache = null
+  fetchInProgress = null
+}
+
+// --- FETCHER with timeout and deduplication ---
 const fetchPermissions = async (): Promise<PermissionData> => {
-  try {
-    // Step 1: Get session with timeout
-    const sessionPromise = supabase.auth.getSession()
-    const sessionTimeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Session timeout')), 5000)
-    )
-    
-    const { data: { session } } = await Promise.race([sessionPromise, sessionTimeoutPromise])
-
-    if (!session?.user) {
-      console.log('📭 [PermissionsContext] No session found')
-      return DEFAULT_PERMISSIONS
-    }
-
-    const userId = session.user.id
-    console.log('✅ [PermissionsContext] Session found for user:', userId.slice(0, 8))
-
-    // Step 2: Fetch profile with timeout
+  // Dedupe concurrent requests
+  if (fetchInProgress) {
+    return fetchInProgress
+  }
+  
+  fetchInProgress = (async () => {
     try {
-      const profilePromise = supabase
-        .from('profiles')
-        .select('membership, membership_expires_at, role')
-        .eq('id', userId)
-        .single()
-      
-      const profileTimeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Profile timeout')), 5000)
+      // Step 1: Get session with timeout
+      const sessionPromise = getCachedSession()
+      const sessionTimeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Session timeout')), 8000)
       )
+      
+      const session = await Promise.race([sessionPromise, sessionTimeoutPromise])
 
-      const { data: profile, error } = await Promise.race([profilePromise, profileTimeoutPromise])
+      if (!session?.user) {
+        console.log('📭 [PermissionsContext] No session found')
+        return DEFAULT_PERMISSIONS
+      }
 
-      if (error || !profile) {
-        console.warn('⚠️ [PermissionsContext] Profile not found, using defaults')
+      const userId = session.user.id
+      console.log('✅ [PermissionsContext] Session found for user:', userId.slice(0, 8))
+
+      // Step 2: Fetch profile with timeout
+      try {
+        const profilePromise = supabase
+          .from('profiles')
+          .select('membership, membership_expires_at, role')
+          .eq('id', userId)
+          .single()
+        
+        const profileTimeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Profile timeout')), 8000)
+        )
+
+        const { data: profile, error } = await Promise.race([profilePromise, profileTimeoutPromise])
+
+        if (error || !profile) {
+          console.warn('⚠️ [PermissionsContext] Profile not found, using defaults')
+          return {
+            isAuthenticated: true,
+            isPremium: false,
+            features: FREE_FEATURES,
+            role: 'user',
+            userId: userId
+          }
+        }
+
+        // Check premium status
+        let userIsPremium = false
+        if (profile.membership === 'premium') {
+          if (profile.membership_expires_at) {
+            const expiresAt = new Date(profile.membership_expires_at)
+            userIsPremium = expiresAt.getTime() > Date.now()
+          } else {
+            userIsPremium = true
+          }
+        }
+
+        // Get role (default to 'user' if not set)
+        const userRole: UserRole = (profile.role as UserRole) || 'user'
+
+        return {
+          isAuthenticated: true,
+          isPremium: userIsPremium,
+          features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
+          role: userRole,
+          userId: userId
+        }
+      } catch (profileError) {
+        console.warn('⚠️ [PermissionsContext] Profile fetch failed:', profileError)
+        // Return authenticated state with default permissions
         return {
           isAuthenticated: true,
           isPremium: false,
@@ -93,52 +156,30 @@ const fetchPermissions = async (): Promise<PermissionData> => {
           userId: userId
         }
       }
-
-      // Check premium status
-      let userIsPremium = false
-      if (profile.membership === 'premium') {
-        if (profile.membership_expires_at) {
-          const expiresAt = new Date(profile.membership_expires_at)
-          userIsPremium = expiresAt.getTime() > Date.now()
-        } else {
-          userIsPremium = true
-        }
-      }
-
-      // Get role (default to 'user' if not set)
-      const userRole: UserRole = (profile.role as UserRole) || 'user'
-
-      return {
-        isAuthenticated: true,
-        isPremium: userIsPremium,
-        features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
-        role: userRole,
-        userId: userId
-      }
-    } catch (profileError) {
-      console.warn('⚠️ [PermissionsContext] Profile fetch failed:', profileError)
-      // Return authenticated state with default permissions
-      return {
-        isAuthenticated: true,
-        isPremium: false,
-        features: FREE_FEATURES,
-        role: 'user',
-        userId: userId
-      }
+    } catch (error) {
+      console.error('❌ [PermissionsContext] Fetch error:', error)
+      return DEFAULT_PERMISSIONS
+    } finally {
+      // Clear fetch in progress after a short delay to allow deduping
+      setTimeout(() => {
+        fetchInProgress = null
+      }, 500)
     }
-  } catch (error) {
-    console.error('❌ [PermissionsContext] Fetch error:', error)
-    return DEFAULT_PERMISSIONS
-  }
+  })()
+  
+  return fetchInProgress
 }
 
-// Timeout cho initialization
-const INIT_TIMEOUT = 3000
+// Timeout cho initialization - tăng lên để tránh race condition
+const INIT_TIMEOUT = 8000
 
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { mutate } = useSWRConfig()
   const [isInitialized, setIsInitialized] = useState(false)
   const initTimeoutRef = useRef<NodeJS.Timeout>()
+  const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null)
+  const lastEventRef = useRef<string>('')
+  const eventDebounceRef = useRef<NodeJS.Timeout>()
 
   const { data, error, isLoading: swrLoading, isValidating } = useSWR(
     'user-permissions',
@@ -146,9 +187,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 30000,
+      dedupingInterval: 60000, // Tăng lên 60s để tránh duplicate fetches
       fallbackData: DEFAULT_PERMISSIONS,
       keepPreviousData: true,
+      errorRetryCount: 2,
+      errorRetryInterval: 3000,
       onSuccess: () => {
         setIsInitialized(true)
       },
@@ -175,18 +218,48 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
   }, [isInitialized])
 
-  // Listen for auth state changes
+  // Listen for auth state changes - with debounce to prevent rapid fire events
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`🔔 [PermissionsContext] Auth event: ${event}`)
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
-        // Revalidate permissions
-        mutate('user-permissions')
+      // Debounce rapid events (same event within 1s)
+      const eventKey = `${event}-${session?.user?.id || 'none'}`
+      if (lastEventRef.current === eventKey) {
+        return
       }
+      
+      // Clear previous debounce timer
+      if (eventDebounceRef.current) {
+        clearTimeout(eventDebounceRef.current)
+      }
+      
+      console.log(`🔔 [PermissionsContext] Auth event: ${event}`)
+      lastEventRef.current = eventKey
+      
+      // Debounce the actual handling
+      eventDebounceRef.current = setTimeout(() => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
+          // Clear session cache on auth events
+          clearSessionCache()
+          
+          // Revalidate permissions with a small delay to let Supabase stabilize
+          setTimeout(() => {
+            mutate('user-permissions')
+          }, 500)
+        }
+        
+        // Reset event tracking after debounce period
+        setTimeout(() => {
+          lastEventRef.current = ''
+        }, 2000)
+      }, 300)
     })
+    
+    authSubscriptionRef.current = subscription
 
     return () => {
+      if (eventDebounceRef.current) {
+        clearTimeout(eventDebounceRef.current)
+      }
       subscription.unsubscribe()
     }
   }, [mutate])
@@ -196,6 +269,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   }, [data])
 
   const refresh = useCallback(async () => {
+    clearSessionCache() // Clear cache before refresh
     await mutate('user-permissions')
   }, [mutate])
 
