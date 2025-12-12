@@ -12,8 +12,8 @@ export interface ZaloAuthOptions {
   scopes?: string
 }
 
-// Timeout helper với configurable timeout (tăng mặc định lên 10s)
-const withTimeout = <T>(promise: Promise<T>, ms: number = 10000): Promise<T> => {
+// Timeout helper với configurable timeout (giảm xuống 5s để responsive hơn)
+const withTimeout = <T>(promise: Promise<T>, ms: number = 5000): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => 
