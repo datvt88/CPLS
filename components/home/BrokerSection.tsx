@@ -19,11 +19,11 @@ export default function BrokerSection() {
           {/* Section Header */}
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
-              Ứng dụng miễn phí khi nhà đầu tư cùng đồng hành
+              Ứng dụng dành riêng cho nhà đầu tư cùng đồng hành
             </h2>
             <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto">
-              Chúng tôi đồng hành cùng các nhà môi giới uy tín hàng đầu Việt Nam.
-              Mở tài khoản miễn phí và bắt đầu hành trình đầu tư của bạn ngay hôm nay.
+              Bắt đầu hành trình đầu tư cùng các công ty chứng khoán uy tín hàng đầu Việt Nam.
+              Mở tài khoản miễn phí và đồng hành đầu tư ngay bây giờ.
             </p>
           </div>
 
@@ -84,7 +84,7 @@ export default function BrokerSection() {
           {/* Disclaimer */}
           <div className="mt-8 sm:mt-10 bg-gradient-to-r from-yellow-900/20 to-orange-900/20 rounded-xl p-4 sm:p-6 border border-yellow-700/30">
             <p className="text-xs sm:text-sm text-gray-300 text-center leading-relaxed">
-              Miễn phí tính năng phân tích cổ phiếu cho tất cả người dùng
+              Miễn phí tính năng phân tích cổ phiếu mà không cần đăng nhập
             </p>
           </div>
         </div>
