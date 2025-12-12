@@ -15,10 +15,10 @@ export default function FeaturesSection() {
           {/* Section Header */}
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4">
-              Công cụ phân tích chuyên nghiệp
+              Công cụ phân tích cổ phiếu chuyên nghiệp nhất
             </h2>
             <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto">
-              Tất cả công cụ bạn cần để phân tích và đưa ra quyết định đầu tư thông minh
+              Đơn giản hóa việc phân tích và đưa ra quyết định đầu tư thông minh
             </p>
           </div>
 
@@ -55,8 +55,8 @@ export default function FeaturesSection() {
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-white mb-3">Phân tích sâu</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Báo cáo tài chính chi tiết, phân tích cơ bản và kỹ thuật
-                giúp đánh giá giá trị thực của doanh nghiệp.
+                Phân tích cơ bản và kỹ thuật
+                giúp đánh giá giá trị hiện tại của doanh nghiệp.
               </p>
             </div>
 
@@ -80,7 +80,7 @@ export default function FeaturesSection() {
               <h3 className="text-lg sm:text-xl font-bold text-white mb-3">Top cổ phiếu</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
                 Danh sách các cổ phiếu hot nhất,
-                tăng giảm mạnh và khối lượng giao dịch lớn.
+                bộ lọc các cổ phiếu tiềm năng trong ngày. 
               </p>
             </div>
 
@@ -91,8 +91,8 @@ export default function FeaturesSection() {
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-white mb-3">An toàn & bảo mật</h3>
               <p className="text-sm sm:text-base text-gray-400 leading-relaxed">
-                Dữ liệu được mã hóa, bảo mật tuyệt đối
-                cho thông tin cá nhân và danh mục đầu tư của bạn.
+                Dữ liệu được mã hóa, bảo mật cao
+                an toàn và riêng tư.
               </p>
             </div>
           </div>
