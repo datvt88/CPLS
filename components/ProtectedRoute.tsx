@@ -1,14 +1,19 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePermissions } from '@/contexts/PermissionsContext'
+import { supabase } from '@/lib/supabaseClient'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
   requirePremium?: boolean
   requireVIP?: boolean // Deprecated
 }
+
+// Grace period to wait for auth to stabilize after initial load
+// This prevents premature redirect when session is still being established
+const AUTH_STABILIZATION_DELAY = 1500
 
 export default function ProtectedRoute({
   children,
@@ -17,6 +22,9 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const router = useRouter()
   const hasRedirected = useRef(false)
+  const [isVerifying, setIsVerifying] = useState(true)
+  const verificationTimeoutRef = useRef<NodeJS.Timeout>()
+  const mountedRef = useRef(true)
 
   const {
     isAuthenticated,
@@ -28,13 +36,67 @@ export default function ProtectedRoute({
 
   const needsPremium = requirePremium || requireVIP
 
-  // Xử lý chuyển hướng - Đơn giản hóa logic
+  // Double-check authentication with Supabase directly
+  useEffect(() => {
+    mountedRef.current = true
+    
+    const verifyAuth = async () => {
+      // Wait a short period for auth to stabilize
+      await new Promise(resolve => setTimeout(resolve, AUTH_STABILIZATION_DELAY))
+      
+      if (!mountedRef.current) return
+      
+      // If context says authenticated, trust it
+      if (isAuthenticated) {
+        setIsVerifying(false)
+        return
+      }
+      
+      // If still loading, wait more
+      if (isLoading) {
+        return
+      }
+      
+      // Double-check with Supabase directly
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!mountedRef.current) return
+        
+        if (session?.user) {
+          console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
+          // Session exists but context not updated yet - trigger refresh
+          refresh()
+          setIsVerifying(false)
+        } else {
+          // Truly not authenticated
+          setIsVerifying(false)
+        }
+      } catch (error) {
+        console.error('❌ [ProtectedRoute] Error verifying session:', error)
+        if (mountedRef.current) {
+          setIsVerifying(false)
+        }
+      }
+    }
+    
+    verifyAuth()
+    
+    return () => {
+      mountedRef.current = false
+      if (verificationTimeoutRef.current) {
+        clearTimeout(verificationTimeoutRef.current)
+      }
+    }
+  }, [isAuthenticated, isLoading, refresh])
+
+  // Xử lý chuyển hướng - Đợi verification hoàn tất
   useEffect(() => {
     // Đã redirect rồi thì không làm gì
     if (hasRedirected.current) return
 
-    // Đang loading thì chờ
-    if (isLoading) return
+    // Đang loading hoặc verifying thì chờ
+    if (isLoading || isVerifying) return
 
     // Nếu đã authenticated
     if (isAuthenticated) {
@@ -50,7 +112,7 @@ export default function ProtectedRoute({
     console.log('🔒 [ProtectedRoute] Not authenticated, redirecting to login')
     hasRedirected.current = true
     router.push('/login')
-  }, [isLoading, isAuthenticated, isPremium, needsPremium, router])
+  }, [isLoading, isVerifying, isAuthenticated, isPremium, needsPremium, router])
 
   // Reset khi unmount
   useEffect(() => {
@@ -84,8 +146,8 @@ export default function ProtectedRoute({
     )
   }
 
-  // --- TRƯỜNG HỢP 2: ĐANG TẢI ---
-  if (isLoading) {
+  // --- TRƯỜNG HỢP 2: ĐANG TẢI HOẶC ĐANG VERIFY ---
+  if (isLoading || isVerifying) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#121212]">
         <div className="text-center">
