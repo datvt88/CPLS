@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -10,6 +10,7 @@ export default function AuthCallbackPage() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState('')
   const [progressMessage, setProgressMessage] = useState('Đang kiểm tra phiên đăng nhập...')
+  const statusRef = useRef<'loading' | 'success' | 'error'>('loading')
 
   useEffect(() => {
     let isMounted = true
@@ -19,8 +20,9 @@ export default function AuthCallbackPage() {
       try {
         // Set timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
-          if (isMounted && status === 'loading') {
+          if (isMounted && statusRef.current === 'loading') {
             console.warn('⏱️ [AuthCallback] Timeout - redirecting to login')
+            statusRef.current = 'error'
             setStatus('error')
             setErrorMessage('Quá thời gian xác thực. Vui lòng thử lại.')
             setTimeout(() => router.push('/login'), 2000)
@@ -39,6 +41,7 @@ export default function AuthCallbackPage() {
         if (errorParam) {
           console.error('❌ [AuthCallback] OAuth error:', errorParam, errorDescription)
           if (isMounted) {
+            statusRef.current = 'error'
             setStatus('error')
             setErrorMessage(errorDescription || 'Lỗi xác thực OAuth')
             setTimeout(() => router.push('/login'), 2500)
@@ -61,6 +64,7 @@ export default function AuthCallbackPage() {
         if (error) {
           console.error('❌ [AuthCallback] Session error:', error)
           if (isMounted) {
+            statusRef.current = 'error'
             setStatus('error')
             setErrorMessage('Lỗi xác thực: ' + error.message)
             setTimeout(() => router.push('/login'), 2500)
@@ -71,6 +75,7 @@ export default function AuthCallbackPage() {
         if (session?.user) {
           console.log('✅ [AuthCallback] Session valid, redirecting to dashboard')
           if (isMounted) {
+            statusRef.current = 'success'
             setStatus('success')
             setProgressMessage('Đăng nhập thành công!')
             
@@ -91,6 +96,7 @@ export default function AuthCallbackPage() {
         if (retrySession?.user) {
           console.log('✅ [AuthCallback] Session found on retry')
           if (isMounted) {
+            statusRef.current = 'success'
             setStatus('success')
             setProgressMessage('Đăng nhập thành công!')
             window.history.replaceState({}, '', '/auth/callback')
@@ -102,6 +108,7 @@ export default function AuthCallbackPage() {
         // Still no session
         console.warn('⚠️ [AuthCallback] No session after retries')
         if (isMounted) {
+          statusRef.current = 'error'
           setStatus('error')
           setErrorMessage('Không thể xác thực phiên đăng nhập.')
           setTimeout(() => router.push('/login'), 2500)
@@ -109,6 +116,7 @@ export default function AuthCallbackPage() {
       } catch (err) {
         console.error('❌ [AuthCallback] Unexpected error:', err)
         if (isMounted) {
+          statusRef.current = 'error'
           setStatus('error')
           setErrorMessage('Lỗi không xác định khi xác thực.')
           setTimeout(() => router.push('/login'), 2500)
@@ -124,7 +132,7 @@ export default function AuthCallbackPage() {
         clearTimeout(timeoutId)
       }
     }
-  }, [router, status])
+  }, [router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[--bg] p-4">

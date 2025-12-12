@@ -12,8 +12,11 @@ export interface ZaloAuthOptions {
   scopes?: string
 }
 
+// Default timeout for auth operations
+const AUTH_TIMEOUT = 10000 // 10 seconds
+
 // Timeout helper
-const withTimeout = <T>(promise: Promise<T>, ms: number = 10000): Promise<T> => {
+const withTimeout = <T>(promise: Promise<T>, ms: number = AUTH_TIMEOUT): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => 
@@ -128,7 +131,7 @@ export const authService = {
 
   async getSession() {
     try {
-      const { data, error } = await withTimeout(supabase.auth.getSession(), 5000)
+      const { data, error } = await withTimeout(supabase.auth.getSession())
       if (error) {
         console.error("🔥 [AuthService] Session Error:", error)
         return { session: null, error }
