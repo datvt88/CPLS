@@ -12,8 +12,11 @@ export interface ZaloAuthOptions {
   scopes?: string
 }
 
-// Timeout helper với configurable timeout (giảm xuống 5s để responsive hơn)
-const withTimeout = <T>(promise: Promise<T>, ms: number = 5000): Promise<T> => {
+// Default timeout for auth operations
+const AUTH_TIMEOUT = 10000 // 10 seconds
+
+// Timeout helper
+const withTimeout = <T>(promise: Promise<T>, ms: number = AUTH_TIMEOUT): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => 
@@ -22,31 +25,7 @@ const withTimeout = <T>(promise: Promise<T>, ms: number = 5000): Promise<T> => {
   ]);
 }
 
-// Retry helper với exponential backoff
-const withRetry = async <T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 2,
-  initialDelay: number = 500
-): Promise<T> => {
-  let lastError: Error | null = null
-  for (let i = 0; i <= maxRetries; i++) {
-    try {
-      return await fn()
-    } catch (error) {
-      lastError = error as Error
-      if (i < maxRetries) {
-        const delay = initialDelay * Math.pow(2, i)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
-    }
-  }
-  throw lastError
-}
-
-// KHÔNG CẦN listener 'visibilitychange' ở đây nữa vì SWR sẽ lo việc revalidate
-
 export const authService = {
-  // ... (Giữ nguyên các hàm signUp, signIn, signInWithPhone, signInWithGoogle, signInWithZalo...)
   async signUp({ email, password }: AuthCredentials) {
     const redirectUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/auth/callback`
@@ -150,18 +129,16 @@ export const authService = {
     }
   },
 
-  // 👇 HÀM RÚT GỌN (SWR sẽ lo cache) - Với retry logic
   async getSession() {
     try {
-      // Sử dụng retry để tăng độ tin cậy (sử dụng default timeout 10s từ withTimeout)
-      const result = await withRetry(async () => {
-        const { data, error } = await withTimeout(supabase.auth.getSession())
-        if (error) throw error
-        return { session: data.session, error: null }
-      }, 2, 300)
-      return result
+      const { data, error } = await withTimeout(supabase.auth.getSession())
+      if (error) {
+        console.error("🔥 [AuthService] Session Error:", error)
+        return { session: null, error }
+      }
+      return { session: data.session, error: null }
     } catch (error) {
-      console.error("🔥 [AuthService] Session Error:", error)
+      console.error("🔥 [AuthService] Session Timeout:", error)
       return { session: null, error }
     }
   },
