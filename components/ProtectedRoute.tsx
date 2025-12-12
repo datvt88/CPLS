@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePermissions } from '@/contexts/PermissionsContext'
 import { supabase } from '@/lib/supabaseClient'
@@ -11,6 +11,9 @@ interface ProtectedRouteProps {
   requireVIP?: boolean // Deprecated
 }
 
+// Helper: retry với delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export default function ProtectedRoute({
   children,
   requirePremium = false,
@@ -18,7 +21,9 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const router = useRouter()
   const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyAttempts, setVerifyAttempts] = useState(0)
   const hasRedirected = useRef(false)
+  const verificationInProgress = useRef(false)
 
   const {
     isAuthenticated,
@@ -30,18 +35,54 @@ export default function ProtectedRoute({
   } = usePermissions()
 
   const needsPremium = requirePremium || requireVIP
+  const MAX_VERIFY_ATTEMPTS = 3
+
+  // Session verification với retry logic
+  const verifySession = useCallback(async (): Promise<boolean> => {
+    try {
+      // Bước 1: Kiểm tra session hiện tại
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session?.user) {
+        console.log('✅ [ProtectedRoute] Session found')
+        return true
+      }
+
+      // Bước 2: Thử refresh token nếu không có session
+      console.log('🔄 [ProtectedRoute] No session, attempting token refresh...')
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+      
+      if (refreshData.session && !refreshError) {
+        console.log('✅ [ProtectedRoute] Token refresh successful')
+        return true
+      }
+
+      // Bước 3: Kiểm tra localStorage/cookie backup
+      console.log('⚠️ [ProtectedRoute] No valid session found after refresh')
+      return false
+    } catch (error) {
+      console.error('❌ [ProtectedRoute] Session verification error:', error)
+      return false
+    }
+  }, [])
 
   // Xử lý chuyển hướng - CHỈ redirect sau khi verify session thực sự
   useEffect(() => {
     const verifyAndRedirect = async () => {
       // Đã redirect rồi thì không làm gì
       if (hasRedirected.current) return
+      
+      // Tránh multiple verification đồng thời
+      if (verificationInProgress.current) return
 
       // Đang loading hoặc revalidating thì chờ
       if (isLoading || isRevalidating) return
 
       // Nếu context nói đã authenticated -> OK
       if (isAuthenticated) {
+        // Reset verify attempts khi thành công
+        setVerifyAttempts(0)
+        
         // Kiểm tra premium nếu cần
         if (needsPremium && !isPremium) {
           hasRedirected.current = true
@@ -52,36 +93,53 @@ export default function ProtectedRoute({
 
       // Context nói chưa authenticated -> verify lại session thực sự
       // Tránh trường hợp context chưa cập nhật sau khi quay lại app
+      verificationInProgress.current = true
       setIsVerifying(true)
 
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const hasValidSession = await verifySession()
 
-        if (!session) {
-          // Thực sự chưa đăng nhập -> redirect
-          console.log('🔒 [ProtectedRoute] No session found, redirecting to login')
+        if (!hasValidSession) {
+          // Nếu còn attempts, thử lại với delay
+          if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1) {
+            console.log(`🔄 [ProtectedRoute] Verify attempt ${verifyAttempts + 1}/${MAX_VERIFY_ATTEMPTS}`)
+            setVerifyAttempts(prev => prev + 1)
+            // True exponential backoff: 500ms, 1000ms, 2000ms
+            await delay(500 * Math.pow(2, verifyAttempts))
+            verificationInProgress.current = false
+            return // Sẽ trigger lại effect
+          }
+
+          // Hết attempts -> redirect
+          console.log('🔒 [ProtectedRoute] No session after retries, redirecting to login')
           hasRedirected.current = true
           router.push('/login')
         } else {
           // Có session nhưng context chưa cập nhật -> refresh context
           console.log('🔄 [ProtectedRoute] Session exists, refreshing permissions...')
           await refresh()
+          setVerifyAttempts(0)
         }
       } catch (error) {
         console.error('❌ [ProtectedRoute] Session verification error:', error)
-        // Lỗi verify -> không redirect, để user thử lại
+        // Lỗi verify -> không redirect ngay, thử lại
+        if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1) {
+          setVerifyAttempts(prev => prev + 1)
+        }
       } finally {
         setIsVerifying(false)
+        verificationInProgress.current = false
       }
     }
 
     verifyAndRedirect()
-  }, [isLoading, isRevalidating, isAuthenticated, isPremium, needsPremium, router, refresh])
+  }, [isLoading, isRevalidating, isAuthenticated, isPremium, needsPremium, router, refresh, verifySession, verifyAttempts])
 
   // Reset redirect flag khi unmount
   useEffect(() => {
     return () => {
       hasRedirected.current = false
+      verificationInProgress.current = false
     }
   }, [])
 

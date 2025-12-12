@@ -12,14 +12,35 @@ export interface ZaloAuthOptions {
   scopes?: string
 }
 
-// Timeout helper (Giữ lại để tránh treo mạng)
-const withTimeout = <T>(promise: Promise<T>, ms: number = 7000): Promise<T> => {
+// Timeout helper với configurable timeout (tăng mặc định lên 10s)
+const withTimeout = <T>(promise: Promise<T>, ms: number = 10000): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) => 
       setTimeout(() => reject(new Error('Request timeout')), ms)
     )
   ]);
+}
+
+// Retry helper với exponential backoff
+const withRetry = async <T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  initialDelay: number = 500
+): Promise<T> => {
+  let lastError: Error | null = null
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error as Error
+      if (i < maxRetries) {
+        const delay = initialDelay * Math.pow(2, i)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+    }
+  }
+  throw lastError
 }
 
 // KHÔNG CẦN listener 'visibilitychange' ở đây nữa vì SWR sẽ lo việc revalidate
@@ -129,11 +150,16 @@ export const authService = {
     }
   },
 
-  // 👇 HÀM RÚT GỌN (SWR sẽ lo cache)
+  // 👇 HÀM RÚT GỌN (SWR sẽ lo cache) - Với retry logic
   async getSession() {
     try {
-      const { data, error } = await withTimeout(supabase.auth.getSession())
-      return { session: data.session, error }
+      // Sử dụng retry để tăng độ tin cậy (sử dụng default timeout 10s từ withTimeout)
+      const result = await withRetry(async () => {
+        const { data, error } = await withTimeout(supabase.auth.getSession())
+        if (error) throw error
+        return { session: data.session, error: null }
+      }, 2, 300)
+      return result
     } catch (error) {
       console.error("🔥 [AuthService] Session Error:", error)
       return { session: null, error }

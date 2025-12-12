@@ -27,9 +27,12 @@ function getSupabaseConfig() {
 
 /* -------------------------------------------------
    COOKIE STORAGE — runs safely on server & client
+   Cải thiện sync giữa cookie và localStorage
 --------------------------------------------------*/
 class CookieAuthStorage {
   private storageKey: string
+  private lastSyncTime: number = 0
+  private readonly SYNC_INTERVAL = 5000 // Chỉ sync mỗi 5 giây
 
   constructor(key = 'cpls-auth-token') {
     this.storageKey = key
@@ -38,7 +41,37 @@ class CookieAuthStorage {
   getItem(key: string): string | null {
     if (typeof window === 'undefined') return null
     try {
-      return this.getCookie(key) || localStorage.getItem(key)
+      // Ưu tiên cookie trước (tin cậy hơn)
+      const cookieValue = this.getCookie(key)
+      const localValue = localStorage.getItem(key)
+      
+      // Chỉ sync nếu đã qua SYNC_INTERVAL kể từ lần sync trước
+      const now = Date.now()
+      const shouldSync = now - this.lastSyncTime > this.SYNC_INTERVAL
+      
+      if (cookieValue) {
+        // Nếu có cookie nhưng localStorage khác -> sync lại localStorage
+        if (shouldSync && localValue !== cookieValue) {
+          try {
+            localStorage.setItem(key, cookieValue)
+            this.lastSyncTime = now
+          } catch { /* ignore */ }
+        }
+        return cookieValue
+      }
+      
+      // Nếu không có cookie nhưng có localStorage -> khôi phục cookie
+      if (localValue) {
+        if (shouldSync) {
+          try {
+            this.setCookie(key, localValue, 30)
+            this.lastSyncTime = now
+          } catch { /* ignore */ }
+        }
+        return localValue
+      }
+      
+      return null
     } catch {
       return null
     }
@@ -47,10 +80,12 @@ class CookieAuthStorage {
   setItem(key: string, value: string): void {
     if (typeof window === 'undefined') return
     try {
+      // Lưu vào cả cookie và localStorage để đảm bảo persistence
       this.setCookie(key, value, 30)
       localStorage.setItem(key, value)
-    } catch {
-      /* ignore */
+    } catch (e) {
+      // Log lỗi nhưng không crash
+      console.warn('[CookieAuthStorage] Error saving auth data:', e)
     }
   }
 
@@ -66,27 +101,37 @@ class CookieAuthStorage {
 
   private getCookie(name: string): string | null {
     if (typeof document === 'undefined') return null
-    const nameEQ = name + '='
-    const ca = document.cookie.split(';')
-    for (let c of ca) {
-      while (c.charAt(0) === ' ') c = c.substring(1)
-      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length)
+    try {
+      const nameEQ = name + '='
+      const ca = document.cookie.split(';')
+      for (let c of ca) {
+        while (c.charAt(0) === ' ') c = c.substring(1)
+        if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length)
+      }
+      return null
+    } catch {
+      return null
     }
-    return null
   }
 
   private setCookie(name: string, value: string, days: number): void {
     if (typeof document === 'undefined') return
-    const date = new Date()
-    date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000)
-    const expires = `; expires=${date.toUTCString()}`
-    const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''
-    document.cookie = `${name}=${value}${expires}; path=/${secure}; SameSite=Lax`
+    try {
+      const date = new Date()
+      date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000)
+      const expires = `; expires=${date.toUTCString()}`
+      const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''
+      document.cookie = `${name}=${value}${expires}; path=/${secure}; SameSite=Lax`
+    } catch (e) {
+      console.warn('[CookieAuthStorage] Error setting cookie:', e)
+    }
   }
 
   private deleteCookie(name: string) {
     if (typeof document === 'undefined') return
-    document.cookie = `${name}=; Max-Age=-999999; path=/`
+    try {
+      document.cookie = `${name}=; Max-Age=-999999; path=/`
+    } catch { /* ignore */ }
   }
 }
 
