@@ -14,6 +14,7 @@ export interface ZaloAuthOptions {
 
 // Default timeout for auth operations
 const AUTH_TIMEOUT = 10000 // 10 seconds
+const OAUTH_TIMEOUT = 15000 // 15 seconds for OAuth operations (requires network round-trips)
 
 // Timeout helper
 const withTimeout = <T>(promise: Promise<T>, ms: number = AUTH_TIMEOUT): Promise<T> => {
@@ -145,14 +146,14 @@ export const authService = {
           
           const { data, error } = await withTimeout(
             supabase.auth.exchangeCodeForSession(code),
-            15000 // 15 second timeout
+            OAUTH_TIMEOUT
           )
           
           if (error) {
             console.error('❌ [Auth] Code exchange error:', error.message)
             // If code is already used, try to get existing session
             if (error.message.includes('already used') || error.message.includes('invalid')) {
-              const { data: existingSession } = await withTimeout(supabase.auth.getSession())
+              const { data: existingSession } = await withTimeout(supabase.auth.getSession(), OAUTH_TIMEOUT)
               if (existingSession.session?.user) {
                 console.log('✅ [Auth] Found existing session after code error')
                 this.trackUserDevice(existingSession.session.user.id).catch(console.error)

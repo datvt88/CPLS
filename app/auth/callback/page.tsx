@@ -4,6 +4,11 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
+// Auth callback configuration constants
+const AUTH_CALLBACK_TIMEOUT = 15000 // 15 seconds total timeout
+const RETRY_MAX_ATTEMPTS = 4
+const RETRY_BASE_DELAY_MS = 500 // Exponential backoff: 500ms, 1000ms, 2000ms, 4000ms
+
 export default function AuthCallbackPage() {
   const router = useRouter()
 
@@ -53,13 +58,13 @@ export default function AuthCallbackPage() {
       isProcessingRef.current = true
 
       try {
-        // Set timeout to prevent infinite loading (15 seconds for better reliability)
+        // Set timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
           if (isMounted && statusRef.current === 'loading') {
             console.warn('⏱️ [AuthCallback] Timeout - redirecting to login')
             handleError('Quá thời gian xác thực. Vui lòng thử lại.', isMounted)
           }
-        }, 15000)
+        }, AUTH_CALLBACK_TIMEOUT)
 
         setProgressMessage('Đang kiểm tra phiên đăng nhập...')
 
@@ -151,10 +156,7 @@ export default function AuthCallbackPage() {
         setProgressMessage('Đang kiểm tra phiên đăng nhập...')
 
         // Retry logic with exponential backoff
-        const maxRetries = 4
-        const baseDelay = 500 // ms
-
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        for (let attempt = 1; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
           if (sessionError) {
@@ -167,9 +169,9 @@ export default function AuthCallbackPage() {
             return
           }
 
-          if (attempt < maxRetries) {
-            const delay = baseDelay * Math.pow(2, attempt - 1) // 500ms, 1000ms, 2000ms, 4000ms
-            console.log(`⏳ [AuthCallback] No session yet, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})...`)
+          if (attempt < RETRY_MAX_ATTEMPTS) {
+            const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1) // 500ms, 1000ms, 2000ms, 4000ms
+            console.log(`⏳ [AuthCallback] No session yet, retrying in ${delay}ms (attempt ${attempt}/${RETRY_MAX_ATTEMPTS})...`)
             await new Promise(r => setTimeout(r, delay))
           }
         }
