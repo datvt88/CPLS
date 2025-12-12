@@ -27,13 +27,14 @@ function getSupabaseConfig() {
 
 /* -------------------------------------------------
    COOKIE STORAGE — runs safely on server & client
-   Cải thiện sync giữa cookie và localStorage với mutex
+   Improved sync between cookie and localStorage with mutex lock
+   to prevent race conditions during concurrent writes
 --------------------------------------------------*/
 class CookieAuthStorage {
   private storageKey: string
   private lastSyncTime: number = 0
-  private readonly SYNC_INTERVAL = 10000 // Tăng lên 10 giây để giảm conflicts
-  private isWriting: boolean = false // Mutex để tránh concurrent writes
+  private readonly SYNC_INTERVAL = 10000 // Increased to 10 seconds to reduce conflicts
+  private isWriting: boolean = false // Mutex lock to prevent concurrent writes
 
   constructor(key = 'cpls-auth-token') {
     this.storageKey = key
@@ -42,12 +43,12 @@ class CookieAuthStorage {
   getItem(key: string): string | null {
     if (typeof window === 'undefined') return null
     try {
-      // Nếu đang write thì chờ đợi từ localStorage trước
+      // If currently writing, read from localStorage (avoids read-during-write race)
       if (this.isWriting) {
         return localStorage.getItem(key)
       }
       
-      // Ưu tiên localStorage trước (ít race condition hơn cookie)
+      // Prioritize localStorage (atomic and synchronous) over cookies (asynchronous)
       const localValue = localStorage.getItem(key)
       const cookieValue = this.getCookie(key)
       

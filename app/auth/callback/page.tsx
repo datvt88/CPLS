@@ -4,11 +4,11 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
-// Auth callback configuration constants
-const AUTH_CALLBACK_TIMEOUT = 20000 // 20 seconds total timeout (increased)
-const RETRY_MAX_ATTEMPTS = 5 // Increased retry attempts
+// Auth callback configuration constants (increased from previous values for stability)
+const AUTH_CALLBACK_TIMEOUT = 20000 // Increased from 15s to 20s for slow connections
+const RETRY_MAX_ATTEMPTS = 5 // Increased from 4 to 5 for better reliability
 const RETRY_BASE_DELAY_MS = 800 // Exponential backoff: 800ms, 1600ms, 3200ms, 6400ms
-const POST_AUTH_STABILIZATION_DELAY = 1500 // Wait for auth to stabilize before redirect
+const POST_AUTH_STABILIZATION_DELAY = 1500 // Wait for auth state to propagate before redirect
 
 export default function AuthCallbackPage() {
   const router = useRouter()

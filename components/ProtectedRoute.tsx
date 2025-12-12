@@ -12,6 +12,7 @@ interface ProtectedRouteProps {
 }
 
 // Grace period to wait for auth to stabilize after initial load
+// This prevents premature redirect when session is still being established
 const AUTH_STABILIZATION_DELAY = 1500
 
 export default function ProtectedRoute({

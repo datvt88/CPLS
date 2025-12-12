@@ -170,7 +170,7 @@ const fetchPermissions = async (): Promise<PermissionData> => {
   return fetchInProgress
 }
 
-// Timeout cho initialization - tăng lên để tránh race condition
+// Timeout for initialization - increased from 3s to 8s to allow auth to stabilize
 const INIT_TIMEOUT = 8000
 
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {

@@ -29,7 +29,7 @@ export default function PersistentSessionManager() {
   const lastActivityRef = useRef<number>(Date.now())
   const sessionIdRef = useRef<string | null>(null)
   const checkIntervalRef = useRef<NodeJS.Timeout>()
-  const isInitializingRef = useRef<boolean>(false)
+  const isInitializingRef = useRef(false)
   const lastVisibilityCheckRef = useRef<number>(0)
   const lastSessionCheckRef = useRef<number>(0)
 
@@ -78,7 +78,7 @@ export default function PersistentSessionManager() {
       }
     }
 
-    // === INITIALIZE SESSION với debounce ===
+    // === INITIALIZE SESSION with debounce to prevent rapid calls ===
     const initializeSession = async () => {
       // Debounce session checks
       const now = Date.now()
