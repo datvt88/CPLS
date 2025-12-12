@@ -42,7 +42,7 @@ export default function BenefitsSection() {
                 </div>
               </div>
               <h3 className="text-lg sm:text-xl font-bold text-white mb-3 uppercase tracking-wide">
-                Thông tin & tư vấn<br />chuyên sâu
+                Thông tin tư vấn<br />Chuyên sâu & Khách quan
               </h3>
             </div>
           </div>
