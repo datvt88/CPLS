@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePermissions } from '@/contexts/PermissionsContext'
-import { supabase } from '@/lib/supabaseClient'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -11,169 +10,52 @@ interface ProtectedRouteProps {
   requireVIP?: boolean // Deprecated
 }
 
-// Helper: retry với delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-// Timeout cho quá trình verify (tổng cộng tất cả attempts)
-const MAX_VERIFY_TIMEOUT = 5000 // 5 giây max cho toàn bộ quá trình verify
-
 export default function ProtectedRoute({
   children,
   requirePremium = false,
   requireVIP = false
 }: ProtectedRouteProps) {
   const router = useRouter()
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [verifyAttempts, setVerifyAttempts] = useState(0)
   const hasRedirected = useRef(false)
-  const verificationInProgress = useRef(false)
-  const verifyStartTime = useRef<number>(0)
 
   const {
     isAuthenticated,
     isPremium,
     isLoading,
-    isRevalidating,
     isError,
     refresh
   } = usePermissions()
 
   const needsPremium = requirePremium || requireVIP
-  const MAX_VERIFY_ATTEMPTS = 2 // Giảm xuống 2 để nhanh hơn
 
-  // Session verification với timeout
-  const verifySession = useCallback(async (): Promise<boolean> => {
-    try {
-      // Đặt timeout cho toàn bộ verify process
-      const verifyPromise = async () => {
-        // Bước 1: Kiểm tra session hiện tại
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session?.user) {
-          console.log('✅ [ProtectedRoute] Session found')
-          return true
-        }
-
-        // Bước 2: Thử refresh token nếu không có session
-        console.log('🔄 [ProtectedRoute] No session, attempting token refresh...')
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-        
-        if (refreshData.session && !refreshError) {
-          console.log('✅ [ProtectedRoute] Token refresh successful')
-          return true
-        }
-
-        console.log('⚠️ [ProtectedRoute] No valid session found after refresh')
-        return false
-      }
-
-      // Race với timeout 3 giây cho mỗi attempt
-      const timeoutPromise = new Promise<boolean>((_, reject) => 
-        setTimeout(() => reject(new Error('Verify timeout')), 3000)
-      )
-
-      return await Promise.race([verifyPromise(), timeoutPromise])
-    } catch (error) {
-      console.error('❌ [ProtectedRoute] Session verification error:', error)
-      return false
-    }
-  }, [])
-
-  // Xử lý chuyển hướng - CHỈ redirect sau khi verify session thực sự
+  // Xử lý chuyển hướng - Đơn giản hóa logic
   useEffect(() => {
-    const verifyAndRedirect = async () => {
-      // Đã redirect rồi thì không làm gì
-      if (hasRedirected.current) return
-      
-      // Tránh multiple verification đồng thời
-      if (verificationInProgress.current) return
+    // Đã redirect rồi thì không làm gì
+    if (hasRedirected.current) return
 
-      // Đang loading hoặc revalidating thì chờ
-      if (isLoading || isRevalidating) return
+    // Đang loading thì chờ
+    if (isLoading) return
 
-      // Nếu context nói đã authenticated -> OK
-      if (isAuthenticated) {
-        // Reset verify attempts khi thành công
-        setVerifyAttempts(0)
-        verifyStartTime.current = 0
-        
-        // Kiểm tra premium nếu cần
-        if (needsPremium && !isPremium) {
-          hasRedirected.current = true
-          router.push('/upgrade')
-        }
-        return
-      }
-
-      // Context nói chưa authenticated -> verify lại session thực sự
-      // Tránh trường hợp context chưa cập nhật sau khi quay lại app
-      
-      // Bắt đầu đếm thời gian verify
-      if (verifyStartTime.current === 0) {
-        verifyStartTime.current = Date.now()
-      }
-      
-      // Kiểm tra timeout tổng
-      const elapsedTime = Date.now() - verifyStartTime.current
-      if (elapsedTime > MAX_VERIFY_TIMEOUT) {
-        console.log('⏱️ [ProtectedRoute] Verification timeout exceeded, redirecting to login')
+    // Nếu đã authenticated
+    if (isAuthenticated) {
+      // Kiểm tra premium nếu cần
+      if (needsPremium && !isPremium) {
         hasRedirected.current = true
-        router.push('/login')
-        return
+        router.push('/upgrade')
       }
-
-      verificationInProgress.current = true
-      setIsVerifying(true)
-
-      try {
-        const hasValidSession = await verifySession()
-
-        if (!hasValidSession) {
-          // Nếu còn attempts VÀ chưa timeout, thử lại
-          if (verifyAttempts < MAX_VERIFY_ATTEMPTS - 1 && elapsedTime < MAX_VERIFY_TIMEOUT - 1000) {
-            console.log(`🔄 [ProtectedRoute] Verify attempt ${verifyAttempts + 1}/${MAX_VERIFY_ATTEMPTS}`)
-            setVerifyAttempts(prev => prev + 1)
-            // Delay ngắn hơn: 300ms, 600ms
-            await delay(300 * Math.pow(2, verifyAttempts))
-            verificationInProgress.current = false
-            return // Sẽ trigger lại effect
-          }
-
-          // Hết attempts hoặc gần timeout -> redirect
-          console.log('🔒 [ProtectedRoute] No session after retries, redirecting to login')
-          hasRedirected.current = true
-          router.push('/login')
-        } else {
-          // Có session nhưng context chưa cập nhật -> refresh context
-          console.log('🔄 [ProtectedRoute] Session exists, refreshing permissions...')
-          await refresh()
-          setVerifyAttempts(0)
-          verifyStartTime.current = 0
-        }
-      } catch (error) {
-        console.error('❌ [ProtectedRoute] Session verification error:', error)
-        // Lỗi verify -> redirect ngay nếu đã thử nhiều lần
-        if (verifyAttempts >= MAX_VERIFY_ATTEMPTS - 1 || elapsedTime > MAX_VERIFY_TIMEOUT - 1000) {
-          hasRedirected.current = true
-          router.push('/login')
-        } else {
-          setVerifyAttempts(prev => prev + 1)
-        }
-      } finally {
-        setIsVerifying(false)
-        verificationInProgress.current = false
-      }
+      return
     }
 
-    verifyAndRedirect()
-  }, [isLoading, isRevalidating, isAuthenticated, isPremium, needsPremium, router, refresh, verifySession, verifyAttempts])
+    // Chưa authenticated -> redirect to login
+    console.log('🔒 [ProtectedRoute] Not authenticated, redirecting to login')
+    hasRedirected.current = true
+    router.push('/login')
+  }, [isLoading, isAuthenticated, isPremium, needsPremium, router])
 
   // Reset khi unmount
   useEffect(() => {
     return () => {
       hasRedirected.current = false
-      verificationInProgress.current = false
-      verifyStartTime.current = 0
     }
   }, [])
 
@@ -202,7 +84,7 @@ export default function ProtectedRoute({
     )
   }
 
-  // --- TRƯỜNG HỢP 2: ĐANG TẢI LẦN ĐẦU ---
+  // --- TRƯỜNG HỢP 2: ĐANG TẢI ---
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#121212]">
@@ -217,22 +99,7 @@ export default function ProtectedRoute({
     )
   }
 
-  // --- TRƯỜNG HỢP 3: ĐANG VERIFY SESSION ---
-  if (isVerifying) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#121212]">
-        <div className="text-center">
-          <div className="relative w-12 h-12 mx-auto mb-4">
-            <div className="absolute inset-0 border-4 border-[#2C2C2C] rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <p className="text-gray-400 text-sm">Đang xác thực...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // --- TRƯỜNG HỢP 4: ĐÃ AUTHENTICATED ---
+  // --- TRƯỜNG HỢP 3: ĐÃ AUTHENTICATED ---
   if (isAuthenticated) {
     // Kiểm tra premium
     if (needsPremium && !isPremium) {
@@ -246,7 +113,7 @@ export default function ProtectedRoute({
     )
   }
 
-  // --- TRƯỜNG HỢP 5: CHƯA XÁC ĐỊNH ---
-  // Đang chờ verify hoặc redirect
+  // --- TRƯỜNG HỢP 4: CHƯA AUTHENTICATED ---
+  // Đang chờ redirect to login
   return null
 }
