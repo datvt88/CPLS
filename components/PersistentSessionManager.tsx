@@ -310,7 +310,7 @@ export default function PersistentSessionManager() {
 
       // Redirect to login
       if (typeof window !== 'undefined') {
-        window.location.href = '/login'
+        window.location.href = '/auth/login'
       }
     }
 

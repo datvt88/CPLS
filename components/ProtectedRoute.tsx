@@ -142,7 +142,7 @@ export default function ProtectedRoute({
     if (!isAuthenticated) {
       console.log('🔒 [ProtectedRoute] Not authenticated, redirecting to login')
       hasRedirected.current = true
-      router.push(redirectTo || '/login')
+      router.push(redirectTo || '/auth/login')
       return
     }
 

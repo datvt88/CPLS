@@ -45,7 +45,7 @@ export default function Home() {
     if (isLoggedIn) {
       router.push('/dashboard');
     } else {
-      router.push('/login');
+      router.push('/auth/login');
     }
   };
 
@@ -97,7 +97,7 @@ export default function Home() {
               </button>
               {!isLoggedIn && (
                 <button
-                  onClick={() => router.push('/login')}
+                  onClick={() => router.push('/auth/login')}
                   className="w-full sm:w-auto px-8 py-4 bg-transparent border-2 border-purple-500 hover:bg-purple-500/10 text-purple-400 hover:text-purple-300 font-semibold rounded-xl transition-all duration-300"
                 >
                   Đăng nhập

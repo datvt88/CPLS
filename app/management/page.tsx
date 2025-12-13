@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import AdminRoute from '@/components/AdminRoute'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { profileService, type Profile, type MembershipTier, type UserRole } from '@/services/profile.service'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -1028,8 +1028,8 @@ function ManagementPageContent() {
 
 export default function ManagementPage() {
   return (
-    <AdminRoute>
+    <ProtectedRoute requireAdmin>
       <ManagementPageContent />
-    </AdminRoute>
+    </ProtectedRoute>
   )
 }

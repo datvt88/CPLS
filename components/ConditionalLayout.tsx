@@ -8,7 +8,7 @@ import Footer from './Footer';
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHomePage = pathname === '/';
-  const isAuthPage = pathname === '/login' || pathname === '/register';
+  const isAuthPage = pathname === '/login' || pathname === '/register' || pathname?.startsWith('/auth/');
 
   if (isHomePage) {
     // Home page: full width, no sidebar, no header, no footer

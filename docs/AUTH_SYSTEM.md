@@ -240,8 +240,8 @@ Safety Features:
 
 ---
 
-### 4. **AdminRoute** (`components/AdminRoute.tsx`)
-**Nhiệm vụ**: Chỉ cho phép admin/mod truy cập
+### 4. **ProtectedRoute với requireAdmin** (`components/ProtectedRoute.tsx`)
+**Nhiệm vụ**: Chỉ cho phép admin/mod truy cập (thay thế AdminRoute đã deprecated)
 
 ```typescript
 Check: profile.role === 'admin' || profile.role === 'mod'
@@ -251,9 +251,9 @@ Check: profile.role === 'admin' || profile.role === 'mod'
 
 **Cách dùng**:
 ```tsx
-<AdminRoute>
+<ProtectedRoute requireAdmin>
   <AdminDashboard />
-</AdminRoute>
+</ProtectedRoute>
 ```
 
 ---
@@ -328,15 +328,17 @@ services/
 ### **Auth Components**
 ```
 components/
-  ├── AuthListener.tsx          # Auth state listener (50 min keepalive)
   ├── PersistentSessionManager.tsx  # 30-day session manager
-  ├── ProtectedRoute.tsx        # Route protection (auth + premium)
-  ├── AdminRoute.tsx            # Admin-only route protection
+  ├── ProtectedRoute.tsx        # Route protection (auth + premium + admin)
   ├── AuthForm.tsx              # Login/register form
   ├── GoogleLoginButton.tsx     # Google OAuth button
-  ├── ZaloLoginButton.tsx       # Zalo OAuth button (PKCE)
   ├── ProtectedFeature.tsx      # Feature-level protection
   └── withFeatureAccess.tsx     # HOC for feature access
+
+contexts/
+  ├── AuthContext.tsx           # Authentication state (user, session, login/logout)
+  ├── PermissionsContext.tsx    # RBAC (isPremium, isAdmin, canAccess)
+  └── index.ts                  # Central exports for contexts
 ```
 
 ### **Lib/Utils**
@@ -360,8 +362,10 @@ app/api/auth/
 ### **Auth Pages**
 ```
 app/
-  ├── login/page.tsx            # Login page
-  ├── auth/callback/page.tsx    # OAuth callback handler
+  ├── login/page.tsx            # Legacy redirect to /auth/login
+  ├── auth/
+  │   ├── login/page.tsx        # Login page (new location)
+  │   └── callback/page.tsx     # OAuth callback handler
   ├── upgrade/page.tsx          # Premium upgrade page
   └── admin/page.tsx            # Admin dashboard
 ```
@@ -392,7 +396,7 @@ app/
 ```
 1. Component wrapped in <ProtectedRoute>
 2. Check session via supabase.auth.getSession()
-   → No session? Redirect /login
+   → No session? Redirect /auth/login
 3. If requirePremium = true:
    - Query profiles.membership
    - Check membership_expires_at

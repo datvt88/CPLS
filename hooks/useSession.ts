@@ -1,6 +1,7 @@
 'use client'
 
 import { usePermissions } from '@/contexts/PermissionsContext'
+import { useAuth as useAuthContext } from '@/contexts/AuthContext'
 
 interface UseSessionReturn {
   userId: string | null
@@ -12,9 +13,9 @@ interface UseSessionReturn {
 /**
  * Custom hook to get current session status
  *
- * Sử dụng PermissionsContext để tránh fetch session riêng biệt.
- * Nếu cần truy cập session/user object đầy đủ từ Supabase,
- * sử dụng trực tiếp supabase.auth.getSession() trong component.
+ * Uses PermissionsContext to avoid separate session fetches.
+ * If you need the full session/user object from Supabase,
+ * use supabase.auth.getSession() directly in your component.
  */
 export function useSession(): UseSessionReturn {
   const { userId, isLoading, isAuthenticated, refresh } = usePermissions()
@@ -29,8 +30,16 @@ export function useSession(): UseSessionReturn {
 
 /**
  * Hook to check if user is authenticated
+ * 
+ * Uses AuthContext for full authentication state including user object.
+ * For permissions (premium, admin), use usePermissions() instead.
  */
 export function useAuth() {
-  const { isAuthenticated, isLoading } = usePermissions()
-  return { isAuthenticated, loading: isLoading }
+  const context = useAuthContext()
+  return {
+    isAuthenticated: context.isAuthenticated,
+    loading: context.isLoading,
+    user: context.user,
+    session: context.session,
+  }
 }

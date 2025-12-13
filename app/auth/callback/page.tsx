@@ -51,7 +51,7 @@ export default function AuthCallbackPage() {
       setErrorMessage(message)
       setTimeout(() => {
         if (isMounted) {
-          router.push('/login')
+          router.push('/auth/login')
         }
       }, 2500)
     }
@@ -292,7 +292,7 @@ export default function AuthCallbackPage() {
             </h2>
             <p className="text-[--muted] mb-4 whitespace-pre-line">{errorMessage}</p>
             <button
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/auth/login')}
               className="w-full bg-green-500 hover:bg-green-600 text-black font-bold rounded-lg p-3 shadow-lg"
             >
               Quay lại đăng nhập
