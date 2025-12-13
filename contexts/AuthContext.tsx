@@ -153,7 +153,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async (): Promise<AuthResult> => {
     try {
       const { error } = await authService.signOut()
-      return { error: error ? new Error(String(error)) : null }
+      if (error) {
+        const message = error instanceof Error ? error.message : 
+                       (typeof error === 'object' && error !== null && 'message' in error) 
+                         ? String((error as { message: unknown }).message) 
+                         : 'Đăng xuất thất bại'
+        return { error: new Error(message) }
+      }
+      return { error: null }
     } catch (err) {
       return { error: err instanceof Error ? err : new Error('Unknown error') }
     }

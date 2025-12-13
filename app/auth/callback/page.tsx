@@ -52,12 +52,13 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     mountedRef.current = true
+    let timeoutId: NodeJS.Timeout | null = null
     
     const handleAuth = async () => {
       if (hasHandledRef.current) return
 
       // Set timeout for the entire process
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         if (!hasHandledRef.current && mountedRef.current) {
           // One final attempt before giving up
           supabase.auth.getSession().then(({ data: { session } }) => {
@@ -81,7 +82,7 @@ export default function AuthCallbackPage() {
         const errorDescription = url.searchParams.get('error_description')
         
         if (errorParam) {
-          clearTimeout(timeoutId)
+          if (timeoutId) clearTimeout(timeoutId)
           handleError(errorDescription || `Lỗi xác thực: ${errorParam}`)
           return
         }
@@ -89,7 +90,7 @@ export default function AuthCallbackPage() {
         // Use the auth service to handle OAuth callback
         const { session, error } = await authService.handleOAuthCallback()
         
-        clearTimeout(timeoutId)
+        if (timeoutId) clearTimeout(timeoutId)
         
         if (error) {
           handleError(error.message || 'Không thể xác thực phiên đăng nhập')
@@ -105,7 +106,7 @@ export default function AuthCallbackPage() {
         handleError('Không thể xác thực phiên đăng nhập. Vui lòng thử đăng nhập lại.')
         
       } catch (err) {
-        clearTimeout(timeoutId)
+        if (timeoutId) clearTimeout(timeoutId)
         console.error('[AuthCallback] Unexpected error:', err)
         handleError('Lỗi không xác định khi xác thực. Vui lòng thử lại.')
       }
@@ -122,6 +123,7 @@ export default function AuthCallbackPage() {
 
     return () => {
       mountedRef.current = false
+      if (timeoutId) clearTimeout(timeoutId)
       authListener.subscription.unsubscribe()
     }
   }, [handleSuccess, handleError])
