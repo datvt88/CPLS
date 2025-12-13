@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { authService } from '@/services/auth.service'
-import { UserDevice } from '@/services/device.service'
+import { UserDevice } from '@/lib/session-manager'
 
 export default function ActiveDevices() {
   const [devices, setDevices] = useState<UserDevice[]>([])

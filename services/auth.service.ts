@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabaseClient'
-import { deviceService } from './device.service'
-import { clearDeviceFingerprintCache } from '@/lib/session-manager'
+import { deviceService, clearDeviceFingerprintCache } from '@/lib/session-manager'
 
 export interface AuthCredentials {
   email: string

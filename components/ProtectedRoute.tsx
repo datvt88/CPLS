@@ -7,18 +7,33 @@ import { supabase } from '@/lib/supabaseClient'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
+  /** Require premium membership */
   requirePremium?: boolean
-  requireVIP?: boolean // Deprecated
+  /** @deprecated Use requirePremium instead */
+  requireVIP?: boolean
+  /** Require admin or mod role */
+  requireAdmin?: boolean
+  /** Custom redirect URL when not authorized (default: /login for auth, /dashboard for admin) */
+  redirectTo?: string
 }
 
 // Grace period to wait for auth to stabilize after initial load
-// This prevents premature redirect when session is still being established
 const AUTH_STABILIZATION_DELAY = 1500
 
+/**
+ * Unified ProtectedRoute Component
+ * 
+ * Handles:
+ * - Authentication protection (redirects to /login if not authenticated)
+ * - Premium/VIP access (redirects to /upgrade if not premium)
+ * - Admin/Mod access (redirects to /dashboard if not admin/mod)
+ */
 export default function ProtectedRoute({
   children,
   requirePremium = false,
-  requireVIP = false
+  requireVIP = false,
+  requireAdmin = false,
+  redirectTo
 }: ProtectedRouteProps) {
   const router = useRouter()
   const hasRedirected = useRef(false)
@@ -29,6 +44,7 @@ export default function ProtectedRoute({
   const {
     isAuthenticated,
     isPremium,
+    hasAdminAccess,
     isLoading,
     isError,
     refresh
@@ -65,11 +81,9 @@ export default function ProtectedRoute({
         
         if (session?.user) {
           console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
-          // Session exists but context not updated yet - trigger refresh
           refresh()
           setIsVerifying(false)
         } else {
-          // Truly not authenticated
           setIsVerifying(false)
         }
       } catch (error) {
@@ -90,38 +104,43 @@ export default function ProtectedRoute({
     }
   }, [isAuthenticated, isLoading, refresh])
 
-  // Xử lý chuyển hướng - Đợi verification hoàn tất
+  // Handle redirects
   useEffect(() => {
-    // Đã redirect rồi thì không làm gì
     if (hasRedirected.current) return
-
-    // Đang loading hoặc verifying thì chờ
     if (isLoading || isVerifying) return
 
-    // Nếu đã authenticated
-    if (isAuthenticated) {
-      // Kiểm tra premium nếu cần
-      if (needsPremium && !isPremium) {
-        hasRedirected.current = true
-        router.push('/upgrade')
-      }
+    // Not authenticated -> redirect to login
+    if (!isAuthenticated) {
+      console.log('🔒 [ProtectedRoute] Not authenticated, redirecting to login')
+      hasRedirected.current = true
+      router.push(redirectTo || '/login')
       return
     }
 
-    // Chưa authenticated -> redirect to login
-    console.log('🔒 [ProtectedRoute] Not authenticated, redirecting to login')
-    hasRedirected.current = true
-    router.push('/login')
-  }, [isLoading, isVerifying, isAuthenticated, isPremium, needsPremium, router])
+    // Authenticated but needs admin access
+    if (requireAdmin && !hasAdminAccess) {
+      console.log('❌ [ProtectedRoute] Access denied: user is not admin/mod')
+      hasRedirected.current = true
+      router.push(redirectTo || '/dashboard')
+      return
+    }
 
-  // Reset khi unmount
+    // Authenticated but needs premium
+    if (needsPremium && !isPremium) {
+      hasRedirected.current = true
+      router.push(redirectTo || '/upgrade')
+      return
+    }
+  }, [isLoading, isVerifying, isAuthenticated, isPremium, needsPremium, requireAdmin, hasAdminAccess, router, redirectTo])
+
+  // Reset on unmount
   useEffect(() => {
     return () => {
       hasRedirected.current = false
     }
   }, [])
 
-  // --- TRƯỜNG HỢP 1: LỖI KẾT NỐI ---
+  // --- ERROR STATE ---
   if (isError) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#121212]">
@@ -146,8 +165,12 @@ export default function ProtectedRoute({
     )
   }
 
-  // --- TRƯỜNG HỢP 2: ĐANG TẢI HOẶC ĐANG VERIFY ---
+  // --- LOADING STATE ---
   if (isLoading || isVerifying) {
+    const loadingMessage = requireAdmin 
+      ? 'Đang kiểm tra quyền quản trị...' 
+      : 'Đang kiểm tra quyền...'
+    
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#121212]">
         <div className="text-center">
@@ -155,27 +178,29 @@ export default function ProtectedRoute({
             <div className="absolute inset-0 border-4 border-[#2C2C2C] rounded-full"></div>
             <div className="absolute inset-0 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="text-gray-400 font-medium animate-pulse">Đang kiểm tra quyền...</p>
+          <p className="text-gray-400 font-medium animate-pulse">{loadingMessage}</p>
         </div>
       </div>
     )
   }
 
-  // --- TRƯỜNG HỢP 3: ĐÃ AUTHENTICATED ---
-  if (isAuthenticated) {
-    // Kiểm tra premium
-    if (needsPremium && !isPremium) {
-      return null // Đang chờ redirect
-    }
-
-    return (
-      <div className="animate-[fadeIn_0.2s_ease-out]">
-        {children}
-      </div>
-    )
+  // --- CHECK AUTHORIZATION ---
+  if (!isAuthenticated) {
+    return null // Waiting for redirect
   }
 
-  // --- TRƯỜNG HỢP 4: CHƯA AUTHENTICATED ---
-  // Đang chờ redirect to login
-  return null
+  if (requireAdmin && !hasAdminAccess) {
+    return null // Waiting for redirect
+  }
+
+  if (needsPremium && !isPremium) {
+    return null // Waiting for redirect
+  }
+
+  // --- AUTHORIZED ---
+  return (
+    <div className="animate-[fadeIn_0.2s_ease-out]">
+      {children}
+    </div>
+  )
 }
