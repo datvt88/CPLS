@@ -2,10 +2,11 @@
 
 ## 📋 Mục Lục
 1. [Tổng Quan](#tổng-quan)
-2. [Sơ Đồ Luồng Đăng Nhập](#sơ-đồ-luồng-đăng-nhập)
-3. [Sơ Đồ Phân Quyền](#sơ-đồ-phân-quyền)
-4. [Chi Tiết Các Component](#chi-tiết-các-component)
-5. [Các File Quan Trọng](#các-file-quan-trọng)
+2. [Custom Claims (JWT)](#custom-claims-jwt)
+3. [Sơ Đồ Luồng Đăng Nhập](#sơ-đồ-luồng-đăng-nhập)
+4. [Sơ Đồ Phân Quyền](#sơ-đồ-phân-quyền)
+5. [Chi Tiết Các Component](#chi-tiết-các-component)
+6. [Các File Quan Trọng](#các-file-quan-trọng)
 
 ---
 
@@ -19,6 +20,51 @@ Hệ thống sử dụng **Supabase Auth** làm nền tảng với 3 phương th
 Phân quyền người dùng gồm 2 cấp:
 - **Role**: `user`, `mod`, `admin`
 - **Membership**: `free`, `premium`
+
+---
+
+## 🎫 Custom Claims (JWT)
+
+Hệ thống sử dụng **Custom Claims** được nhúng trực tiếp vào JWT token để tối ưu hiệu suất kiểm tra phân quyền.
+
+### Cách hoạt động
+
+```
+1. User đăng nhập
+2. Supabase Auth gọi custom_access_token_hook()
+3. Hook đọc role/membership từ profiles table
+4. Claims được nhúng vào JWT (app_metadata)
+5. Client/Server đọc claims từ JWT, không cần query DB
+```
+
+### Claims Structure
+
+```json
+{
+  "app_metadata": {
+    "role": "user" | "mod" | "admin",
+    "membership": "free" | "premium",
+    "is_premium": true | false
+  }
+}
+```
+
+### Lợi ích
+
+- **Tốc độ**: Không cần query profiles table mỗi request
+- **Server-side check**: Middleware có thể kiểm tra role mà không cần DB connection
+- **Bảo mật**: Claims được ký bởi Supabase secret key
+
+### Cấu hình (Yêu cầu Supabase Pro hoặc Self-hosted)
+
+1. Chạy migration: `supabase/migrations/20250613_custom_claims_jwt.sql`
+2. Vào Supabase Dashboard → Authentication → Hooks
+3. Enable "Custom access token" hook
+4. Chọn function: `custom_access_token_hook`
+
+### Fallback
+
+Nếu claims không có trong JWT (ví dụ: chưa cấu hình hook), hệ thống sẽ tự động fallback sang query profiles table.
 
 ---
 

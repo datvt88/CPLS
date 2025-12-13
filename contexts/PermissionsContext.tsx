@@ -55,6 +55,29 @@ let sessionCache: { session: any; timestamp: number } | null = null
 const SESSION_CACHE_TTL = 10000 // 10 seconds cache
 let fetchInProgress: Promise<PermissionData> | null = null
 
+/**
+ * Extract custom claims from JWT session
+ * Claims are injected by the custom_access_token_hook in Supabase
+ */
+interface CustomClaims {
+  role?: UserRole
+  membership?: 'free' | 'premium'
+  is_premium?: boolean
+}
+
+function getClaimsFromSession(session: any): CustomClaims {
+  if (!session?.user) return {}
+  
+  // Claims can be in app_metadata (from custom_access_token_hook)
+  const appMetadata = session.user.app_metadata || {}
+  
+  return {
+    role: appMetadata.role as UserRole || undefined,
+    membership: appMetadata.membership as 'free' | 'premium' || undefined,
+    is_premium: appMetadata.is_premium as boolean || undefined
+  }
+}
+
 // Helper function to get cached session or fetch new one
 const getCachedSession = async () => {
   // Check if cache is still valid
@@ -99,7 +122,26 @@ const fetchPermissions = async (): Promise<PermissionData> => {
       const userId = session.user.id
       console.log('✅ [PermissionsContext] Session found for user:', userId.slice(0, 8))
 
-      // Step 2: Fetch profile with timeout
+      // Step 2: Try to get claims from JWT first (faster, no DB query)
+      const claims = getClaimsFromSession(session)
+      const hasValidClaims = claims.role !== undefined || claims.is_premium !== undefined
+
+      if (hasValidClaims) {
+        console.log('🎫 [PermissionsContext] Using claims from JWT:', claims)
+        const userIsPremium = claims.is_premium || claims.membership === 'premium'
+        const userRole: UserRole = claims.role || 'user'
+
+        return {
+          isAuthenticated: true,
+          isPremium: userIsPremium,
+          features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
+          role: userRole,
+          userId: userId
+        }
+      }
+
+      // Step 3: Fallback - Fetch profile from database if no claims in JWT
+      console.log('📊 [PermissionsContext] No JWT claims, fetching from database...')
       try {
         const profilePromise = supabase
           .from('profiles')
