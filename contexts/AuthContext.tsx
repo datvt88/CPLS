@@ -80,11 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) {
           setSession(newSession)
           setUser(newSession?.user ?? null)
-          
-          if (event === 'SIGNED_OUT') {
-            setUser(null)
-            setSession(null)
-          }
         }
       }
     )

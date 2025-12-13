@@ -25,9 +25,10 @@ const PROTECTED_ROUTES = [
 ]
 
 // Routes that should redirect to dashboard if already authenticated
+// Note: '/login' is included for backward compatibility as it redirects to /auth/login,
+// but middleware handles it before the redirect page loads
 const AUTH_ROUTES = [
   '/auth/login',
-  '/login',
 ]
 
 // Public routes that don't need any check
@@ -84,20 +85,26 @@ export async function middleware(request: NextRequest) {
   // Refresh session if needed (this also validates the session)
   const { data: { session } } = await supabase.auth.getSession()
 
+  // Helper to check route matching with proper boundary detection
+  const matchesRoute = (routes: string[]) => {
+    return routes.some(route => {
+      if (pathname === route) return true
+      // Ensure route boundary by checking for '/' after the route
+      if (pathname.startsWith(route) && (pathname[route.length] === '/' || pathname[route.length] === undefined)) {
+        return true
+      }
+      return false
+    })
+  }
+
   // Check if current route is protected
-  const isProtectedRoute = PROTECTED_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(`${route}/`)
-  )
+  const isProtectedRoute = matchesRoute(PROTECTED_ROUTES)
 
   // Check if current route is an auth route (login/signup)
-  const isAuthRoute = AUTH_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(`${route}/`)
-  )
+  const isAuthRoute = matchesRoute(AUTH_ROUTES)
 
   // Check if current route is public
-  const isPublicRoute = PUBLIC_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(`${route}/`)
-  )
+  const isPublicRoute = matchesRoute(PUBLIC_ROUTES)
 
   // Handle protected routes - redirect to login if not authenticated
   if (isProtectedRoute && !session) {
