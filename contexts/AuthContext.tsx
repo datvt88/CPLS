@@ -3,14 +3,13 @@
 /**
  * AuthContext - Centralized Authentication Context
  * 
- * This context manages authentication state and provides auth methods.
- * It works alongside PermissionsContext for RBAC.
+ * Manages authentication state and provides auth methods.
+ * Works alongside PermissionsContext for RBAC.
  * 
- * Features:
- * - Authentication state management (user, session)
- * - Login/Logout methods
- * - Auth state change listener
- * - OAuth support (Google, Zalo)
+ * Following Google's authentication best practices:
+ * - Single source of truth for auth state
+ * - Reactive updates via onAuthStateChange
+ * - Proper error handling
  */
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode, useMemo } from 'react'
@@ -18,7 +17,14 @@ import { supabase } from '@/lib/supabaseClient'
 import { authService } from '@/services/auth.service'
 import type { User, Session } from '@supabase/supabase-js'
 
-// --- Types ---
+// ============================================================================
+// Types
+// ============================================================================
+
+interface AuthResult {
+  error: Error | null
+}
+
 interface AuthContextValue {
   // State
   user: User | null
@@ -27,11 +33,11 @@ interface AuthContextValue {
   isLoading: boolean
   
   // Auth Methods
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
-  signInWithPhone: (phoneNumber: string, password: string) => Promise<{ error: Error | null }>
-  signInWithGoogle: () => Promise<{ error: Error | null }>
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>
-  signOut: () => Promise<{ error: Error | null }>
+  signIn: (email: string, password: string) => Promise<AuthResult>
+  signInWithPhone: (phoneNumber: string, password: string) => Promise<AuthResult>
+  signInWithGoogle: () => Promise<AuthResult>
+  signUp: (email: string, password: string) => Promise<AuthResult>
+  signOut: () => Promise<AuthResult>
   
   // Helpers
   refreshSession: () => Promise<void>
@@ -39,7 +45,24 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-// --- Provider ---
+// Default return value when AuthProvider is not found
+const DEFAULT_AUTH_VALUE: AuthContextValue = {
+  user: null,
+  session: null,
+  isAuthenticated: false,
+  isLoading: false,
+  signIn: async () => ({ error: new Error('AuthProvider not found') }),
+  signInWithPhone: async () => ({ error: new Error('AuthProvider not found') }),
+  signInWithGoogle: async () => ({ error: new Error('AuthProvider not found') }),
+  signUp: async () => ({ error: new Error('AuthProvider not found') }),
+  signOut: async () => ({ error: new Error('AuthProvider not found') }),
+  refreshSession: async () => {},
+}
+
+// ============================================================================
+// Provider
+// ============================================================================
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -62,8 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(currentSession?.user ?? null)
           setIsLoading(false)
         }
-      } catch (error) {
-        console.error('[AuthContext] Init error:', error)
+      } catch {
         if (isMounted) {
           setIsLoading(false)
         }
@@ -74,9 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        console.log(`[AuthContext] Auth event: ${event}`)
-        
+      (_event, newSession) => {
         if (isMounted) {
           setSession(newSession)
           setUser(newSession?.user ?? null)
@@ -90,61 +110,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // --- Auth Methods ---
+  // ============================================================================
+  // Auth Methods
+  // ============================================================================
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     try {
       const { error } = await authService.signIn({ email, password })
-      if (error) {
-        return { error: new Error(error.message) }
-      }
-      return { error: null }
+      return { error: error ? new Error(error.message) : null }
     } catch (err) {
       return { error: err instanceof Error ? err : new Error('Unknown error') }
     }
   }, [])
 
-  const signInWithPhone = useCallback(async (phoneNumber: string, password: string) => {
+  const signInWithPhone = useCallback(async (phoneNumber: string, password: string): Promise<AuthResult> => {
     try {
       const { error } = await authService.signInWithPhone({ phoneNumber, password })
-      if (error) {
-        return { error: new Error(error.message) }
-      }
-      return { error: null }
+      return { error: error ? new Error(error.message) : null }
     } catch (err) {
       return { error: err instanceof Error ? err : new Error('Unknown error') }
     }
   }, [])
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (): Promise<AuthResult> => {
     try {
       const { error } = await authService.signInWithGoogle()
-      if (error) {
-        return { error: new Error(error.message) }
-      }
-      return { error: null }
+      return { error: error ? new Error(error.message) : null }
     } catch (err) {
       return { error: err instanceof Error ? err : new Error('Unknown error') }
     }
   }, [])
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string): Promise<AuthResult> => {
     try {
       const { error } = await authService.signUp({ email, password })
-      if (error) {
-        return { error: new Error(error.message) }
-      }
-      return { error: null }
+      return { error: error ? new Error(error.message) : null }
     } catch (err) {
       return { error: err instanceof Error ? err : new Error('Unknown error') }
     }
   }, [])
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (): Promise<AuthResult> => {
     try {
       const { error } = await authService.signOut()
       if (error) {
-        return { error: error instanceof Error ? error : new Error('Unknown error') }
+        const message = error instanceof Error ? error.message : 
+                       (typeof error === 'object' && error !== null && 'message' in error) 
+                         ? String((error as { message: unknown }).message) 
+                         : 'Đăng xuất thất bại'
+        return { error: new Error(message) }
       }
       return { error: null }
     } catch (err) {
@@ -157,13 +171,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { session: refreshedSession } } = await supabase.auth.refreshSession()
       setSession(refreshedSession)
       setUser(refreshedSession?.user ?? null)
-    } catch (error) {
-      console.error('[AuthContext] Refresh session error:', error)
+    } catch {
+      // Silent failure - session refresh errors are expected when not authenticated
     }
   }, [])
 
-  // --- Context Value ---
-  const value = useMemo(() => ({
+  // ============================================================================
+  // Context Value
+  // ============================================================================
+
+  const value = useMemo<AuthContextValue>(() => ({
     user,
     session,
     isAuthenticated: !!user,
@@ -183,23 +200,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// --- Hook ---
-export function useAuth() {
+// ============================================================================
+// Hook
+// ============================================================================
+
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext)
+  
   if (context === undefined) {
     console.warn('[useAuth] Called outside of AuthProvider')
-    return {
-      user: null,
-      session: null,
-      isAuthenticated: false,
-      isLoading: false,
-      signIn: async () => ({ error: new Error('AuthProvider not found') }),
-      signInWithPhone: async () => ({ error: new Error('AuthProvider not found') }),
-      signInWithGoogle: async () => ({ error: new Error('AuthProvider not found') }),
-      signUp: async () => ({ error: new Error('AuthProvider not found') }),
-      signOut: async () => ({ error: new Error('AuthProvider not found') }),
-      refreshSession: async () => {},
-    }
+    return DEFAULT_AUTH_VALUE
   }
+  
   return context
 }

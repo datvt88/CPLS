@@ -6,8 +6,8 @@ import { authService } from '@/services/auth.service'
 import { AuthForm } from '@/components/AuthForm'
 import { Suspense } from 'react'
 
-// Timeout for session check (reduced to show form faster)
-const SESSION_CHECK_TIMEOUT = 3000 // 3 seconds
+// Timeout for session check
+const SESSION_CHECK_TIMEOUT = 3000
 
 function LoginContent() {
   const router = useRouter()
@@ -27,15 +27,13 @@ function LoginContent() {
         // Set timeout to ensure form will show if session check takes too long
         timeoutId = setTimeout(() => {
           if (mounted && !hasRedirected.current) {
-            console.log('⏰ [LoginPage] Session check timeout - showing login form')
             setIsChecking(false)
           }
         }, SESSION_CHECK_TIMEOUT)
 
-        // 1. Check session with safe Timeout from authService
+        // Check session
         const { session, error } = await authService.getSession()
 
-        // Clear timeout since we have result
         if (timeoutId) {
           clearTimeout(timeoutId)
           timeoutId = null
@@ -51,9 +49,7 @@ function LoginContent() {
           // Not logged in or error -> Show Form
           setIsChecking(false)
         }
-      } catch (err) {
-        console.error('❌ [LoginPage] Session check error:', err)
-        // If error, show login form
+      } catch {
         if (mounted) {
           setIsChecking(false)
         }
@@ -62,7 +58,7 @@ function LoginContent() {
 
     checkSession()
 
-    // 2. Listen for login success event (from AuthForm or OAuth)
+    // Listen for login success event
     const { data: authListener } = authService.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session && !hasRedirected.current) {
         hasRedirected.current = true
@@ -79,7 +75,7 @@ function LoginContent() {
     }
   }, [router, nextUrl])
 
-  // Loading screen (black to match background)
+  // Loading screen
   if (isChecking) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
