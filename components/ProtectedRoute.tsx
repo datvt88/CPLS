@@ -57,8 +57,6 @@ export default function ProtectedRoute({
 
   // Safety timeout: ensure isVerifying becomes false eventually
   useEffect(() => {
-    mountedRef.current = true
-    
     safetyTimeoutRef.current = setTimeout(() => {
       // Only force completion if verification hasn't completed normally
       if (mountedRef.current && !hasVerifiedRef.current) {
