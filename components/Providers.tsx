@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from 'next-themes'
 import { PermissionsProvider } from '@/contexts/PermissionsContext'
+import { AuthProvider } from '@/contexts/AuthContext'
 import { SWRConfig } from 'swr'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -13,9 +14,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           shouldRetryOnError: false,
         }}
       >
-        <PermissionsProvider>
-          {children}
-        </PermissionsProvider>
+        <AuthProvider>
+          <PermissionsProvider>
+            {children}
+          </PermissionsProvider>
+        </AuthProvider>
       </SWRConfig>
     </ThemeProvider>
   )

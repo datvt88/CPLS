@@ -1,6 +1,6 @@
 'use client'
 
-import AdminRoute from '@/components/AdminRoute'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import AnalyticsWidget from '@/components/admin/AnalyticsWidget'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -73,7 +73,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <AdminRoute>
+    <ProtectedRoute requireAdmin>
       <div className="min-h-screen bg-[--bg] p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
@@ -145,6 +145,6 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-    </AdminRoute>
+    </ProtectedRoute>
   )
 }
