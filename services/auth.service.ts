@@ -236,7 +236,10 @@ export const authService = {
       }
       
       // Fallback: check for existing session
-      const { data, error } = await withTimeout(supabase.auth.getSession())
+      const { data, error } = await withTimeout(
+        supabase.auth.getSession(),
+        OAUTH_TIMEOUT
+      )
       
       if (error) {
         return { session: null, error }
