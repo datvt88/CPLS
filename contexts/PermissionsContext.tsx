@@ -235,9 +235,26 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       console.log(`🔔 [PermissionsContext] Auth event: ${event}`)
       lastEventRef.current = eventKey
       
-      // Debounce the actual handling
+      // For SIGNED_IN, revalidate immediately to reduce login delay
+      if (event === 'SIGNED_IN') {
+        clearSessionCache()
+        // Update session cache immediately with current session
+        if (session) {
+          sessionCache = { session, timestamp: Date.now() }
+        }
+        // Revalidate immediately for login
+        mutate('user-permissions')
+        
+        // Reset event tracking after debounce period
+        setTimeout(() => {
+          lastEventRef.current = ''
+        }, 2000)
+        return
+      }
+      
+      // Debounce the actual handling for other events
       eventDebounceRef.current = setTimeout(() => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
           // Clear session cache on auth events
           clearSessionCache()
           
