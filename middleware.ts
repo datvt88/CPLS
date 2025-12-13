@@ -3,14 +3,44 @@ import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 /**
- * Next.js Middleware for Route Protection
+ * Next.js Middleware for Route Protection with Custom Claims (JWT)
  * 
  * This middleware handles:
- * 1. Authentication checks for protected routes
- * 2. Redirecting unauthenticated users to login
- * 3. Handling auth callback routes
- * 4. Refreshing session tokens
+ * 1. Authentication checks for protected routes using Supabase Auth
+ * 2. Role-based access control using JWT custom claims
+ * 3. Redirecting unauthenticated users to login
+ * 4. Handling auth callback routes
+ * 5. Refreshing session tokens
+ * 
+ * Custom Claims in JWT:
+ * - role: 'user' | 'mod' | 'admin'
+ * - membership: 'free' | 'premium'
+ * - is_premium: boolean
  */
+
+/**
+ * Extract custom claims from JWT session
+ */
+interface CustomClaims {
+  role?: 'user' | 'mod' | 'admin'
+  membership?: 'free' | 'premium'
+  is_premium?: boolean
+}
+
+function getCustomClaims(session: any): CustomClaims {
+  if (!session?.user) return {}
+  
+  // Claims are in app_metadata (injected by custom_access_token_hook)
+  const appMetadata = session.user.app_metadata || {}
+  
+  // Only return claims if they exist in app_metadata (don't use defaults here)
+  // This allows proper detection of whether claims are configured
+  return {
+    role: appMetadata.role as CustomClaims['role'],
+    membership: appMetadata.membership as CustomClaims['membership'],
+    is_premium: appMetadata.is_premium as boolean | undefined
+  }
+}
 
 // Routes that require authentication
 const PROTECTED_ROUTES = [
@@ -19,6 +49,12 @@ const PROTECTED_ROUTES = [
   '/management',
   '/admin',
   '/upgrade',
+]
+
+// Routes that require admin or mod role
+const ADMIN_ROUTES = [
+  '/admin',
+  '/management',
 ]
 
 // Routes that should redirect to dashboard if already authenticated
@@ -100,6 +136,9 @@ export async function middleware(request: NextRequest) {
   // Check if current route is protected
   const isProtectedRoute = matchesRoute(PROTECTED_ROUTES)
 
+  // Check if current route requires admin/mod role
+  const isAdminRoute = matchesRoute(ADMIN_ROUTES)
+
   // Check if current route is an auth route (login/signup)
   const isAuthRoute = matchesRoute(AUTH_ROUTES)
 
@@ -111,6 +150,22 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL('/auth/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // Handle admin routes - check role from JWT custom claims
+  if (isAdminRoute && session) {
+    const claims = getCustomClaims(session)
+    
+    // Only check role if claims are configured (role is defined)
+    // If claims are not configured, allow access and let client-side ProtectedRoute handle it
+    if (claims.role !== undefined) {
+      const hasAdminAccess = claims.role === 'admin' || claims.role === 'mod'
+      
+      if (!hasAdminAccess) {
+        console.log(`[Middleware] Access denied to ${pathname}: user role is ${claims.role}`)
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+    }
   }
 
   // Handle auth routes - redirect to dashboard if already authenticated
