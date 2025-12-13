@@ -16,9 +16,6 @@ import { createServerClient } from '@supabase/ssr'
 const PROTECTED_ROUTES = [
   '/dashboard',
   '/profile',
-  '/signals',
-  '/stocks',
-  '/market',
   '/chat',
   '/management',
   '/admin',
@@ -38,6 +35,9 @@ const PUBLIC_ROUTES = [
   '/pricing',
   '/auth/callback',
   '/api',
+  '/signals',
+  '/stocks',
+  '/market',
 ]
 
 export async function middleware(request: NextRequest) {
