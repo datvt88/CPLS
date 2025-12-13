@@ -214,13 +214,17 @@ export const authService = {
         
         if (error) {
           // Fallback: Supabase may have already processed the session (detectSessionInUrl)
-          const { data: existingSession } = await withTimeout(
-            supabase.auth.getSession(),
-            OAUTH_TIMEOUT
-          )
-          if (existingSession.session?.user) {
-            this.trackUserDevice(existingSession.session.user.id).catch(console.error)
-            return { session: existingSession.session, error: null }
+          try {
+            const { data: existingSession } = await withTimeout(
+              supabase.auth.getSession(),
+              OAUTH_TIMEOUT
+            )
+            if (existingSession.session?.user) {
+              this.trackUserDevice(existingSession.session.user.id).catch(console.error)
+              return { session: existingSession.session, error: null }
+            }
+          } catch {
+            // Ignore and fall back to original error
           }
           return { session: null, error }
         }
