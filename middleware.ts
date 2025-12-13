@@ -18,6 +18,7 @@ const PROTECTED_ROUTES = [
   '/profile',
   '/signals',
   '/stocks',
+  '/co-phieu', // Vietnamese alias for /stocks
   '/chat',
   '/management',
   '/admin',
@@ -60,11 +61,14 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // Create Supabase client for server
+  // Create Supabase client for server with matching cookie configuration
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: {
+        name: 'cpls-auth-token', // Must match client storageKey in lib/supabaseClient.ts
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -82,8 +86,17 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if needed (this also validates the session)
+  // Validate session by getting user from Supabase server
+  // Note: getUser() validates with the server, unlike getSession() which only reads from storage
+  // First refresh session if needed
   const { data: { session } } = await supabase.auth.getSession()
+  
+  // If we have a session, validate it by getting the user
+  let isAuthenticated = false
+  if (session) {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    isAuthenticated = !!user && !error
+  }
 
   // Helper to check route matching with proper boundary detection
   const matchesRoute = (routes: string[]) => {
@@ -107,14 +120,14 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute = matchesRoute(PUBLIC_ROUTES)
 
   // Handle protected routes - redirect to login if not authenticated
-  if (isProtectedRoute && !session) {
+  if (isProtectedRoute && !isAuthenticated) {
     const loginUrl = new URL('/auth/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
   // Handle auth routes - redirect to dashboard if already authenticated
-  if (isAuthRoute && session) {
+  if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

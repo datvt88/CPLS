@@ -28,8 +28,15 @@ function getSupabaseConfig() {
 /* -------------------------------------------------
    COOKIE STORAGE — runs safely on server & client
    Improved sync between cookie and localStorage with mutex lock
-   to prevent race conditions during concurrent writes
+   to prevent race conditions during concurrent writes.
+   
+   Now supports chunking for large values (> 3KB) to work with
+   @supabase/ssr middleware which reads cookies.
 --------------------------------------------------*/
+
+// Max cookie size (leaving room for name and other attributes)
+const MAX_COOKIE_SIZE = 3500
+
 class CookieAuthStorage {
   private storageKey: string
   private lastSyncTime: number = 0
@@ -50,7 +57,7 @@ class CookieAuthStorage {
       
       // Prioritize localStorage (atomic and synchronous) over cookies (asynchronous)
       const localValue = localStorage.getItem(key)
-      const cookieValue = this.getCookie(key)
+      const cookieValue = this.getChunkedCookie(key)
       
       // Nếu cả hai đều có, ưu tiên giá trị mới nhất (có thể so sánh timestamp nếu cần)
       // Trong trường hợp này, ưu tiên localStorage vì nó được cập nhật đồng bộ
@@ -61,7 +68,7 @@ class CookieAuthStorage {
         
         if (shouldSync && cookieValue !== localValue) {
           try {
-            this.setCookie(key, localValue, 30)
+            this.setChunkedCookie(key, localValue, 30)
             this.lastSyncTime = now
           } catch { /* ignore */ }
         }
@@ -93,8 +100,8 @@ class CookieAuthStorage {
       // Lưu vào localStorage trước (atomic và nhanh hơn)
       localStorage.setItem(key, value)
       
-      // Sau đó lưu vào cookie (backup)
-      this.setCookie(key, value, 30)
+      // Sau đó lưu vào cookie với chunking (để middleware có thể đọc)
+      this.setChunkedCookie(key, value, 30)
       
       this.lastSyncTime = Date.now()
     } catch (e) {
@@ -113,7 +120,7 @@ class CookieAuthStorage {
     
     try {
       localStorage.removeItem(key)
-      this.deleteCookie(key)
+      this.deleteChunkedCookie(key)
     } catch {
       /* ignore */
     } finally {
@@ -153,6 +160,83 @@ class CookieAuthStorage {
     if (typeof document === 'undefined') return
     try {
       document.cookie = `${name}=; Max-Age=-999999; path=/`
+    } catch { /* ignore */ }
+  }
+
+  /**
+   * Get value from chunked cookies
+   * Handles both single cookie and chunked cookies (for values > MAX_COOKIE_SIZE)
+   */
+  private getChunkedCookie(name: string): string | null {
+    if (typeof document === 'undefined') return null
+    try {
+      // First try to get a single cookie
+      const singleValue = this.getCookie(name)
+      if (singleValue) return singleValue
+
+      // Try to reassemble chunked cookies
+      let value = ''
+      let chunkIndex = 0
+      
+      while (true) {
+        const chunkName = `${name}.${chunkIndex}`
+        const chunk = this.getCookie(chunkName)
+        if (!chunk) break
+        value += chunk
+        chunkIndex++
+      }
+      
+      return value || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Set value as chunked cookies if it's too large for a single cookie
+   * This ensures compatibility with @supabase/ssr middleware
+   */
+  private setChunkedCookie(name: string, value: string, days: number): void {
+    if (typeof document === 'undefined') return
+    
+    try {
+      // First, clean up any existing chunks and the main cookie
+      this.deleteChunkedCookie(name)
+      
+      // If value fits in a single cookie, store it directly
+      if (value.length <= MAX_COOKIE_SIZE) {
+        this.setCookie(name, value, days)
+        return
+      }
+      
+      // Split into chunks
+      const chunks = []
+      for (let i = 0; i < value.length; i += MAX_COOKIE_SIZE) {
+        chunks.push(value.slice(i, i + MAX_COOKIE_SIZE))
+      }
+      
+      // Store each chunk
+      chunks.forEach((chunk, index) => {
+        this.setCookie(`${name}.${index}`, chunk, days)
+      })
+    } catch (e) {
+      console.warn('[CookieAuthStorage] Error setting chunked cookie:', e)
+    }
+  }
+
+  /**
+   * Delete chunked cookies and main cookie
+   */
+  private deleteChunkedCookie(name: string): void {
+    if (typeof document === 'undefined') return
+    try {
+      // Delete the main cookie
+      this.deleteCookie(name)
+      
+      // Delete all chunks (try up to 10 chunks)
+      for (let i = 0; i < 10; i++) {
+        this.deleteCookie(`${name}.${i}`)
+      }
     } catch { /* ignore */ }
   }
 }
