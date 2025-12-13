@@ -53,11 +53,6 @@ export const metadata = {
     icon: '/logo.png',
     apple: '/logo.png',
   },
-  verification: {
-    other: {
-      'zalo-platform-site-verification': 'FyJcAj-pL2y9k-C7oerBNZgdwddMqJmlDZWp',
-    },
-  },
   category: 'finance',
 }
 

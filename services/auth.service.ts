@@ -69,6 +69,15 @@ const getCallbackUrl = (): string => {
   return 'http://localhost:3000/auth/callback'
 }
 
+/**
+ * Get authorization code from URL (checks both query params and hash fragment)
+ */
+const getAuthCodeFromUrl = (): string | null => {
+  if (typeof window === 'undefined') return null
+  const url = new URL(window.location.href)
+  return url.searchParams.get('code') || new URLSearchParams(url.hash.slice(1)).get('code')
+}
+
 // ============================================================================
 // Auth Service
 // Following Google's authentication system best practices:
@@ -194,8 +203,7 @@ export const authService = {
         return { session: null, error: null }
       }
 
-      const url = new URL(window.location.href)
-      const code = url.searchParams.get('code')
+      const code = getAuthCodeFromUrl()
       
       // Exchange authorization code for session (PKCE flow)
       if (code) {

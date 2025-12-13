@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabaseClient'
 // Configuration constants
 const AUTH_CALLBACK_TIMEOUT = 15000 // 15 seconds max wait
 const REDIRECT_DELAY = 1000 // Delay before redirect for UX
+const SUPABASE_URL_PROCESSING_DELAY = 500 // Delay for Supabase to detect and process session from URL
 
 type Status = 'loading' | 'success' | 'error'
 
@@ -76,16 +77,21 @@ export default function AuthCallbackPage() {
       }, AUTH_CALLBACK_TIMEOUT)
 
       try {
-        // Check for OAuth error in URL
+        // Check for OAuth error in URL (both search params and hash)
         const url = new URL(window.location.href)
-        const errorParam = url.searchParams.get('error')
-        const errorDescription = url.searchParams.get('error_description')
+        const hashParams = new URLSearchParams(url.hash.slice(1))
+        const errorParam = url.searchParams.get('error') || hashParams.get('error')
+        const errorDescription = url.searchParams.get('error_description') || hashParams.get('error_description')
         
         if (errorParam) {
           if (timeoutId) clearTimeout(timeoutId)
           handleError(errorDescription || `Lỗi xác thực: ${errorParam}`)
           return
         }
+
+        // Give Supabase a moment to detect and process the session from URL
+        // This is needed because detectSessionInUrl processes async
+        await new Promise(resolve => setTimeout(resolve, SUPABASE_URL_PROCESSING_DELAY))
 
         // Use the auth service to handle OAuth callback
         const { session, error } = await authService.handleOAuthCallback()
