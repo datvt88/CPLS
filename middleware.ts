@@ -30,13 +30,15 @@ interface CustomClaims {
 function getCustomClaims(session: any): CustomClaims {
   if (!session?.user) return {}
   
-  // Claims can be in app_metadata or directly in the token
+  // Claims are in app_metadata (injected by custom_access_token_hook)
   const appMetadata = session.user.app_metadata || {}
   
+  // Only return claims if they exist in app_metadata (don't use defaults here)
+  // This allows proper detection of whether claims are configured
   return {
-    role: appMetadata.role || session.user.role || 'user',
-    membership: appMetadata.membership || 'free',
-    is_premium: appMetadata.is_premium || false
+    role: appMetadata.role as CustomClaims['role'],
+    membership: appMetadata.membership as CustomClaims['membership'],
+    is_premium: appMetadata.is_premium as boolean | undefined
   }
 }
 
@@ -153,11 +155,16 @@ export async function middleware(request: NextRequest) {
   // Handle admin routes - check role from JWT custom claims
   if (isAdminRoute && session) {
     const claims = getCustomClaims(session)
-    const hasAdminAccess = claims.role === 'admin' || claims.role === 'mod'
     
-    if (!hasAdminAccess) {
-      console.log(`[Middleware] Access denied to ${pathname}: user role is ${claims.role}`)
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+    // Only check role if claims are configured (role is defined)
+    // If claims are not configured, allow access and let client-side ProtectedRoute handle it
+    if (claims.role !== undefined) {
+      const hasAdminAccess = claims.role === 'admin' || claims.role === 'mod'
+      
+      if (!hasAdminAccess) {
+        console.log(`[Middleware] Access denied to ${pathname}: user role is ${claims.role}`)
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
     }
   }
 

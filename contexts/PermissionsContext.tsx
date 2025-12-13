@@ -124,11 +124,12 @@ const fetchPermissions = async (): Promise<PermissionData> => {
 
       // Step 2: Try to get claims from JWT first (faster, no DB query)
       const claims = getClaimsFromSession(session)
-      const hasValidClaims = claims.role !== undefined || claims.is_premium !== undefined
+      // Check if claims are configured - any of the claim fields being set indicates custom_access_token_hook is active
+      const hasValidClaims = claims.role !== undefined || claims.membership !== undefined || claims.is_premium !== undefined
 
       if (hasValidClaims) {
         console.log('🎫 [PermissionsContext] Using claims from JWT:', claims)
-        const userIsPremium = claims.is_premium || claims.membership === 'premium'
+        const userIsPremium = claims.is_premium === true || claims.membership === 'premium'
         const userRole: UserRole = claims.role || 'user'
 
         return {

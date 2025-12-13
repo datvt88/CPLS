@@ -27,15 +27,9 @@ BEGIN
     );
   END IF;
 
-  -- Check premium status
-  is_premium := false;
-  IF user_profile.membership = 'premium' THEN
-    IF user_profile.membership_expires_at IS NULL THEN
-      is_premium := true;
-    ELSIF user_profile.membership_expires_at > NOW() THEN
-      is_premium := true;
-    END IF;
-  END IF;
+  -- Check premium status (simplified logic)
+  is_premium := user_profile.membership = 'premium' 
+    AND (user_profile.membership_expires_at IS NULL OR user_profile.membership_expires_at > NOW());
 
   -- Return claims
   RETURN jsonb_build_object(
