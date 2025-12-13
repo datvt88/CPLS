@@ -12,38 +12,29 @@ export default function GoogleLoginButton({ onError, className }: GoogleLoginBut
   const [loading, setLoading] = useState(false)
 
   const handleGoogleLogin = async () => {
-    if (loading) return // Prevent double-click
+    if (loading) return
     
     setLoading(true)
-    console.log('🔐 [GoogleLogin] Starting Google login...')
     
     try {
       const { data, error } = await authService.signInWithGoogle()
 
       if (error) {
-        console.error('❌ [GoogleLogin] Error:', error)
-        const errorMessage = error.message || 'Không thể đăng nhập bằng Google'
-        onError?.(errorMessage)
+        onError?.(error.message || 'Không thể đăng nhập bằng Google')
         setLoading(false)
         return
       }
       
-      if (data?.url) {
-        console.log('✅ [GoogleLogin] Redirecting to Google OAuth...')
-        // User will be redirected to Google OAuth page
-        // After successful auth, they'll be redirected back to /auth/callback
-      } else {
-        console.warn('⚠️ [GoogleLogin] No redirect URL received')
+      if (!data?.url) {
         onError?.('Không nhận được URL đăng nhập từ Google')
         setLoading(false)
       }
+      // User will be redirected to Google OAuth page
     } catch (err) {
-      console.error('❌ [GoogleLogin] Exception:', err)
       const errorMessage = err instanceof Error ? err.message : 'Có lỗi xảy ra khi đăng nhập Google'
       onError?.(errorMessage)
       setLoading(false)
     }
-    // Note: Don't set loading to false on success as user will be redirected
   }
 
   return (
