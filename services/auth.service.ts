@@ -213,16 +213,14 @@ export const authService = {
         )
         
         if (error) {
-          // Handle code already used (e.g., page refresh)
-          if (error.message.includes('already used') || error.message.includes('invalid')) {
-            const { data: existingSession } = await withTimeout(
-              supabase.auth.getSession(),
-              OAUTH_TIMEOUT
-            )
-            if (existingSession.session?.user) {
-              this.trackUserDevice(existingSession.session.user.id).catch(console.error)
-              return { session: existingSession.session, error: null }
-            }
+          // Fallback: Supabase may have already processed the session (detectSessionInUrl)
+          const { data: existingSession } = await withTimeout(
+            supabase.auth.getSession(),
+            OAUTH_TIMEOUT
+          )
+          if (existingSession.session?.user) {
+            this.trackUserDevice(existingSession.session.user.id).catch(console.error)
+            return { session: existingSession.session, error: null }
           }
           return { session: null, error }
         }
