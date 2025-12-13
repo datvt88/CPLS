@@ -40,7 +40,6 @@ export default function ProtectedRoute({
   const router = useRouter()
   const hasRedirected = useRef(false)
   const [isVerifying, setIsVerifying] = useState(true)
-  const verificationTimeoutRef = useRef<NodeJS.Timeout>()
   const safetyTimeoutRef = useRef<NodeJS.Timeout>()
   const mountedRef = useRef(true)
   const hasVerifiedRef = useRef(false)
@@ -100,9 +99,7 @@ export default function ProtectedRoute({
       
       // Not authenticated according to context - double-check with Supabase
       // Wait a short period for auth to stabilize
-      await new Promise(resolve => {
-        verificationTimeoutRef.current = setTimeout(resolve, AUTH_STABILIZATION_DELAY)
-      })
+      await new Promise(resolve => setTimeout(resolve, AUTH_STABILIZATION_DELAY))
       
       if (!mountedRef.current) return
       
@@ -132,9 +129,6 @@ export default function ProtectedRoute({
     
     return () => {
       mountedRef.current = false
-      if (verificationTimeoutRef.current) {
-        clearTimeout(verificationTimeoutRef.current)
-      }
     }
   }, [isAuthenticated, isLoading, refresh])
 
