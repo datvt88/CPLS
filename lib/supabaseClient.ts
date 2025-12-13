@@ -209,16 +209,13 @@ class CookieAuthStorage {
         return
       }
       
-      // Split into chunks
-      const chunks = []
+      // Store chunks directly without intermediate array
+      let chunkIndex = 0
       for (let i = 0; i < value.length; i += MAX_COOKIE_SIZE) {
-        chunks.push(value.slice(i, i + MAX_COOKIE_SIZE))
+        const chunk = value.slice(i, i + MAX_COOKIE_SIZE)
+        this.setCookie(`${name}.${chunkIndex}`, chunk, days)
+        chunkIndex++
       }
-      
-      // Store each chunk
-      chunks.forEach((chunk, index) => {
-        this.setCookie(`${name}.${index}`, chunk, days)
-      })
     } catch (e) {
       console.warn('[CookieAuthStorage] Error setting chunked cookie:', e)
     }
@@ -226,6 +223,7 @@ class CookieAuthStorage {
 
   /**
    * Delete chunked cookies and main cookie
+   * Uses MAX_CHUNKS_TO_DELETE constant for cleanup iterations
    */
   private deleteChunkedCookie(name: string): void {
     if (typeof document === 'undefined') return
@@ -233,8 +231,10 @@ class CookieAuthStorage {
       // Delete the main cookie
       this.deleteCookie(name)
       
-      // Delete all chunks (try up to 10 chunks)
-      for (let i = 0; i < 10; i++) {
+      // Delete all possible chunks
+      // JWT tokens are typically ~2-4KB, so 10 chunks (35KB) is more than enough
+      const MAX_CHUNKS_TO_DELETE = 10
+      for (let i = 0; i < MAX_CHUNKS_TO_DELETE; i++) {
         this.deleteCookie(`${name}.${i}`)
       }
     } catch { /* ignore */ }
