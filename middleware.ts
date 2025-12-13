@@ -18,6 +18,7 @@ const PROTECTED_ROUTES = [
   '/profile',
   '/signals',
   '/stocks',
+  '/market',
   '/chat',
   '/management',
   '/admin',
@@ -35,7 +36,6 @@ const AUTH_ROUTES = [
 const PUBLIC_ROUTES = [
   '/',
   '/pricing',
-  '/market',
   '/auth/callback',
   '/api',
 ]

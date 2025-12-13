@@ -112,7 +112,10 @@ export default function ProtectedRoute({
         
         if (session?.user) {
           console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
-          refresh()
+          // Wait for refresh to complete before setting verified
+          await refresh()
+          // Give a short delay for state to propagate
+          await new Promise(resolve => setTimeout(resolve, 100))
         } else {
           console.log('📭 [ProtectedRoute] No session found')
         }
