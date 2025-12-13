@@ -1,25 +1,16 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { type User } from '@supabase/supabase-js'
 
 /**
- * Next.js Middleware for Route Protection with Custom Claims (JWT)
- * 
- * This middleware handles:
- * 1. Authentication checks for protected routes using Supabase Auth
- * 2. Role-based access control using JWT custom claims
- * 3. Redirecting unauthenticated users to login
- * 4. Handling auth callback routes
- * 5. Refreshing session tokens
- * 
- * Custom Claims in JWT:
- * - role: 'user' | 'mod' | 'admin'
- * - membership: 'free' | 'premium'
- * - is_premium: boolean
+ * Next.js Middleware for Route Protection
+ * Đã sửa đổi để tương thích với Supabase Free Plan (Database Trigger)
  */
 
 /**
- * Extract custom claims from JWT session
+ * Interface cho Custom Claims
+ * Khớp với dữ liệu mà Trigger SQL sync_profile_to_metadata() tạo ra
  */
 interface CustomClaims {
   role?: 'user' | 'mod' | 'admin'
@@ -27,59 +18,65 @@ interface CustomClaims {
   is_premium?: boolean
 }
 
-function getCustomClaims(session: any): CustomClaims {
-  if (!session?.user) return {}
+/**
+ * Hàm lấy claims từ user_metadata (Thay vì app_metadata)
+ */
+function getCustomClaims(user: User | null): CustomClaims {
+  if (!user) return {}
   
-  // Claims are in app_metadata (injected by custom_access_token_hook)
-  const appMetadata = session.user.app_metadata || {}
+  // QUAN TRỌNG: Gói Free dùng Trigger lưu vào user_metadata
+  const metadata = user.user_metadata || {}
   
-  // Only return claims if they exist in app_metadata (don't use defaults here)
-  // This allows proper detection of whether claims are configured
   return {
-    role: appMetadata.role as CustomClaims['role'],
-    membership: appMetadata.membership as CustomClaims['membership'],
-    is_premium: appMetadata.is_premium as boolean | undefined
+    role: metadata.role as CustomClaims['role'],
+    membership: metadata.membership as CustomClaims['membership'],
+    is_premium: metadata.is_premium as boolean | undefined
   }
 }
 
-// Routes that require authentication
+// 1. Routes bắt buộc phải đăng nhập
 const PROTECTED_ROUTES = [
   '/profile',
   '/chat',
   '/management',
   '/admin',
   '/upgrade',
+  '/signals', // Ví dụ: Trang này cần login
 ]
 
-// Routes that require admin or mod role
+// 2. Routes chỉ dành cho Admin/Mod
 const ADMIN_ROUTES = [
   '/admin',
   '/management',
 ]
 
-// Routes that should redirect to dashboard if already authenticated
-// Note: '/login' is included for backward compatibility as it redirects to /auth/login,
-// but middleware handles it before the redirect page loads
-const AUTH_ROUTES = [
-  '/auth/login',
+// 3. Routes chỉ dành cho thành viên Premium (Mới thêm)
+const PREMIUM_ROUTES = [
+  '/signals',
+  '/stocks',
+  '/premium-content',
 ]
 
-// Public routes that don't need any check
+// 4. Routes Authentication (Nếu đã login thì đá về dashboard)
+const AUTH_ROUTES = [
+  '/auth/login',
+  '/login',
+  '/register',
+]
+
+// 5. Routes Public (Không kiểm tra gì cả)
 const PUBLIC_ROUTES = [
   '/',
   '/pricing',
   '/auth/callback',
   '/api',
-  '/signals',
-  '/stocks',
   '/market',
-  '/dashboard',
 ]
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip middleware for static files and Next.js internals
+  // Bỏ qua static files
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -89,27 +86,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Create response that we'll modify with session
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   })
 
-  // Create Supabase client for server
+  // Tạo Supabase Client
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
+        getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request,
-          })
+          response = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -118,14 +108,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if needed (this also validates the session)
-  const { data: { session } } = await supabase.auth.getSession()
+  // QUAN TRỌNG: Dùng getUser() thay vì getSession() để bảo mật hơn
+  const { data: { user } } = await supabase.auth.getUser()
 
-  // Helper to check route matching with proper boundary detection
+  // Helper function để check route logic
   const matchesRoute = (routes: string[]) => {
     return routes.some(route => {
       if (pathname === route) return true
-      // Ensure route boundary by checking for '/' after the route
       if (pathname.startsWith(route) && (pathname[route.length] === '/' || pathname[route.length] === undefined)) {
         return true
       }
@@ -133,59 +122,60 @@ export async function middleware(request: NextRequest) {
     })
   }
 
-  // Check if current route is protected
   const isProtectedRoute = matchesRoute(PROTECTED_ROUTES)
-
-  // Check if current route requires admin/mod role
   const isAdminRoute = matchesRoute(ADMIN_ROUTES)
-
-  // Check if current route is an auth route (login/signup)
+  const isPremiumRoute = matchesRoute(PREMIUM_ROUTES)
   const isAuthRoute = matchesRoute(AUTH_ROUTES)
 
-  // Check if current route is public
-  const isPublicRoute = matchesRoute(PUBLIC_ROUTES)
+  // --- 1. XỬ LÝ AUTH ROUTE (Login/Register) ---
+  // Nếu đã login mà cố vào trang login -> Redirect về Dashboard
+  if (isAuthRoute && user) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
 
-  // Handle protected routes - redirect to login if not authenticated
-  if (isProtectedRoute && !session) {
+  // --- 2. XỬ LÝ PROTECTED ROUTE (Chưa login) ---
+  // Nếu vào trang bảo mật mà chưa login -> Redirect về Login
+  if (isProtectedRoute && !user) {
     const loginUrl = new URL('/auth/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Handle admin routes - check role from JWT custom claims
-  if (isAdminRoute && session) {
-    const claims = getCustomClaims(session)
-    
-    // Only check role if claims are configured (role is defined)
-    // If claims are not configured, allow access and let client-side ProtectedRoute handle it
-    if (claims.role !== undefined) {
-      const hasAdminAccess = claims.role === 'admin' || claims.role === 'mod'
+  // --- 3. XỬ LÝ PHÂN QUYỀN (RBAC & Premium) ---
+  if (user) {
+    // Lấy thông tin quyền hạn từ user_metadata
+    const claims = getCustomClaims(user)
+    const role = claims.role || 'user'
+    const plan = claims.membership || 'free'
+
+    // A. Check quyền Admin
+    if (isAdminRoute) {
+      const hasAdminAccess = role === 'admin' || role === 'mod'
       
       if (!hasAdminAccess) {
-        console.log(`[Middleware] Access denied to ${pathname}: user role is ${claims.role}`)
+        console.log(`[Middleware] Access denied to ${pathname}: user role is ${role}`)
         return NextResponse.redirect(new URL('/dashboard', request.url))
       }
     }
-  }
 
-  // Handle auth routes - redirect to dashboard if already authenticated
-  if (isAuthRoute && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    // B. Check quyền Premium (Thêm mới)
+    if (isPremiumRoute) {
+      // Logic: Cho phép nếu là Premium HOẶC là Admin/Mod
+      const hasPremiumAccess = plan === 'premium' || role === 'admin' || role === 'mod'
+      
+      if (!hasPremiumAccess) {
+        console.log(`[Middleware] Access denied to ${pathname}: plan is ${plan}`)
+        // Redirect về trang Pricing để dụ mua gói
+        return NextResponse.redirect(new URL('/pricing', request.url))
+      }
+    }
   }
 
   return response
 }
 
-// Configure which routes the middleware runs on
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
