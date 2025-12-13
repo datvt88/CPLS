@@ -223,8 +223,8 @@ export const authService = {
               this.trackUserDevice(existingSession.session.user.id).catch(console.error)
               return { session: existingSession.session, error: null }
             }
-          } catch {
-            // Ignore and fall back to original error
+          } catch (fallbackError) {
+            console.error('[Auth] Fallback session retrieval failed:', fallbackError)
           }
           return { session: null, error }
         }
