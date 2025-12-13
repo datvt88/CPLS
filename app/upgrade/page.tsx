@@ -313,6 +313,7 @@ function UpgradePageContent() {
           <div className="flex justify-center gap-4 flex-wrap">
             <a
               href="mailto:support@cophieluotsong.com"
+              rel="noopener noreferrer"
               className="px-4 py-2 bg-[#2C2C2C] hover:bg-[#3C3C3C] text-white rounded-lg transition-colors flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -85,8 +85,7 @@ export function useSubscription(): UseSubscriptionReturn {
   // Calculate remaining days
   const remainingDays = useMemo(() => {
     if (!expiresAt) return null
-    const now = new Date()
-    const diffTime = expiresAt.getTime() - now.getTime()
+    const diffTime = expiresAt.getTime() - Date.now()
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }, [expiresAt])
 

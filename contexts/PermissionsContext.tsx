@@ -74,6 +74,11 @@ const clearSessionCache = () => {
   fetchInProgress = null
 }
 
+// Update session cache with new session
+const updateSessionCache = (session: any) => {
+  sessionCache = { session, timestamp: Date.now() }
+}
+
 // --- FETCHER with timeout and deduplication ---
 const fetchPermissions = async (): Promise<PermissionData> => {
   // Dedupe concurrent requests
@@ -240,7 +245,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         clearSessionCache()
         // Update session cache immediately with current session
         if (session) {
-          sessionCache = { session, timestamp: Date.now() }
+          updateSessionCache(session)
         }
         // Revalidate immediately for login
         mutate('user-permissions')
