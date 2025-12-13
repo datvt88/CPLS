@@ -195,7 +195,8 @@ export const authService = {
       }
 
       const url = new URL(window.location.href)
-      const code = url.searchParams.get('code')
+      // Check for code in both query params and hash fragment
+      const code = url.searchParams.get('code') || new URLSearchParams(url.hash.slice(1)).get('code')
       
       // Exchange authorization code for session (PKCE flow)
       if (code) {

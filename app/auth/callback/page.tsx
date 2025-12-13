@@ -76,16 +76,20 @@ export default function AuthCallbackPage() {
       }, AUTH_CALLBACK_TIMEOUT)
 
       try {
-        // Check for OAuth error in URL
+        // Check for OAuth error in URL (both search params and hash)
         const url = new URL(window.location.href)
-        const errorParam = url.searchParams.get('error')
-        const errorDescription = url.searchParams.get('error_description')
+        const errorParam = url.searchParams.get('error') || new URLSearchParams(url.hash.slice(1)).get('error')
+        const errorDescription = url.searchParams.get('error_description') || new URLSearchParams(url.hash.slice(1)).get('error_description')
         
         if (errorParam) {
           if (timeoutId) clearTimeout(timeoutId)
           handleError(errorDescription || `Lỗi xác thực: ${errorParam}`)
           return
         }
+
+        // Give Supabase a moment to detect and process the session from URL
+        // This is needed because detectSessionInUrl processes async
+        await new Promise(resolve => setTimeout(resolve, 500))
 
         // Use the auth service to handle OAuth callback
         const { session, error } = await authService.handleOAuthCallback()
