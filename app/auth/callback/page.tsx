@@ -4,10 +4,12 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { authService } from '@/services/auth.service'
 import { supabase } from '@/lib/supabaseClient'
+import { usePermissions } from '@/contexts/PermissionsContext'
 
 // Configuration constants
 const AUTH_CALLBACK_TIMEOUT = 15000 // 15 seconds max wait
-const REDIRECT_DELAY = 1000 // Delay before redirect for UX
+const REDIRECT_DELAY = 500 // Reduced delay for faster redirect
+const SESSION_VERIFY_DELAY = 300 // Time to verify session is stable
 
 type Status = 'loading' | 'success' | 'error'
 
@@ -17,22 +19,34 @@ export default function AuthCallbackPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const hasHandledRef = useRef(false)
   const mountedRef = useRef(true)
+  const { refresh } = usePermissions()
 
   // Handle successful authentication
-  const handleSuccess = useCallback(() => {
+  const handleSuccess = useCallback(async () => {
     if (!mountedRef.current || hasHandledRef.current) return
     
     hasHandledRef.current = true
     setStatus('success')
     
-    // Clean up URL and redirect
+    // Clean up URL
     window.history.replaceState({}, '', '/auth/callback')
+    
+    // Refresh permissions context to ensure it has the latest auth state
+    try {
+      await refresh()
+      // Give a small delay for state to propagate
+      await new Promise(resolve => setTimeout(resolve, SESSION_VERIFY_DELAY))
+    } catch (refreshError) {
+      console.warn('[AuthCallback] Permissions refresh warning:', refreshError)
+    }
+    
+    // Redirect to dashboard
     setTimeout(() => {
       if (mountedRef.current) {
         router.push('/dashboard')
       }
     }, REDIRECT_DELAY)
-  }, [router])
+  }, [router, refresh])
 
   // Handle authentication error
   const handleError = useCallback((message: string) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePermissions } from '@/contexts/PermissionsContext'
 import { supabase } from '@/lib/supabaseClient'
@@ -17,12 +17,16 @@ interface ProtectedRouteProps {
   redirectTo?: string
 }
 
-// Grace period to wait for auth to stabilize after initial load (reduced from 1.5s to 1s)
-const AUTH_STABILIZATION_DELAY = 1000
+// Grace period to wait for auth to stabilize after initial load
+const AUTH_STABILIZATION_DELAY = 1500
 // Maximum time to wait for verification before forcing completion
-const MAX_VERIFICATION_TIMEOUT = 5000
+const MAX_VERIFICATION_TIMEOUT = 8000
 // Time to wait for state to propagate after refresh
-const STATE_PROPAGATION_DELAY = 100
+const STATE_PROPAGATION_DELAY = 300
+// Number of retry attempts for auth verification
+const MAX_RETRY_ATTEMPTS = 3
+// Delay between retry attempts
+const RETRY_DELAY = 500
 
 /**
  * Unified ProtectedRoute Component
@@ -56,6 +60,18 @@ export default function ProtectedRoute({
   } = usePermissions()
 
   const needsPremium = requirePremium || requireVIP
+  const retryCountRef = useRef(0)
+
+  // Helper function to verify session with Supabase directly
+  const verifySessionWithSupabase = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      return !!session?.user
+    } catch (error) {
+      console.error('❌ [ProtectedRoute] Error checking session:', error)
+      return false
+    }
+  }, [])
 
   // Safety timeout: ensure isVerifying becomes false eventually
   useEffect(() => {
@@ -92,7 +108,7 @@ export default function ProtectedRoute({
     
     // Context is done loading - now check auth
     const verifyAuth = async () => {
-      // If authenticated, we're done
+      // If authenticated via context, we're done immediately
       if (isAuthenticated) {
         console.log('✅ [ProtectedRoute] User authenticated via context')
         hasVerifiedRef.current = true
@@ -101,33 +117,50 @@ export default function ProtectedRoute({
       }
       
       // Not authenticated according to context - double-check with Supabase
+      // This handles the race condition where context hasn't caught up yet
+      console.log('🔍 [ProtectedRoute] Context says not authenticated, verifying with Supabase...')
+      
       // Wait a short period for auth to stabilize
       await new Promise(resolve => setTimeout(resolve, AUTH_STABILIZATION_DELAY))
       
       if (isCancelled || !mountedRef.current) return
       
-      // Double-check with Supabase directly
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        
+      // Retry loop for verifying session with Supabase
+      for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
         if (isCancelled || !mountedRef.current) return
         
-        if (session?.user) {
-          console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
-          // Wait for refresh to complete before setting verified
-          await refresh()
-          // Give a short delay for state to propagate
-          await new Promise(resolve => setTimeout(resolve, STATE_PROPAGATION_DELAY))
-        } else {
-          console.log('📭 [ProtectedRoute] No session found')
+        const hasSession = await verifySessionWithSupabase()
+        
+        if (hasSession) {
+          console.log(`✅ [ProtectedRoute] Session verified with Supabase (attempt ${attempt})`)
+          
+          // Refresh permissions context and wait for it to propagate
+          try {
+            await refresh()
+            await new Promise(resolve => setTimeout(resolve, STATE_PROPAGATION_DELAY))
+          } catch (refreshError) {
+            console.warn('⚠️ [ProtectedRoute] Refresh failed, but session exists:', refreshError)
+          }
+          
+          if (!isCancelled && mountedRef.current) {
+            hasVerifiedRef.current = true
+            setIsVerifying(false)
+          }
+          return
         }
-      } catch (error) {
-        console.error('❌ [ProtectedRoute] Error verifying session:', error)
-      } finally {
-        if (!isCancelled && mountedRef.current) {
-          hasVerifiedRef.current = true
-          setIsVerifying(false)
+        
+        // If not the last attempt, wait before retrying
+        if (attempt < MAX_RETRY_ATTEMPTS) {
+          console.log(`🔄 [ProtectedRoute] Session not found, retrying (${attempt}/${MAX_RETRY_ATTEMPTS})...`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
         }
+      }
+      
+      // All attempts failed - no valid session
+      console.log('📭 [ProtectedRoute] No valid session after all attempts')
+      if (!isCancelled && mountedRef.current) {
+        hasVerifiedRef.current = true
+        setIsVerifying(false)
       }
     }
     
@@ -136,7 +169,7 @@ export default function ProtectedRoute({
     return () => {
       isCancelled = true
     }
-  }, [isAuthenticated, isLoading, refresh])
+  }, [isAuthenticated, isLoading, refresh, verifySessionWithSupabase])
 
   // Handle redirects
   useEffect(() => {

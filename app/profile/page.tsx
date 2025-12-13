@@ -7,6 +7,7 @@ import { profileService, type Profile as BaseProfile } from '@/services/profile.
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DeviceManagement from '@/components/DeviceManagement'
 import PasswordManagement from '@/components/PasswordManagement'
+import SubscriptionStatusCard from '@/components/SubscriptionStatusCard'
 
 // --- FIX LỖI TYPE: Sử dụng Intersection Type thay vì interface extends ---
 type Profile = BaseProfile & {
@@ -348,19 +349,7 @@ function ProfilePageContent() {
         {/* Section 2: Gói đăng ký */}
         <div className="bg-[#1E1E1E] rounded-xl shadow-xl p-6 sm:p-8 border border-[#2C2C2C]">
           <h2 className="text-xl font-bold mb-4 text-white">Gói dịch vụ</h2>
-          <div className="p-4 bg-[#2C2C2C] rounded-lg border border-[#3E3E3E] flex items-center justify-between">
-             <div>
-                <p className="text-gray-300 font-medium">Trạng thái hiện tại</p>
-                <p className={`text-lg font-bold ${profile?.membership === 'premium' ? 'text-purple-400' : 'text-gray-400'}`}>
-                   {profile?.membership === 'premium' ? 'Thành viên PREMIUM' : 'Thành viên Miễn phí'}
-                </p>
-             </div>
-             {profile?.membership !== 'premium' && (
-                <button onClick={() => router.push('/upgrade')} className="px-4 py-2 bg-[#333] hover:bg-[#444] text-white text-sm font-semibold rounded border border-gray-600 transition-colors">
-                   Nâng cấp
-                </button>
-             )}
-          </div>
+          <SubscriptionStatusCard />
         </div>
 
         <PasswordManagement />
