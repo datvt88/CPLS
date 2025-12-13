@@ -21,6 +21,8 @@ interface ProtectedRouteProps {
 const AUTH_STABILIZATION_DELAY = 1000
 // Maximum time to wait for verification before forcing completion
 const MAX_VERIFICATION_TIMEOUT = 5000
+// Time to wait for state to propagate after refresh
+const STATE_PROPAGATION_DELAY = 100
 
 /**
  * Unified ProtectedRoute Component
@@ -112,7 +114,10 @@ export default function ProtectedRoute({
         
         if (session?.user) {
           console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
-          refresh()
+          // Wait for refresh to complete before setting verified
+          await refresh()
+          // Give a short delay for state to propagate
+          await new Promise(resolve => setTimeout(resolve, STATE_PROPAGATION_DELAY))
         } else {
           console.log('📭 [ProtectedRoute] No session found')
         }
