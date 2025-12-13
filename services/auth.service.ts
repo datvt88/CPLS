@@ -214,6 +214,7 @@ export const authService = {
         
         if (error) {
           // Fallback: Supabase may have already processed the session (detectSessionInUrl)
+          console.warn('[Auth] OAuth code exchange error, attempting session fallback:', error.message)
           try {
             const { data: existingSession } = await withTimeout(
               supabase.auth.getSession(),
