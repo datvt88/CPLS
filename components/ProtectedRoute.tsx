@@ -59,7 +59,8 @@ export default function ProtectedRoute({
   // Safety timeout: ensure isVerifying becomes false eventually
   useEffect(() => {
     safetyTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current) {
+      // Only force completion if verification hasn't completed normally
+      if (mountedRef.current && !hasVerifiedRef.current) {
         console.warn('⏱️ [ProtectedRoute] Safety timeout - forcing verification complete')
         hasVerifiedRef.current = true
         setIsVerifying(false)
@@ -98,12 +99,10 @@ export default function ProtectedRoute({
       }
       
       // Not authenticated according to context - double-check with Supabase
-      // Wait a short period for auth to stabilize (only once)
-      if (!hasVerifiedRef.current) {
-        await new Promise(resolve => {
-          verificationTimeoutRef.current = setTimeout(resolve, AUTH_STABILIZATION_DELAY)
-        })
-      }
+      // Wait a short period for auth to stabilize
+      await new Promise(resolve => {
+        verificationTimeoutRef.current = setTimeout(resolve, AUTH_STABILIZATION_DELAY)
+      })
       
       if (!mountedRef.current) return
       
