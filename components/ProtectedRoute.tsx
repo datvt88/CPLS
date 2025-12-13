@@ -19,6 +19,8 @@ interface ProtectedRouteProps {
 
 // Grace period to wait for auth to stabilize after initial load
 const AUTH_STABILIZATION_DELAY = 1500
+// Maximum time to wait for verification before forcing completion
+const MAX_VERIFICATION_TIMEOUT = 5000
 
 /**
  * Unified ProtectedRoute Component
@@ -39,7 +41,9 @@ export default function ProtectedRoute({
   const hasRedirected = useRef(false)
   const [isVerifying, setIsVerifying] = useState(true)
   const verificationTimeoutRef = useRef<NodeJS.Timeout>()
+  const safetyTimeoutRef = useRef<NodeJS.Timeout>()
   const mountedRef = useRef(true)
+  const hasVerifiedRef = useRef(false)
 
   const {
     isAuthenticated,
@@ -52,26 +56,56 @@ export default function ProtectedRoute({
 
   const needsPremium = requirePremium || requireVIP
 
-  // Double-check authentication with Supabase directly
+  // Safety timeout: ensure isVerifying becomes false eventually
+  useEffect(() => {
+    safetyTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        console.warn('⏱️ [ProtectedRoute] Safety timeout - forcing verification complete')
+        hasVerifiedRef.current = true
+        setIsVerifying(false)
+      }
+    }, MAX_VERIFICATION_TIMEOUT)
+    
+    return () => {
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // When loading completes, verify auth state
   useEffect(() => {
     mountedRef.current = true
     
+    // If already verified, don't re-verify
+    if (hasVerifiedRef.current) {
+      return
+    }
+    
+    // If context is still loading, wait for it
+    if (isLoading) {
+      return
+    }
+    
+    // Context is done loading - now check auth
     const verifyAuth = async () => {
-      // Wait a short period for auth to stabilize
-      await new Promise(resolve => setTimeout(resolve, AUTH_STABILIZATION_DELAY))
-      
-      if (!mountedRef.current) return
-      
-      // If context says authenticated, trust it
+      // If authenticated, we're done
       if (isAuthenticated) {
+        console.log('✅ [ProtectedRoute] User authenticated via context')
+        hasVerifiedRef.current = true
         setIsVerifying(false)
         return
       }
       
-      // If still loading, wait more
-      if (isLoading) {
-        return
+      // Not authenticated according to context - double-check with Supabase
+      // Wait a short period for auth to stabilize (only once)
+      if (!hasVerifiedRef.current) {
+        await new Promise(resolve => {
+          verificationTimeoutRef.current = setTimeout(resolve, AUTH_STABILIZATION_DELAY)
+        })
       }
+      
+      if (!mountedRef.current) return
       
       // Double-check with Supabase directly
       try {
@@ -82,13 +116,14 @@ export default function ProtectedRoute({
         if (session?.user) {
           console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
           refresh()
-          setIsVerifying(false)
         } else {
-          setIsVerifying(false)
+          console.log('📭 [ProtectedRoute] No session found')
         }
       } catch (error) {
         console.error('❌ [ProtectedRoute] Error verifying session:', error)
+      } finally {
         if (mountedRef.current) {
+          hasVerifiedRef.current = true
           setIsVerifying(false)
         }
       }
