@@ -1,8 +1,16 @@
 /**
- * Session Manager - Handles session tracking, device management, and security
+ * Session Manager - Unified session tracking, device management, and security
+ * 
+ * This module handles:
+ * - Device fingerprinting & identification
+ * - Session persistence (30 days)
+ * - Multi-device management (max 3 devices)
+ * - Device registration & tracking
  */
 
 import { supabase } from './supabaseClient'
+
+// ============ INTERFACES ============
 
 export interface DeviceInfo {
   name: string
@@ -22,6 +30,25 @@ export interface SessionInfo {
   created_at: string
   is_current: boolean
 }
+
+/** User device record from user_devices table */
+export interface UserDevice {
+  id: string
+  user_id: string
+  device_id: string
+  device_name?: string
+  browser?: string
+  os?: string
+  ip_address?: string
+  last_active_at: string
+  created_at: string
+}
+
+// ============ CONSTANTS ============
+
+const DEVICE_ID_KEY = 'cpls-device-id'
+const FINGERPRINT_KEY = 'cpls_device_fingerprint'
+const MAX_DEVICES = 3
 
 /**
  * Get device information from user agent
@@ -544,4 +571,205 @@ export async function getSessionStats() {
   }
 
   return stats
+}
+
+// ============ DEVICE SERVICE (user_devices table) ============
+// Unified device management - replaces services/device.service.ts
+
+/**
+ * Device service for managing user devices (user_devices table)
+ * This complements the session-based management (user_sessions table)
+ */
+export const deviceService = {
+  /**
+   * Generate a unique device ID based on browser fingerprint
+   */
+  generateDeviceId(): string {
+    const nav = navigator as any
+    const screen = window.screen
+
+    const fingerprint = [
+      nav.userAgent,
+      nav.language,
+      screen.colorDepth,
+      screen.width,
+      screen.height,
+      new Date().getTimezoneOffset(),
+      nav.hardwareConcurrency || 'unknown',
+      nav.deviceMemory || 'unknown',
+    ].join('|')
+
+    let hash = 0
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+
+    return `device_${Math.abs(hash).toString(36)}_${Date.now().toString(36)}`
+  },
+
+  /**
+   * Get or create device ID from localStorage
+   */
+  getOrCreateDeviceId(): string {
+    if (typeof window === 'undefined') return ''
+
+    let deviceId = localStorage.getItem(DEVICE_ID_KEY)
+
+    if (!deviceId) {
+      deviceId = this.generateDeviceId()
+      localStorage.setItem(DEVICE_ID_KEY, deviceId)
+    }
+
+    return deviceId
+  },
+
+  /**
+   * Clear device ID (logout)
+   */
+  clearDeviceId(): void {
+    if (typeof window === 'undefined') return
+    localStorage.removeItem(DEVICE_ID_KEY)
+  },
+
+  /**
+   * Register or update current device
+   */
+  async registerDevice(userId: string, deviceId: string) {
+    const deviceInfo = getDeviceInfo()
+
+    const { data, error } = await supabase
+      .from('user_devices')
+      .upsert({
+        user_id: userId,
+        device_id: deviceId,
+        device_name: deviceInfo.name,
+        browser: deviceInfo.browser,
+        os: deviceInfo.os,
+        last_active_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,device_id'
+      })
+      .select()
+      .single()
+
+    return { device: data as UserDevice | null, error }
+  },
+
+  /**
+   * Update device last active time
+   */
+  async updateDeviceActivity(userId: string, deviceId: string) {
+    const { error } = await supabase
+      .from('user_devices')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('device_id', deviceId)
+
+    return { error }
+  },
+
+  /**
+   * Get all active devices for a user
+   */
+  async getUserDevices(userId: string) {
+    const { data, error } = await supabase
+      .from('user_devices')
+      .select('*')
+      .eq('user_id', userId)
+      .order('last_active_at', { ascending: false })
+
+    return { devices: data as UserDevice[] | null, error }
+  },
+
+  /**
+   * Remove a specific device
+   */
+  async removeDevice(userId: string, deviceId: string) {
+    const { error } = await supabase
+      .from('user_devices')
+      .delete()
+      .eq('user_id', userId)
+      .eq('device_id', deviceId)
+
+    return { error }
+  },
+
+  /**
+   * Remove oldest device (by last_active_at)
+   */
+  async removeOldestDevice(userId: string) {
+    const { data: devices, error: fetchError } = await supabase
+      .from('user_devices')
+      .select('*')
+      .eq('user_id', userId)
+      .order('last_active_at', { ascending: true })
+      .limit(1)
+
+    if (fetchError || !devices || devices.length === 0) {
+      return { error: fetchError || new Error('No devices found') }
+    }
+
+    const oldestDevice = devices[0]
+
+    const { error: deleteError } = await supabase
+      .from('user_devices')
+      .delete()
+      .eq('id', oldestDevice.id)
+
+    return {
+      removed_device: oldestDevice as UserDevice,
+      error: deleteError
+    }
+  },
+
+  /**
+   * Check device limit and remove oldest if needed (max 3 devices)
+   */
+  async enforceDeviceLimit(userId: string, maxDevices: number = MAX_DEVICES): Promise<{
+    can_add: boolean
+    removed_device?: UserDevice
+    error?: any
+  }> {
+    const currentDeviceId = this.getOrCreateDeviceId()
+
+    // 1. Get all devices
+    const { data: devices, error } = await supabase
+      .from('user_devices')
+      .select('device_id')
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('Error counting devices:', error)
+      return { can_add: false, error }
+    }
+
+    const deviceCount = devices?.length || 0
+    
+    // 2. Check if current device is already registered
+    const isCurrentDeviceRegistered = devices?.some(d => d.device_id === currentDeviceId)
+
+    // If device already registered -> Allow update
+    if (isCurrentDeviceRegistered) {
+      return { can_add: true }
+    }
+
+    // 3. If not registered and slots available -> Allow add
+    if (deviceCount < maxDevices) {
+      return { can_add: true }
+    }
+
+    // 4. If slots full -> Remove oldest device
+    const { removed_device, error: removeError } = await this.removeOldestDevice(userId)
+
+    if (removeError) {
+      return { can_add: false, error: removeError }
+    }
+
+    return {
+      can_add: true,
+      removed_device: removed_device as UserDevice
+    }
+  }
 }
