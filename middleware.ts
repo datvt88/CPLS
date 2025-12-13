@@ -14,7 +14,6 @@ import { createServerClient } from '@supabase/ssr'
 
 // Routes that require authentication
 const PROTECTED_ROUTES = [
-  '/dashboard',
   '/profile',
   '/chat',
   '/management',
@@ -38,6 +37,7 @@ const PUBLIC_ROUTES = [
   '/signals',
   '/stocks',
   '/market',
+  '/dashboard',
 ]
 
 export async function middleware(request: NextRequest) {
