@@ -97,11 +97,11 @@ Nếu claims không có trong JWT (ví dụ: chưa cấu hình hook), hệ thố
         └─────────┤
                   ▼
      ╔═══════════════════════════════════════╗
-     ║     /auth/callback (Route Handler)    ║
+     ║     /auth/callback (Client Page)      ║
      ╠═══════════════════════════════════════╣
-     ║  • Server-side code exchange          ║
-     ║  • PKCE code verifier handled by SSR  ║
-     ║  • Session token set via cookies      ║
+     ║  • Client-side code exchange          ║
+     ║  • PKCE code verifier from localStorage║
+     ║  • Session established via Supabase   ║
      ║  • Redirect to /dashboard on success  ║
      ╚═══════════════════════════════════════╝
                   │
@@ -472,8 +472,8 @@ app/
 ### **1. PKCE for OAuth**
 - Code verifier + challenge cho Google và Zalo OAuth
 - Prevents authorization code interception
-- **Important**: Server-side Route Handler at `/auth/callback/route.ts` handles the PKCE code exchange
-- The `exchangeCodeForSession()` is called server-side to avoid client-side race conditions
+- **Important**: Client-side callback page at `/auth/callback/page.tsx` handles the PKCE code exchange
+- The `exchangeCodeForSession()` is called client-side where it has access to the code verifier stored in localStorage
 - This prevents the "both auth code and code verifier should be non-empty" error
 
 ### **2. Device Fingerprinting**
