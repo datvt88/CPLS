@@ -79,6 +79,8 @@ DECLARE
   user_full_name TEXT;
   user_avatar TEXT;
   user_provider TEXT;
+  -- Số điện thoại placeholder khi không có thông tin
+  DEFAULT_PHONE_PLACEHOLDER CONSTANT TEXT := 'PENDING_PHONE';
 BEGIN
   -- Lấy thông tin từ user metadata
   user_email := COALESCE(NEW.email, '');
@@ -117,7 +119,7 @@ BEGIN
   ) VALUES (
     NEW.id,
     user_email,
-    CASE WHEN user_phone = '' THEN '0000000000' ELSE user_phone END,
+    CASE WHEN user_phone = '' THEN DEFAULT_PHONE_PLACEHOLDER ELSE user_phone END,
     user_full_name,
     user_avatar,
     'user',
@@ -385,8 +387,20 @@ CREATE OR REPLACE FUNCTION public.link_zalo_account(
 )
 RETURNS public.profiles AS $$
 DECLARE
-  updated_profile public.profiles;
+  current_user_id UUID;
+  zalo_linked_profile public.profiles;
 BEGIN
+  -- Kiểm tra user đã đăng nhập
+  current_user_id := auth.uid();
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Bạn cần đăng nhập để thực hiện thao tác này';
+  END IF;
+
+  -- Validate Zalo ID không được rỗng
+  IF p_zalo_id IS NULL OR char_length(trim(p_zalo_id)) = 0 THEN
+    RAISE EXCEPTION 'Zalo ID không được để trống';
+  END IF;
+
   UPDATE public.profiles
   SET
     zalo_id = p_zalo_id,
@@ -394,32 +408,50 @@ BEGIN
     avatar_url = COALESCE(p_avatar_url, avatar_url),
     phone_number = COALESCE(p_phone_number, phone_number),
     updated_at = NOW()
-  WHERE id = auth.uid()
-  RETURNING * INTO updated_profile;
+  WHERE id = current_user_id
+  RETURNING * INTO zalo_linked_profile;
 
-  RETURN updated_profile;
+  IF zalo_linked_profile IS NULL THEN
+    RAISE EXCEPTION 'Không tìm thấy profile của bạn';
+  END IF;
+
+  RETURN zalo_linked_profile;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 7.4 Function cập nhật nickname
+-- Giới hạn: 2-50 ký tự
 CREATE OR REPLACE FUNCTION public.update_my_nickname(p_nickname TEXT)
 RETURNS public.profiles AS $$
 DECLARE
-  updated_profile public.profiles;
+  current_user_id UUID;
+  nickname_updated_profile public.profiles;
+  MIN_NICKNAME_LENGTH CONSTANT INT := 2;
+  MAX_NICKNAME_LENGTH CONSTANT INT := 50;
 BEGIN
+  -- Kiểm tra user đã đăng nhập
+  current_user_id := auth.uid();
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Bạn cần đăng nhập để thực hiện thao tác này';
+  END IF;
+
   -- Validate nickname length
-  IF p_nickname IS NOT NULL AND (char_length(p_nickname) < 2 OR char_length(p_nickname) > 50) THEN
-    RAISE EXCEPTION 'Nickname phải từ 2-50 ký tự';
+  IF p_nickname IS NOT NULL AND (char_length(p_nickname) < MIN_NICKNAME_LENGTH OR char_length(p_nickname) > MAX_NICKNAME_LENGTH) THEN
+    RAISE EXCEPTION 'Nickname phải từ %-% ký tự', MIN_NICKNAME_LENGTH, MAX_NICKNAME_LENGTH;
   END IF;
 
   UPDATE public.profiles
   SET
     nickname = p_nickname,
     updated_at = NOW()
-  WHERE id = auth.uid()
-  RETURNING * INTO updated_profile;
+  WHERE id = current_user_id
+  RETURNING * INTO nickname_updated_profile;
 
-  RETURN updated_profile;
+  IF nickname_updated_profile IS NULL THEN
+    RAISE EXCEPTION 'Không tìm thấy profile của bạn';
+  END IF;
+
+  RETURN nickname_updated_profile;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -427,14 +459,19 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION public.get_display_name(p_user_id UUID)
 RETURNS TEXT AS $$
 DECLARE
-  display_name TEXT;
+  result_display_name TEXT;
 BEGIN
+  -- Cho phép gọi cả khi không đăng nhập (dùng để hiển thị tên public)
+  IF p_user_id IS NULL THEN
+    RETURN 'Unknown User';
+  END IF;
+
   SELECT COALESCE(nickname, full_name, 'Unknown User')
-  INTO display_name
+  INTO result_display_name
   FROM public.profiles
   WHERE id = p_user_id;
 
-  RETURN COALESCE(display_name, 'Unknown User');
+  RETURN COALESCE(result_display_name, 'Unknown User');
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
