@@ -69,12 +69,14 @@ function getClaimsFromSession(session: any): CustomClaims {
   if (!session?.user) return {}
   
   // Claims can be in app_metadata (from custom_access_token_hook)
+  // or in user_metadata (fallback for compatibility)
   const appMetadata = session.user.app_metadata || {}
+  const userMetadata = session.user.user_metadata || {}
   
   return {
-    role: appMetadata.role as UserRole || undefined,
-    membership: appMetadata.membership as 'free' | 'premium' || undefined,
-    is_premium: appMetadata.is_premium as boolean || undefined
+    role: (appMetadata.role ?? userMetadata.role) as UserRole | undefined,
+    membership: (appMetadata.membership ?? userMetadata.membership) as 'free' | 'premium' | undefined,
+    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
   }
 }
 

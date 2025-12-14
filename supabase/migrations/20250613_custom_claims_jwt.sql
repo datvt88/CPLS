@@ -47,6 +47,7 @@ RETURNS JSONB AS $$
 DECLARE
   claims JSONB;
   user_id UUID;
+  current_app_metadata JSONB;
 BEGIN
   -- Extract user ID from the event
   user_id := (event->>'user_id')::UUID;
@@ -54,8 +55,15 @@ BEGIN
   -- Get claims for this user
   claims := public.get_user_claims(user_id);
   
-  -- Merge claims into the event's claims object
-  event := jsonb_set(event, '{claims}', (event->'claims') || claims);
+  -- Get existing app_metadata or create empty object
+  current_app_metadata := COALESCE(event->'claims'->'app_metadata', '{}'::jsonb);
+  
+  -- Merge our claims into app_metadata
+  -- This ensures claims are accessible at session.user.app_metadata
+  current_app_metadata := current_app_metadata || claims;
+  
+  -- Update the event with the new app_metadata
+  event := jsonb_set(event, '{claims,app_metadata}', current_app_metadata);
   
   RETURN event;
 EXCEPTION

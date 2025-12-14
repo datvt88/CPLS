@@ -19,18 +19,20 @@ interface CustomClaims {
 }
 
 /**
- * Hàm lấy claims từ user_metadata (Thay vì app_metadata)
+ * Hàm lấy claims từ app_metadata (được inject bởi custom_access_token_hook)
+ * Fallback sang user_metadata nếu không tìm thấy trong app_metadata
  */
 function getCustomClaims(user: User | null): CustomClaims {
   if (!user) return {}
   
-  // QUAN TRỌNG: Gói Free dùng Trigger lưu vào user_metadata
-  const metadata = user.user_metadata || {}
+  // Ưu tiên đọc từ app_metadata (được inject bởi custom_access_token_hook)
+  const appMetadata = user.app_metadata || {}
+  const userMetadata = user.user_metadata || {}
   
   return {
-    role: metadata.role as CustomClaims['role'],
-    membership: metadata.membership as CustomClaims['membership'],
-    is_premium: metadata.is_premium as boolean | undefined
+    role: (appMetadata.role ?? userMetadata.role) as CustomClaims['role'],
+    membership: (appMetadata.membership ?? userMetadata.membership) as CustomClaims['membership'],
+    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
   }
 }
 
@@ -143,7 +145,7 @@ export async function middleware(request: NextRequest) {
 
   // --- 3. XỬ LÝ PHÂN QUYỀN (RBAC & Premium) ---
   if (user) {
-    // Lấy thông tin quyền hạn từ user_metadata
+    // Lấy thông tin quyền hạn từ app_metadata (được inject bởi custom_access_token_hook)
     const claims = getCustomClaims(user)
     const role = claims.role || 'user'
     const plan = claims.membership || 'free'
