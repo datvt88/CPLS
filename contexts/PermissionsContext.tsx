@@ -52,8 +52,10 @@ const DEFAULT_PERMISSIONS: PermissionData = {
 
 // Session cache để tránh race condition - singleton pattern
 let sessionCache: { session: any; timestamp: number } | null = null
-const SESSION_CACHE_TTL = 10000 // 10 seconds cache
+const SESSION_CACHE_TTL = 5000 // 5 seconds cache (reduced from 10s for faster sync after login)
 let fetchInProgress: Promise<PermissionData> | null = null
+// Track if a fresh session is required (after auth events)
+let requireFreshSession = false
 
 /**
  * Extract custom claims from JWT session
@@ -82,6 +84,15 @@ function getClaimsFromSession(session: any): CustomClaims {
 
 // Helper function to get cached session or fetch new one
 const getCachedSession = async () => {
+  // If fresh session is required (after auth event), bypass cache
+  if (requireFreshSession) {
+    console.log('🔄 [PermissionsContext] Fresh session required, bypassing cache')
+    requireFreshSession = false
+    const { data: { session } } = await supabase.auth.getSession()
+    sessionCache = { session, timestamp: Date.now() }
+    return session
+  }
+  
   // Check if cache is still valid
   if (sessionCache && (Date.now() - sessionCache.timestamp) < SESSION_CACHE_TTL) {
     return sessionCache.session
@@ -97,6 +108,7 @@ const getCachedSession = async () => {
 const clearSessionCache = () => {
   sessionCache = null
   fetchInProgress = null
+  requireFreshSession = true // Mark that next fetch needs fresh session
 }
 
 // --- FETCHER with timeout and deduplication ---
@@ -280,22 +292,23 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       console.log(`🔔 [PermissionsContext] Auth event: ${event}`)
       lastEventRef.current = eventKey
       
-      // Debounce the actual handling
+      // Debounce the actual handling - reduced delay for faster sync
       eventDebounceRef.current = setTimeout(() => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
-          // Clear session cache on auth events
+          // Clear session cache on auth events (this also sets requireFreshSession = true)
           clearSessionCache()
           
-          // Revalidate permissions with a small delay to let Supabase stabilize
+          // Revalidate permissions immediately for SIGNED_IN, with delay for others
+          const revalidateDelay = event === 'SIGNED_IN' ? 100 : 300
           setTimeout(() => {
             mutate('user-permissions')
-          }, 500)
+          }, revalidateDelay)
         }
         
         // Reset event tracking after debounce period
         setTimeout(() => {
           lastEventRef.current = ''
-        }, 2000)
+        }, 1500)
       }, 300)
     })
     
