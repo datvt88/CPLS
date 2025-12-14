@@ -97,12 +97,12 @@ Nếu claims không có trong JWT (ví dụ: chưa cấu hình hook), hệ thố
         └─────────┤
                   ▼
      ╔═══════════════════════════════════════╗
-     ║     /auth/callback (OAuth Handler)    ║
+     ║     /auth/callback (Route Handler)    ║
      ╠═══════════════════════════════════════╣
-     ║  • detectSessionInUrl auto-processes  ║
-     ║  • PKCE code verifier validated       ║
-     ║  • Session token retrieved            ║
-     ║  • Set cookies + localStorage         ║
+     ║  • Server-side code exchange          ║
+     ║  • PKCE code verifier handled by SSR  ║
+     ║  • Session token set via cookies      ║
+     ║  • Redirect to /dashboard on success  ║
      ╚═══════════════════════════════════════╝
                   │
                   ▼
@@ -472,9 +472,9 @@ app/
 ### **1. PKCE for OAuth**
 - Code verifier + challenge cho Google và Zalo OAuth
 - Prevents authorization code interception
-- **Important**: Supabase's `detectSessionInUrl` automatically handles OAuth callbacks including PKCE flow
-- Do NOT manually call `exchangeCodeForSession()` as it will conflict with automatic processing
-- The code verifier can only be used once; calling it twice causes "both auth code and code verifier should be non-empty" error
+- **Important**: Server-side Route Handler at `/auth/callback/route.ts` handles the PKCE code exchange
+- The `exchangeCodeForSession()` is called server-side to avoid client-side race conditions
+- This prevents the "both auth code and code verifier should be non-empty" error
 
 ### **2. Device Fingerprinting**
 - Canvas fingerprint + browser characteristics
