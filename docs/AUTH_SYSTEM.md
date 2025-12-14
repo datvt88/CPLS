@@ -99,8 +99,9 @@ Nếu claims không có trong JWT (ví dụ: chưa cấu hình hook), hệ thố
      ╔═══════════════════════════════════════╗
      ║     /auth/callback (OAuth Handler)    ║
      ╠═══════════════════════════════════════╣
-     ║  • Verify OAuth code                  ║
-     ║  • Exchange for session token         ║
+     ║  • detectSessionInUrl auto-processes  ║
+     ║  • PKCE code verifier validated       ║
+     ║  • Session token retrieved            ║
      ║  • Set cookies + localStorage         ║
      ╚═══════════════════════════════════════╝
                   │
@@ -469,8 +470,11 @@ app/
 ## 🛡️ Security Features
 
 ### **1. PKCE for OAuth**
-- Code verifier + challenge cho Zalo OAuth
+- Code verifier + challenge cho Google và Zalo OAuth
 - Prevents authorization code interception
+- **Important**: Supabase's `detectSessionInUrl` automatically handles OAuth callbacks including PKCE flow
+- Do NOT manually call `exchangeCodeForSession()` as it will conflict with automatic processing
+- The code verifier can only be used once; calling it twice causes "both auth code and code verifier should be non-empty" error
 
 ### **2. Device Fingerprinting**
 - Canvas fingerprint + browser characteristics
