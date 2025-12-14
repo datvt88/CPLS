@@ -17,12 +17,14 @@ interface ProtectedRouteProps {
   redirectTo?: string
 }
 
-// Grace period to wait for auth to stabilize after initial load (reduced from 1.5s to 1s)
-const AUTH_STABILIZATION_DELAY = 1000
+// Grace period to wait for auth to stabilize after initial load
+const AUTH_STABILIZATION_DELAY = 800 // Reduced from 1s for faster response
 // Maximum time to wait for verification before forcing completion
-const MAX_VERIFICATION_TIMEOUT = 5000
+const MAX_VERIFICATION_TIMEOUT = 6000 // Increased from 5s to allow for slower connections
 // Time to wait for state to propagate after refresh
-const STATE_PROPAGATION_DELAY = 100
+const STATE_PROPAGATION_DELAY = 150 // Slightly increased for better stability
+// Number of retry attempts for verification
+const MAX_RETRY_ATTEMPTS = 2
 
 /**
  * Unified ProtectedRoute Component
@@ -89,6 +91,7 @@ export default function ProtectedRoute({
     }
     
     let isCancelled = false
+    let retryCount = 0
     
     // Context is done loading - now check auth
     const verifyAuth = async () => {
@@ -106,28 +109,43 @@ export default function ProtectedRoute({
       
       if (isCancelled || !mountedRef.current) return
       
-      // Double-check with Supabase directly
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (isCancelled || !mountedRef.current) return
-        
-        if (session?.user) {
-          console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
-          // Wait for refresh to complete before setting verified
-          await refresh()
-          // Give a short delay for state to propagate
-          await new Promise(resolve => setTimeout(resolve, STATE_PROPAGATION_DELAY))
-        } else {
-          console.log('📭 [ProtectedRoute] No session found')
+      // Double-check with Supabase directly with retry logic
+      const verifyWithRetry = async (): Promise<boolean> => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          
+          if (isCancelled || !mountedRef.current) return false
+          
+          if (session?.user) {
+            console.log('✅ [ProtectedRoute] Session verified directly with Supabase')
+            // Wait for refresh to complete before setting verified
+            await refresh()
+            // Give a short delay for state to propagate
+            await new Promise(resolve => setTimeout(resolve, STATE_PROPAGATION_DELAY))
+            return true
+          } else {
+            console.log('📭 [ProtectedRoute] No session found')
+            return false
+          }
+        } catch (error) {
+          console.error('❌ [ProtectedRoute] Error verifying session:', error)
+          return false
         }
-      } catch (error) {
-        console.error('❌ [ProtectedRoute] Error verifying session:', error)
-      } finally {
-        if (!isCancelled && mountedRef.current) {
-          hasVerifiedRef.current = true
-          setIsVerifying(false)
-        }
+      }
+      
+      let verified = await verifyWithRetry()
+      
+      // Retry if not verified and we haven't exceeded max retries
+      while (!verified && retryCount < MAX_RETRY_ATTEMPTS && !isCancelled && mountedRef.current) {
+        retryCount++
+        console.log(`🔄 [ProtectedRoute] Retry verification attempt ${retryCount}/${MAX_RETRY_ATTEMPTS}`)
+        await new Promise(resolve => setTimeout(resolve, 500)) // Wait before retry
+        verified = await verifyWithRetry()
+      }
+      
+      if (!isCancelled && mountedRef.current) {
+        hasVerifiedRef.current = true
+        setIsVerifying(false)
       }
     }
     

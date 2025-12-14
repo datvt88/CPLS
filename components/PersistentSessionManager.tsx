@@ -350,16 +350,20 @@ export default function PersistentSessionManager() {
         if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
           console.log('✅ [SessionManager] User signed in')
 
-          // Background tasks (non-blocking)
-          runInBackground(() => syncUserProfile(session.user), 'syncProfile')
+          // Background tasks (non-blocking) - delay profile sync to avoid auth race condition
+          setTimeout(() => {
+            if (isMounted) {
+              runInBackground(() => syncUserProfile(session.user), 'syncProfile')
+            }
+          }, 500)
           runInBackground(() => cleanupExpiredSessions(), 'cleanup')
 
-          // Initialize session with delay to let auth stabilize
+          // Initialize session with shorter delay for faster response
           setTimeout(() => {
             if (isMounted) {
               initializeSession()
             }
-          }, 1000)
+          }, 800)
         }
 
         if (event === 'TOKEN_REFRESHED') {
