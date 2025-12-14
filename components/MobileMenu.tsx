@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
-import { supabase } from '@/lib/supabaseClient'
+import { useAuth } from '@/contexts'
+import { profileService } from '@/services/profile.service'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import PublicIcon from '@mui/icons-material/Public'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
@@ -12,60 +13,32 @@ import BoltIcon from '@mui/icons-material/Bolt'
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import PersonIcon from '@mui/icons-material/Person'
 import CloseIcon from '@mui/icons-material/Close'
+import LogoutIcon from '@mui/icons-material/Logout'
 
 export default function MobileMenu() {
   const [isOpen, setIsOpen] = useState(false)
-  const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const unreadCount = useUnreadMessages()
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, signOut, isAuthenticated } = useAuth()
 
-  // Check auth state
+  // Fetch profile data when user changes
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        setUser(session.user)
-
-        // Fetch profile data
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', session.user.id)
-          .single()
-
-        if (profileData) {
-          setProfile(profileData)
-        }
-      }
-    }
-
-    checkAuth()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        setUser(session.user)
-
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('full_name, email')
-          .eq('id', session.user.id)
-          .single()
-
+    const fetchProfile = async () => {
+      if (user?.id) {
+        const { profile: profileData } = await profileService.getProfile(user.id)
         if (profileData) {
           setProfile(profileData)
         }
       } else {
-        setUser(null)
         setProfile(null)
       }
-    })
-
-    return () => {
-      subscription.unsubscribe()
     }
-  }, [])
+
+    fetchProfile()
+  }, [user])
 
   // Đóng menu khi route thay đổi
   useEffect(() => {
@@ -83,6 +56,20 @@ export default function MobileMenu() {
       document.body.style.overflow = ''
     }
   }, [isOpen])
+
+  // Handle logout
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+      setIsOpen(false)
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   const menuItems = [
     { href: '/dashboard', label: 'Tổng quan', Icon: DashboardIcon },
@@ -238,20 +225,47 @@ export default function MobileMenu() {
 
           {/* Bottom Section */}
           <div className="pt-6 mt-auto border-t border-gray-800 space-y-3 flex-shrink-0">
-            {user ? (
-              // User is logged in - show user info only
-              <div className="flex items-center gap-3 px-2 py-2">
-                <div className="w-9 h-9 rounded-full bg-purple-900
-                              flex items-center justify-center border border-gray-700">
-                  <PersonIcon sx={{ fontSize: 18 }} className="text-purple-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-gray-500 text-xs">Xin chào!</div>
-                  <div className="text-white text-sm font-medium truncate">
-                    {getDisplayName()}
+            {isAuthenticated ? (
+              // User is logged in - show user info and logout button
+              <>
+                <div className="flex items-center gap-3 px-2 py-2">
+                  <div className="w-9 h-9 rounded-full bg-purple-900
+                                flex items-center justify-center border border-gray-700">
+                    <PersonIcon sx={{ fontSize: 18 }} className="text-purple-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-500 text-xs">Xin chào!</div>
+                    <div className="text-white text-sm font-medium truncate">
+                      {getDisplayName()}
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                {/* Logout Button */}
+                <button
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="flex items-center justify-center gap-2 w-full py-3 px-4
+                            rounded-xl font-medium text-[14px]
+                            bg-red-900/30 border border-red-800/50
+                            hover:bg-red-800/40 hover:border-red-700/60
+                            text-red-400 hover:text-red-300
+                            transition-all duration-200 active:scale-[0.98]
+                            disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoggingOut ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                      Đang đăng xuất...
+                    </>
+                  ) : (
+                    <>
+                      <LogoutIcon sx={{ fontSize: 18 }} />
+                      Đăng xuất
+                    </>
+                  )}
+                </button>
+              </>
             ) : (
               // User not logged in - show login button only
               <>
