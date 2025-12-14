@@ -19,6 +19,9 @@ const GENERATION_CONFIG = {
   maxOutputTokens: 2048,
 }
 
+// Health check test content for countTokens
+const HEALTH_CHECK_CONTENT = 'ping'
+
 /**
  * GeminiAPI: Core API communication service
  */
@@ -106,14 +109,36 @@ class GeminiAPI {
   }
 
   /**
-   * Health check - Verify API connectivity
+   * Health check - Verify API connectivity using countTokens endpoint
+   * This validates the API key without consuming generation quota
    */
   async healthCheck(): Promise<{ status: 'ok' | 'error', message: string }> {
     try {
       if (!this.isConfigured()) {
         return { status: 'error', message: 'API key not configured' }
       }
-      await this.callAPI('Ping', DEFAULT_GEMINI_MODEL)
+
+      const apiKey = this.getApiKey()
+      const response = await fetch(
+        `${GEMINI_API_BASE}/${DEFAULT_GEMINI_MODEL}:countTokens`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: HEALTH_CHECK_CONTENT }] }],
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[GeminiAPI] Health check error:', response.status, errorText)
+        return { status: 'error', message: this.getErrorMessage(response.status) }
+      }
+
       return { status: 'ok', message: 'Gemini API is working' }
     } catch (error: any) {
       return { status: 'error', message: error.message }
