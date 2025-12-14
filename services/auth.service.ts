@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabaseClient'
-import { deviceService, clearDeviceFingerprintCache } from '@/lib/session-manager'
 import type { AuthError, Session, User } from '@supabase/supabase-js'
 
 // ============================================================================
@@ -91,15 +90,13 @@ export const authService = {
    */
   async signIn({ email, password }: AuthCredentials) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (data.user && !error) {
-      this.trackUserDevice(data.user.id).catch(console.error)
-    }
+    // Đã xóa logic trackUserDevice để tránh lỗi thiếu bảng
     return { data, error }
   },
 
   /**
    * Sign in with Google OAuth
-   * QUAN TRỌNG: Đã sửa redirectTo để trỏ chính xác về Server Route
+   * Logic chuẩn: Trỏ về Server Route
    */
   async signInWithGoogle(options?: OAuthOptions) {
     try {
@@ -114,7 +111,6 @@ export const authService = {
             access_type: 'offline',
             prompt: 'consent',
           },
-          // skipBrowserRedirect: false là mặc định, không cần ghi cũng được
         },
       })
       
@@ -138,7 +134,6 @@ export const authService = {
    */
   async signInWithPhone({ phoneNumber, password }: PhoneCredentials) {
     try {
-      // (Giữ nguyên logic cũ của bạn)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), AUTH_TIMEOUT)
 
@@ -165,9 +160,7 @@ export const authService = {
           return { data: authData, error: { message: 'Mật khẩu không đúng' } }
         }
         
-        if (authData.user) {
-          this.trackUserDevice(authData.user.id).catch(console.error)
-        }
+        // Đã xóa logic trackUserDevice
 
         return { data: authData, error: null }
       } catch {
@@ -181,8 +174,6 @@ export const authService = {
 
   /**
    * Handle OAuth callback
-   * LƯU Ý: Vì chúng ta dùng Server-Side Auth (route.ts), Client không cần exchange code nữa.
-   * Hàm này chỉ đơn giản là đợi session được đồng bộ xuống client.
    */
   async handleOAuthCallback(): Promise<SessionResult> {
     try {
@@ -190,14 +181,14 @@ export const authService = {
         return { session: null, error: null }
       }
 
-      // Chỉ cần getSession() để check xem Server đã set cookie thành công chưa
+      // Check xem Server đã set cookie thành công chưa
       const { data, error } = await withTimeout(
         supabase.auth.getSession(),
         OAUTH_TIMEOUT
       )
       
       if (data.session?.user) {
-        this.trackUserDevice(data.session.user.id).catch(console.error)
+        // Đã xóa logic trackUserDevice
         return { session: data.session, error: null }
       }
       
@@ -212,14 +203,8 @@ export const authService = {
    * Sign out
    */
   async signOut() {
-    clearDeviceFingerprintCache()
-    deviceService.clearDeviceId()
+    // Đã xóa logic clear device cache
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const deviceId = deviceService.getOrCreateDeviceId()
-        deviceService.removeDevice(user.id, deviceId).catch(console.error)
-      }
       const { error } = await withTimeout(supabase.auth.signOut())
       return { error }
     } catch (err) {
@@ -234,8 +219,6 @@ export const authService = {
     try {
       const { data, error } = await withTimeout(supabase.auth.getSession())
       if (error) {
-        // Silent error log
-        // console.error('[Auth] Session error:', error)
         return { session: null, error }
       }
       return { session: data.session, error: null }
@@ -260,7 +243,9 @@ export const authService = {
     return supabase.auth.onAuthStateChange(callback)
   },
 
-  // (Giữ nguyên các hàm trackUserDevice, getUserDevices...)
+  /**
+   * Get user metadata
+   */
   async getUserMetadata() {
     const { user, error } = await this.getUser()
     if (error || !user) return { metadata: null, error }
@@ -278,35 +263,25 @@ export const authService = {
     }
   },
 
+  // ============================================================================
+  // Device Management (STUBS)
+  // Các hàm này được giữ lại nhưng không làm gì cả để tránh lỗi code ở nơi khác
+  // ============================================================================
+
   async trackUserDevice(userId: string) {
-    try {
-      const deviceId = deviceService.getOrCreateDeviceId()
-      // Skip error check for limit enforcement to allow login
-      await deviceService.enforceDeviceLimit(userId, 3).catch(() => {})
-      
-      const { device, error: registerError } = await deviceService.registerDevice(userId, deviceId)
-      return { device, error: registerError }
-    } catch (err) {
-      return { error: err }
-    }
+    // Bypass: Không làm gì cả vì không có bảng user_devices
+    return { device: null, error: null }
   },
 
   async getUserDevices() {
-    const { user } = await this.getUser()
-    if (!user) return { devices: null, error: new Error('No user logged in') }
-    return await deviceService.getUserDevices(user.id)
+    return { devices: [], error: null }
   },
 
   async removeUserDevice(deviceId: string) {
-    const { user } = await this.getUser()
-    if (!user) return { error: new Error('No user logged in') }
-    return await deviceService.removeDevice(user.id, deviceId)
+    return { error: null }
   },
 
   async updateDeviceActivity() {
-    const { data } = await supabase.auth.getUser()
-    if (!data.user) return
-    const deviceId = deviceService.getOrCreateDeviceId()
-    await deviceService.updateDeviceActivity(data.user.id, deviceId)
+    return
   }
 }
