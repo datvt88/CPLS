@@ -25,9 +25,18 @@ function sanitizeErrorMessage(rawError: string | null): string | null {
     'unsupported_response_type': 'Loại phản hồi không được hỗ trợ.',
     'server_error': 'Lỗi máy chủ. Vui lòng thử lại sau.',
     'temporarily_unavailable': 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.',
-    'invalid_grant': 'Phiên đăng nhập không hợp lệ. Vui lòng thử lại.',
+    'invalid_grant': 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng thử lại.',
     'Unexpected authentication error': 'Lỗi xác thực không mong đợi. Vui lòng thử lại.',
     'Không tìm thấy mã xác thực': 'Không tìm thấy mã xác thực. Vui lòng thử đăng nhập lại.',
+    // PKCE và Server Auth Errors
+    'ServerAuthError': 'Lỗi xác thực từ máy chủ. Vui lòng thử đăng nhập lại.',
+    'NoCodeProvided': 'Không tìm thấy mã xác thực. Vui lòng thử đăng nhập lại.',
+    'NoSession': 'Không thể thiết lập phiên đăng nhập. Vui lòng thử lại.',
+    'UnexpectedError': 'Đã xảy ra lỗi không mong đợi. Vui lòng thử lại.',
+    'code verifier': 'Lỗi xác thực PKCE. Vui lòng xóa cache trình duyệt và thử lại.',
+    'pkce': 'Lỗi xác thực bảo mật. Vui lòng thử đăng nhập lại.',
+    'both auth code and code verifier': 'Phiên xác thực đã hết hạn. Vui lòng thử đăng nhập lại.',
+    'exchange_failed': 'Không thể hoàn tất đăng nhập. Vui lòng thử lại.',
   }
   
   // Check if the error matches a known pattern (case-insensitive)
