@@ -43,7 +43,6 @@ const PROTECTED_ROUTES = [
   '/management',
   '/admin',
   '/upgrade',
-  '/signals', // Ví dụ: Trang này cần login
 ]
 
 // 2. Routes chỉ dành cho Admin/Mod
