@@ -213,8 +213,9 @@ export const authService = {
         )
         
         if (error) {
-          // Handle code already used (e.g., page refresh)
-          if (error.message.includes('already used') || error.message.includes('invalid')) {
+          // Fallback: Supabase may have already processed the session (detectSessionInUrl)
+          console.warn('[Auth] OAuth code exchange error, attempting session fallback:', error.message)
+          try {
             const { data: existingSession } = await withTimeout(
               supabase.auth.getSession(),
               OAUTH_TIMEOUT
@@ -223,6 +224,8 @@ export const authService = {
               this.trackUserDevice(existingSession.session.user.id).catch(console.error)
               return { session: existingSession.session, error: null }
             }
+          } catch (fallbackError) {
+            console.error('[Auth] Fallback session retrieval failed:', fallbackError)
           }
           return { session: null, error }
         }
@@ -234,7 +237,10 @@ export const authService = {
       }
       
       // Fallback: check for existing session
-      const { data, error } = await withTimeout(supabase.auth.getSession())
+      const { data, error } = await withTimeout(
+        supabase.auth.getSession(),
+        OAUTH_TIMEOUT
+      )
       
       if (error) {
         return { session: null, error }
