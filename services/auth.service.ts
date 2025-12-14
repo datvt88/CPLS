@@ -1,72 +1,20 @@
 import { supabase } from '@/lib/supabaseClient'
-import type { AuthError, Session, User } from '@supabase/supabase-js'
+import { AUTH_TIMEOUT, OAUTH_TIMEOUT } from '@/lib/auth/constants'
+import { getCallbackUrl, withTimeout } from '@/lib/auth/helpers'
+import type { 
+  EmailCredentials, 
+  PhoneCredentials, 
+  OAuthOptions,
+  SessionResult, 
+  UserResult 
+} from '@/types/auth'
+import type { AuthError, Session } from '@supabase/supabase-js'
 
-// ============================================================================
-// Types
-// ============================================================================
+// Alias for backward compatibility
+type AuthCredentials = EmailCredentials
 
-export interface AuthCredentials {
-  email: string
-  password: string
-}
-
-export interface PhoneCredentials {
-  phoneNumber: string
-  password: string
-}
-
-export interface OAuthOptions {
-  redirectTo?: string
-}
-
-export interface AuthResult<T = void> {
-  data: T | null
-  error: AuthError | { message: string } | null
-}
-
-export interface SessionResult {
-  session: Session | null
-  error: AuthError | { message: string } | null
-}
-
-export interface UserResult {
-  user: User | null
-  error: AuthError | { message: string } | null
-}
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const AUTH_TIMEOUT = 10000 // 10 seconds
-const OAUTH_TIMEOUT = 15000 // 15 seconds
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/**
- * Get the OAuth callback URL
- * QUAN TRỌNG: Luôn trỏ về /auth/callback để Route Handler (route.ts) xử lý
- */
-const getCallbackUrl = (): string => {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}/auth/callback`
-  }
-  return ''
-}
-
-/**
- * Wraps a promise with a timeout
- */
-const withTimeout = <T>(promise: Promise<T>, ms: number = AUTH_TIMEOUT): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), ms)
-    )
-  ])
-}
+// Re-export types for convenience
+export type { EmailCredentials, PhoneCredentials, OAuthOptions, SessionResult, UserResult }
 
 // ============================================================================
 // Auth Service
@@ -96,12 +44,10 @@ export const authService = {
 
   /**
    * Sign in with Google OAuth
-   * Logic chuẩn: Trỏ về Server Route
    */
   async signInWithGoogle(options?: OAuthOptions) {
     try {
-      // Luôn lấy dynamic origin để tránh lỗi mismatch giữa localhost và 127.0.0.1
-      const redirectTo = `${window.location.origin}/auth/callback`
+      const redirectTo = options?.redirectTo || getCallbackUrl()
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -203,9 +149,8 @@ export const authService = {
    * Sign out
    */
   async signOut() {
-    // Đã xóa logic clear device cache
     try {
-      const { error } = await withTimeout(supabase.auth.signOut())
+      const { error } = await withTimeout(supabase.auth.signOut(), AUTH_TIMEOUT)
       return { error }
     } catch (err) {
       return { error: err }
@@ -217,7 +162,7 @@ export const authService = {
    */
   async getSession(): Promise<SessionResult> {
     try {
-      const { data, error } = await withTimeout(supabase.auth.getSession())
+      const { data, error } = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT)
       if (error) {
         return { session: null, error }
       }
@@ -232,7 +177,7 @@ export const authService = {
    */
   async getUser(): Promise<UserResult> {
     try {
-      const { data, error } = await withTimeout(supabase.auth.getUser())
+      const { data, error } = await withTimeout(supabase.auth.getUser(), AUTH_TIMEOUT)
       return { user: data.user, error }
     } catch (error) {
       return { user: null, error: error as AuthError }

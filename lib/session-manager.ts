@@ -9,27 +9,11 @@
  */
 
 import { supabase } from './supabaseClient'
+import { DEVICE_ID_KEY, DEVICE_FINGERPRINT_KEY, MAX_DEVICES } from '@/lib/auth/constants'
+import type { DeviceInfo, SessionInfo } from '@/types/auth'
 
-// ============ INTERFACES ============
-
-export interface DeviceInfo {
-  name: string
-  type: 'desktop' | 'mobile' | 'tablet'
-  browser: string
-  os: string
-}
-
-export interface SessionInfo {
-  id: string
-  device_name: string
-  device_type: string
-  browser: string
-  os: string
-  ip_address: string
-  last_activity: string
-  created_at: string
-  is_current: boolean
-}
+// Re-export types for convenience
+export type { DeviceInfo, SessionInfo }
 
 /** User device record from user_devices table */
 export interface UserDevice {
@@ -43,12 +27,6 @@ export interface UserDevice {
   last_active_at: string
   created_at: string
 }
-
-// ============ CONSTANTS ============
-
-const DEVICE_ID_KEY = 'cpls-device-id'
-const FINGERPRINT_KEY = 'cpls_device_fingerprint'
-const MAX_DEVICES = 3
 
 /**
  * Get device information from user agent
@@ -132,7 +110,7 @@ export async function getDeviceFingerprint(): Promise<string> {
 
   try {
     // Check if we have a stored fingerprint in localStorage
-    const stored = localStorage.getItem('cpls_device_fingerprint')
+    const stored = localStorage.getItem(DEVICE_FINGERPRINT_KEY)
     if (stored) {
       cachedFingerprint = stored // Cache in memory
       return stored
@@ -170,7 +148,7 @@ export async function getDeviceFingerprint(): Promise<string> {
     const deviceId = `fp_${Math.abs(hash).toString(36)}`
 
     // Store in both localStorage and memory cache
-    localStorage.setItem('cpls_device_fingerprint', deviceId)
+    localStorage.setItem(DEVICE_FINGERPRINT_KEY, deviceId)
     cachedFingerprint = deviceId
 
     return deviceId
@@ -188,7 +166,7 @@ export async function getDeviceFingerprint(): Promise<string> {
 export function clearDeviceFingerprintCache(): void {
   cachedFingerprint = null
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('cpls_device_fingerprint')
+    localStorage.removeItem(DEVICE_FINGERPRINT_KEY)
   }
 }
 

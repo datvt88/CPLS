@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePermissions } from '@/contexts/PermissionsContext'
 import { supabase } from '@/lib/supabaseClient'
+import {
+  AUTH_STABILIZATION_DELAY,
+  MAX_VERIFICATION_TIMEOUT,
+  STATE_PROPAGATION_DELAY,
+  MAX_RETRY_ATTEMPTS
+} from '@/lib/auth/constants'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -16,15 +22,6 @@ interface ProtectedRouteProps {
   /** Custom redirect URL when not authorized (default: /login for auth, /dashboard for admin) */
   redirectTo?: string
 }
-
-// Grace period to wait for auth to stabilize after initial load
-const AUTH_STABILIZATION_DELAY = 800 // Reduced from 1s for faster response
-// Maximum time to wait for verification before forcing completion
-const MAX_VERIFICATION_TIMEOUT = 6000 // Increased from 5s to allow for slower connections
-// Time to wait for state to propagate after refresh
-const STATE_PROPAGATION_DELAY = 150 // Slightly increased for better stability
-// Number of retry attempts for verification
-const MAX_RETRY_ATTEMPTS = 2
 
 /**
  * Unified ProtectedRoute Component

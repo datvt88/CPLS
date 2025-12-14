@@ -1,63 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { authService } from '@/services/auth.service'
 import { AuthForm } from '@/components/AuthForm'
-import { Suspense } from 'react'
-
-// Timeout for session check
-const SESSION_CHECK_TIMEOUT = 3000
-
-/**
- * Sanitize and map OAuth error messages to user-friendly Vietnamese messages
- * This prevents XSS attacks and improves user experience
- */
-function sanitizeErrorMessage(rawError: string | null): string | null {
-  if (!rawError) return null
-  
-  // Map common OAuth error messages to user-friendly Vietnamese first
-  // This is the safest approach - use predefined messages
-  const errorMap: Record<string, string> = {
-    'access_denied': 'Bạn đã từ chối quyền truy cập. Vui lòng thử lại.',
-    'invalid_request': 'Yêu cầu không hợp lệ. Vui lòng thử đăng nhập lại.',
-    'unauthorized_client': 'Ứng dụng chưa được ủy quyền. Vui lòng liên hệ hỗ trợ.',
-    'unsupported_response_type': 'Loại phản hồi không được hỗ trợ.',
-    'server_error': 'Lỗi máy chủ. Vui lòng thử lại sau.',
-    'temporarily_unavailable': 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.',
-    'invalid_grant': 'Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng thử lại.',
-    'Unexpected authentication error': 'Lỗi xác thực không mong đợi. Vui lòng thử lại.',
-    'Không tìm thấy mã xác thực': 'Không tìm thấy mã xác thực. Vui lòng thử đăng nhập lại.',
-    // PKCE và Server Auth Errors
-    'ServerAuthError': 'Lỗi xác thực từ máy chủ. Vui lòng thử đăng nhập lại.',
-    'NoCodeProvided': 'Không tìm thấy mã xác thực. Vui lòng thử đăng nhập lại.',
-    'NoSession': 'Không thể thiết lập phiên đăng nhập. Vui lòng thử lại.',
-    'UnexpectedError': 'Đã xảy ra lỗi không mong đợi. Vui lòng thử lại.',
-    'code verifier': 'Lỗi xác thực PKCE. Vui lòng xóa cache trình duyệt và thử lại.',
-    'pkce': 'Lỗi xác thực bảo mật. Vui lòng thử đăng nhập lại.',
-    'both auth code and code verifier': 'Phiên xác thực đã hết hạn. Vui lòng thử đăng nhập lại.',
-    'exchange_failed': 'Không thể hoàn tất đăng nhập. Vui lòng thử lại.',
-  }
-  
-  // Check if the error matches a known pattern (case-insensitive)
-  const lowerError = rawError.toLowerCase()
-  for (const [key, value] of Object.entries(errorMap)) {
-    if (lowerError.includes(key.toLowerCase())) {
-      return value
-    }
-  }
-  
-  // For unknown errors, only allow alphanumeric, Vietnamese characters, spaces, and basic punctuation
-  // This completely prevents XSS by using a whitelist approach
-  const allowedPattern = /^[\p{L}\p{N}\s.,!?;:'-]+$/u
-  if (allowedPattern.test(rawError)) {
-    // Limit error message length
-    return rawError.length > 200 ? rawError.substring(0, 200) + '...' : rawError
-  }
-  
-  // If the error contains suspicious characters, return a generic message
-  return 'Đã xảy ra lỗi xác thực. Vui lòng thử đăng nhập lại.'
-}
+import { SESSION_CHECK_TIMEOUT } from '@/lib/auth/constants'
+import { sanitizeErrorMessage } from '@/lib/auth/helpers'
 
 function LoginContent() {
   const router = useRouter()
