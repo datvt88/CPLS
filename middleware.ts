@@ -53,8 +53,6 @@ const ADMIN_ROUTES = [
 
 // 3. Routes chỉ dành cho thành viên Premium (Mới thêm)
 const PREMIUM_ROUTES = [
-  '/signals',
-  '/stocks',
   '/premium-content',
 ]
 
