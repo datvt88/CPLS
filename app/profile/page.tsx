@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { authService } from '@/services/auth.service'
+import { useAuth } from '@/contexts'
 import { profileService, type Profile as BaseProfile } from '@/services/profile.service'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import DeviceManagement from '@/components/DeviceManagement'
@@ -15,10 +15,12 @@ type Profile = BaseProfile & {
 
 function ProfilePageContent() {
   const router = useRouter()
+  const { user, signOut } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingTCBS, setSavingTCBS] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [message, setMessage] = useState('')
   const [tcbsMessage, setTCBSMessage] = useState('')
 
@@ -34,13 +36,12 @@ function ProfilePageContent() {
 
   useEffect(() => {
     loadProfile()
-  }, [])
+  }, [user])
 
   const loadProfile = async () => {
     try {
-      const { user } = await authService.getUser()
       if (!user) {
-        router.push('/auth/login')
+        setLoading(false)
         return
       }
 
@@ -65,13 +66,24 @@ function ProfilePageContent() {
     }
   }
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
+
   const handleSubmitUserInfo = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage('')
     setSaving(true)
 
     try {
-      const { user } = await authService.getUser()
       if (!user) return
 
       const { error } = await profileService.updateProfile(user.id, {
@@ -101,7 +113,6 @@ function ProfilePageContent() {
     setSavingTCBS(true)
 
     try {
-      const { user } = await authService.getUser()
       if (!user) return
 
       if (!tcbsApiKey.trim()) {
@@ -133,7 +144,6 @@ function ProfilePageContent() {
     setSavingTCBS(true)
 
     try {
-      const { user } = await authService.getUser()
       if (!user) return
 
       const { error } = await profileService.removeTCBSApiKey(user.id)
@@ -390,6 +400,37 @@ function ProfilePageContent() {
         </div>
 
         <DeviceManagement />
+
+        {/* Section: Đăng xuất */}
+        <div className="bg-[#1E1E1E] rounded-xl shadow-xl p-6 sm:p-8 border border-[#2C2C2C]">
+          <h2 className="text-xl font-bold mb-4 text-white">Phiên đăng nhập</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Đăng xuất khỏi tài khoản trên thiết bị này. Bạn sẽ cần đăng nhập lại để tiếp tục sử dụng.
+          </p>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full sm:w-auto px-6 py-3 bg-red-600 hover:bg-red-700 
+                       text-white font-semibold rounded-lg 
+                       transition-all duration-200
+                       disabled:opacity-50 disabled:cursor-not-allowed
+                       flex items-center justify-center gap-2"
+          >
+            {isLoggingOut ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Đang đăng xuất...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Đăng xuất
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )

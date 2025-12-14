@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
-import { authService } from '@/services/auth.service'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts'
 import { profileService } from '@/services/profile.service'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import DashboardIcon from '@mui/icons-material/Dashboard'
@@ -13,26 +14,46 @@ import ChatBubbleIcon from '@mui/icons-material/ChatBubble'
 import PersonIcon from '@mui/icons-material/Person'
 import SecurityIcon from '@mui/icons-material/Security'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
+import LogoutIcon from '@mui/icons-material/Logout'
 
 export default function Sidebar(){
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const unreadCount = useUnreadMessages()
+  const router = useRouter()
+  const { user, signOut, isAuthenticated } = useAuth()
 
   useEffect(() => {
-    checkAdminRole()
-  }, [])
-
-  const checkAdminRole = async () => {
-    try {
-      const { user } = await authService.getUser()
-      if (user) {
-        const { profile } = await profileService.getProfile(user.id)
-        if (profile && (profile.role === 'admin' || profile.role === 'mod')) {
-          setIsAdmin(true)
+    const checkAdminRole = async () => {
+      try {
+        if (user) {
+          const { profile } = await profileService.getProfile(user.id)
+          if (profile && (profile.role === 'admin' || profile.role === 'mod')) {
+            setIsAdmin(true)
+          } else {
+            setIsAdmin(false)
+          }
+        } else {
+          setIsAdmin(false)
         }
+      } catch (error) {
+        console.error('Error checking admin role:', error)
+        setIsAdmin(false)
       }
+    }
+
+    checkAdminRole()
+  }, [user])
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+      router.push('/auth/login')
     } catch (error) {
-      console.error('Error checking admin role:', error)
+      console.error('Logout error:', error)
+    } finally {
+      setIsLoggingOut(false)
     }
   }
 
@@ -93,6 +114,35 @@ export default function Sidebar(){
               <SecurityIcon sx={{ fontSize: { xs: 20, lg: 22 } }} />
               <span className="ml-2 font-semibold">Quản lý User</span>
             </Link>
+          </>
+        )}
+
+        {/* Logout Button - Only visible when authenticated */}
+        {isAuthenticated && (
+          <>
+            <div className="my-3 border-t border-gray-700"></div>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center w-full py-2 lg:py-2.5 px-2 lg:px-3 rounded 
+                         bg-red-900/20 border border-red-800/30 
+                         hover:bg-red-800/30 hover:border-red-700/40
+                         text-red-400 hover:text-red-300 
+                         transition-colors text-sm
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoggingOut ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-red-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="ml-2">Đang đăng xuất...</span>
+                </>
+              ) : (
+                <>
+                  <LogoutIcon sx={{ fontSize: { xs: 20, lg: 22 } }} />
+                  <span className="ml-2">Đăng xuất</span>
+                </>
+              )}
+            </button>
           </>
         )}
       </nav>
