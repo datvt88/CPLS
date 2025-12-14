@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { Suspense } from 'react'
 
 const isDev = process.env.NODE_ENV === 'development'
+
+// Constants for timeouts
+const ERROR_REDIRECT_DELAY_MS = 2000
+const SUCCESS_REDIRECT_DELAY_MS = 500
 
 /**
  * Client-side OAuth Callback Handler
@@ -40,10 +43,10 @@ function CallbackContent() {
           setStatus('error')
           setErrorMessage(errorDesc || errorParam)
           
-          // Redirect về login với lỗi sau 2 giây
+          // Redirect về login với lỗi
           setTimeout(() => {
             router.replace(`/auth/login?error=${errorParam}&error_description=${encodeURIComponent(errorDesc || '')}`)
-          }, 2000)
+          }, ERROR_REDIRECT_DELAY_MS)
           return
         }
 
@@ -69,7 +72,7 @@ function CallbackContent() {
           
           setTimeout(() => {
             router.replace('/auth/login?error=NoCodeProvided')
-          }, 2000)
+          }, ERROR_REDIRECT_DELAY_MS)
           return
         }
 
@@ -86,7 +89,7 @@ function CallbackContent() {
           
           setTimeout(() => {
             router.replace(`/auth/login?error=ServerAuthError&error_description=${encodeURIComponent(error.message)}`)
-          }, 2000)
+          }, ERROR_REDIRECT_DELAY_MS)
           return
         }
 
@@ -94,10 +97,10 @@ function CallbackContent() {
           if (isDev) console.log('[Auth Callback Page] ✅ Session established for user:', data.session.user.id.slice(0, 8) + '...')
           setStatus('success')
           
-          // Đợi một chút để session được sync
+          // Đợi để session được sync trước khi redirect
           setTimeout(() => {
             router.replace(next)
-          }, 500)
+          }, SUCCESS_REDIRECT_DELAY_MS)
         } else {
           console.error('[Auth Callback Page] No session returned')
           setStatus('error')
@@ -105,7 +108,7 @@ function CallbackContent() {
           
           setTimeout(() => {
             router.replace('/auth/login?error=NoSession')
-          }, 2000)
+          }, ERROR_REDIRECT_DELAY_MS)
         }
       } catch (err) {
         console.error('[Auth Callback Page] Unexpected error:', err)
@@ -114,7 +117,7 @@ function CallbackContent() {
         
         setTimeout(() => {
           router.replace('/auth/login?error=UnexpectedError')
-        }, 2000)
+        }, ERROR_REDIRECT_DELAY_MS)
       }
     }
 
