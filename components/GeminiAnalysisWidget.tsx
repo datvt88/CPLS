@@ -47,8 +47,8 @@ interface DataStatus {
 
 const StatusIndicator = ({ ready, label }: { ready: boolean; label: string }) => (
   <div className="flex items-center gap-1.5 text-[10px]">
-    <span className={`w-1.5 h-1.5 rounded-full ${ready ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-    <span className={ready ? 'text-emerald-400' : 'text-slate-500'}>{label}</span>
+    <span className={`w-1.5 h-1.5 rounded-full ${ready ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+    <span className={ready ? 'text-emerald-400' : 'text-rose-400'}>{label}</span>
   </div>
 )
 
