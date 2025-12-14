@@ -129,7 +129,7 @@ const ActionBox = ({ label, value, color }: { label: string; value: number | nul
   return (
     <div className="rounded-lg bg-slate-900/50 p-2 sm:p-3 text-center border border-slate-700">
       <div className="text-[10px] text-gray-500 mb-1 uppercase tracking-wider">{label}</div>
-      <div className={`text-base sm:text-lg font-bold ${color}`}>{formatPrice(value)}</div>
+      <div className={`text-base sm:text-lg font-bold ${color}`}>{formatPrice(value, 0)}</div>
     </div>
   )
 }
