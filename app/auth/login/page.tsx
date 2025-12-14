@@ -13,14 +13,25 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isChecking, setIsChecking] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const hasRedirected = useRef(false)
 
   // Get destination URL (if any), or default to dashboard
   const nextUrl = searchParams.get('next') || '/dashboard'
+  
+  // Get error from OAuth callback (if any)
+  const oauthError = searchParams.get('error')
 
   useEffect(() => {
     let mounted = true
     let timeoutId: NodeJS.Timeout | null = null
+
+    // Set error message from OAuth callback if present
+    if (oauthError) {
+      setErrorMessage(oauthError)
+      setIsChecking(false)
+      return
+    }
 
     const checkSession = async () => {
       try {
@@ -73,7 +84,7 @@ function LoginContent() {
       }
       authListener.subscription.unsubscribe()
     }
-  }, [router, nextUrl])
+  }, [router, nextUrl, oauthError])
 
   // Loading screen
   if (isChecking) {
@@ -87,6 +98,21 @@ function LoginContent() {
   return (
     <div className="flex justify-center items-center min-h-screen bg-black text-white font-sans">
       <div className="w-full max-w-md mx-4 px-6 py-8">
+        
+        {/* OAuth Error Message */}
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <h3 className="text-red-500 font-medium">Đăng nhập thất bại</h3>
+                <p className="text-red-400/80 text-sm mt-1">{errorMessage}</p>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Logo / Header */}
         <div className="text-center mb-8">
