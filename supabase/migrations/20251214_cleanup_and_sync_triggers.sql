@@ -258,10 +258,26 @@ RETURNS JSONB AS $$
 DECLARE
   claims JSONB;
   user_id UUID;
+  user_id_text TEXT;
   current_app_metadata JSONB;
 BEGIN
-  -- Lấy user ID từ event
-  user_id := (event->>'user_id')::UUID;
+  -- Lấy user ID từ event với validation
+  user_id_text := event->>'user_id';
+  
+  -- Validate user_id trước khi cast
+  IF user_id_text IS NULL OR user_id_text = '' THEN
+    -- Không có user_id, trả về event không thay đổi
+    RETURN event;
+  END IF;
+  
+  -- Cast với error handling
+  BEGIN
+    user_id := user_id_text::UUID;
+  EXCEPTION
+    WHEN invalid_text_representation THEN
+      RAISE WARNING 'Invalid user_id format in custom_access_token_hook: %', user_id_text;
+      RETURN event;
+  END;
   
   -- Lấy claims cho user này
   claims := public.get_user_claims(user_id);
@@ -426,6 +442,7 @@ RETURNS public.profiles AS $$
 DECLARE
   current_user_id UUID;
   nickname_updated_profile public.profiles;
+  nickname_length INT;
   MIN_NICKNAME_LENGTH CONSTANT INT := 2;
   MAX_NICKNAME_LENGTH CONSTANT INT := 50;
 BEGIN
@@ -435,9 +452,12 @@ BEGIN
     RAISE EXCEPTION 'Bạn cần đăng nhập để thực hiện thao tác này';
   END IF;
 
-  -- Validate nickname length
-  IF p_nickname IS NOT NULL AND (char_length(p_nickname) < MIN_NICKNAME_LENGTH OR char_length(p_nickname) > MAX_NICKNAME_LENGTH) THEN
-    RAISE EXCEPTION 'Nickname phải từ %-% ký tự', MIN_NICKNAME_LENGTH, MAX_NICKNAME_LENGTH;
+  -- Validate nickname length (tính một lần để tối ưu)
+  IF p_nickname IS NOT NULL THEN
+    nickname_length := char_length(p_nickname);
+    IF nickname_length < MIN_NICKNAME_LENGTH OR nickname_length > MAX_NICKNAME_LENGTH THEN
+      RAISE EXCEPTION 'Nickname phải từ %-% ký tự', MIN_NICKNAME_LENGTH, MAX_NICKNAME_LENGTH;
+    END IF;
   END IF;
 
   UPDATE public.profiles
