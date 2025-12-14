@@ -25,15 +25,30 @@ Hệ thống CPLS sử dụng Supabase để quản lý:
 
 ```
 CPLS/
-├── migrations/
-│   ├── 001_add_user_fields_and_zalo.sql      # Thêm fields Zalo
-│   ├── 002_add_tcbs_integration.sql          # Tích hợp TCBS
-│   ├── 003_add_nickname_field.sql            # ✨ Thêm nickname cho chat
-│   └── 004_add_chat_rooms_and_messages.sql   # ✨ Tables cho chat
+├── supabase/
+│   └── migrations/
+│       ├── 20250122_create_user_devices.sql           # Bảng user_devices
+│       ├── 20250613_custom_claims_jwt.sql             # Custom Claims cho JWT
+│       └── 20251214_cleanup_and_sync_triggers.sql     # ⭐ Cleanup & sync auth triggers
 ├── scripts/
-│   └── supabase-auth-sync.sql                # ✨ Auth triggers & functions
-└── schema.sql                                 # Schema chính (đã cập nhật)
+│   └── supabase-auth-sync.sql                         # Auth triggers & functions (legacy)
+└── schema.sql                                          # Schema chính
 ```
+
+### ⚠️ Script Quan Trọng: Cleanup & Sync Triggers
+
+**File:** `supabase/migrations/20251214_cleanup_and_sync_triggers.sql`
+
+Script này thực hiện:
+1. **Xóa sạch các triggers cũ** có thể gây lỗi đăng nhập/xác thực
+2. **Tạo lại triggers mới** đồng bộ cho việc đăng nhập và xác thực
+3. **Cập nhật Custom Access Token Hook** cho JWT claims
+
+**Chạy script này khi:**
+- Gặp lỗi đăng nhập/đăng ký
+- Lỗi "function does not exist"
+- Lỗi "trigger does not exist"
+- Profile không được tạo tự động khi đăng ký
 
 ---
 
@@ -479,6 +494,49 @@ await supabase.rpc('mark_room_as_read', {
 
 ## ❗ Troubleshooting
 
+### 🔥 Lỗi Triggers Cũ Gây Conflict Đăng Nhập/Xác Thực
+
+**Nguyên nhân**: Có nhiều triggers cũ conflict với nhau, gây lỗi khi đăng ký/đăng nhập.
+
+**Giải pháp** (KHUYẾN NGHỊ):
+1. Mở **SQL Editor** trong Supabase Dashboard
+2. Copy toàn bộ nội dung file `supabase/migrations/20251214_cleanup_and_sync_triggers.sql`
+3. Paste và chạy script
+4. Kiểm tra output - script sẽ báo cáo các triggers đã xóa/tạo
+
+**Script này sẽ:**
+- Xóa sạch tất cả triggers cũ có thể conflict
+- Tạo lại triggers mới đồng bộ
+- Cập nhật Custom Access Token Hook
+- Tạo các RPC functions tiện ích
+
+### Lỗi: Profile không được tạo tự động khi đăng ký
+
+**Nguyên nhân**: Trigger `on_auth_user_created` chưa được tạo hoặc bị lỗi.
+
+**Giải pháp**:
+1. Chạy script cleanup: `20251214_cleanup_and_sync_triggers.sql`
+2. Hoặc tạo trigger thủ công:
+```sql
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+```
+
+### Kiểm tra triggers hiện có
+
+```sql
+-- Liệt kê triggers trên profiles
+SELECT tgname FROM pg_trigger 
+WHERE tgrelid = 'public.profiles'::regclass 
+AND tgisinternal = false;
+
+-- Liệt kê triggers trên auth.users
+SELECT tgname FROM pg_trigger 
+WHERE tgrelid = 'auth.users'::regclass;
+```
+
 ### Lỗi: "new row violates row-level security policy"
 
 **Nguyên nhân**: RLS đã bật nhưng không có policy phù hợp.
@@ -492,7 +550,7 @@ await supabase.rpc('mark_room_as_read', {
 **Nguyên nhân**: Chưa chạy migration scripts.
 
 **Giải pháp**:
-1. Chạy lần lượt các migrations: 003, 004, và auth-sync script
+1. Chạy script cleanup: `supabase/migrations/20251214_cleanup_and_sync_triggers.sql`
 2. Refresh schema trong Supabase Dashboard
 
 ### Lỗi: "column 'nickname' does not exist"
