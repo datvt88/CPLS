@@ -1,22 +1,28 @@
 'use client'
 
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import type { Session } from '@supabase/supabase-js'
 
 const isDev = process.env.NODE_ENV === 'development'
 
 // Constants for timeouts
 const ERROR_REDIRECT_DELAY_MS = 2000
-const SUCCESS_REDIRECT_DELAY_MS = 500
+const SUCCESS_REDIRECT_DELAY_MS = 300
+const MAX_SESSION_WAIT_TIME = 15000 // Maximum 15 seconds to wait for session
+const SUPABASE_PROCESSING_DELAY_MS = 500 // Time to allow Supabase to process the URL
 
 /**
  * Client-side OAuth Callback Handler
  * 
- * Xử lý OAuth callback với PKCE flow trên client-side vì:
+ * Xử lý OAuth callback với PKCE flow trên client-side:
  * 1. Code verifier được lưu trong localStorage của browser
  * 2. Server-side Route Handler không thể truy cập localStorage
- * 3. Supabase client với detectSessionInUrl: true tự động xử lý PKCE exchange
+ * 3. Supabase client với detectSessionInUrl: true TỰ ĐỘNG xử lý PKCE exchange
+ * 
+ * QUAN TRỌNG: Không gọi exchangeCodeForSession() thủ công vì detectSessionInUrl 
+ * đã tự động xử lý. Thay vào đó, chỉ cần đợi auth state change event.
  */
 function CallbackContent() {
   const router = useRouter()
@@ -24,105 +30,104 @@ function CallbackContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState<string>('')
   const hasProcessed = useRef(false)
+  const hasRedirected = useRef(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Stable callback to handle successful session
+  const handleSuccess = useCallback((session: Session, next: string) => {
+    if (hasRedirected.current) return
+    hasRedirected.current = true
+    
+    if (isDev) console.log('[Auth Callback Page] ✅ Session established for user:', session.user.id.slice(0, 8) + '...')
+    setStatus('success')
+    
+    setTimeout(() => {
+      router.replace(next)
+    }, SUCCESS_REDIRECT_DELAY_MS)
+  }, [router])
 
   useEffect(() => {
     // Prevent double processing
     if (hasProcessed.current) return
     hasProcessed.current = true
 
-    const handleCallback = async () => {
-      try {
-        if (isDev) console.log('[Auth Callback Page] Starting OAuth callback processing...')
+    if (isDev) console.log('[Auth Callback Page] Starting OAuth callback processing...')
 
-        // 1. Kiểm tra nếu Google/Provider trả về lỗi ngay lập tức
-        const errorParam = searchParams.get('error')
-        const errorDesc = searchParams.get('error_description')
-        
-        if (errorParam) {
-          console.error('[Auth Callback Page] Provider error:', errorParam, errorDesc)
-          setStatus('error')
-          setErrorMessage(errorDesc || errorParam)
-          
-          // Redirect về login với lỗi
-          setTimeout(() => {
-            router.replace(`/auth/login?error=${errorParam}&error_description=${encodeURIComponent(errorDesc || '')}`)
-          }, ERROR_REDIRECT_DELAY_MS)
-          return
-        }
+    // 1. Kiểm tra nếu Google/Provider trả về lỗi ngay lập tức
+    const errorParam = searchParams.get('error')
+    const errorDesc = searchParams.get('error_description')
+    
+    if (errorParam) {
+      console.error('[Auth Callback Page] Provider error:', errorParam, errorDesc)
+      setStatus('error')
+      setErrorMessage(errorDesc || errorParam)
+      
+      // Redirect về login với lỗi
+      setTimeout(() => {
+        router.replace(`/auth/login?error=${errorParam}&error_description=${encodeURIComponent(errorDesc || '')}`)
+      }, ERROR_REDIRECT_DELAY_MS)
+      return
+    }
 
-        // 2. Lấy authorization code từ URL
-        const code = searchParams.get('code')
-        const next = searchParams.get('next') ?? '/dashboard'
+    // 2. Lấy thông tin từ URL
+    const next = searchParams.get('next') ?? '/dashboard'
 
-        if (!code) {
-          // Không có code - có thể là redirect từ session đã thiết lập
-          // Kiểm tra session hiện tại
-          const { data: sessionData } = await supabase.auth.getSession()
-          
-          if (sessionData.session) {
-            if (isDev) console.log('[Auth Callback Page] Session already exists, redirecting...')
-            setStatus('success')
-            router.replace(next)
-            return
-          }
-          
-          console.error('[Auth Callback Page] No code and no session')
-          setStatus('error')
-          setErrorMessage('Không tìm thấy mã xác thực')
-          
-          setTimeout(() => {
-            router.replace('/auth/login?error=NoCodeProvided')
-          }, ERROR_REDIRECT_DELAY_MS)
-          return
-        }
+    if (isDev) console.log('[Auth Callback Page] Will redirect to:', next)
 
-        if (isDev) console.log('[Auth Callback Page] Code received, exchanging for session...')
-
-        // 3. Exchange code for session (PKCE)
-        // Supabase client sẽ tự động đọc code verifier từ localStorage
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-
-        if (error) {
-          console.error('[Auth Callback Page] Exchange code failed:', error.message)
-          setStatus('error')
-          setErrorMessage(error.message)
-          
-          setTimeout(() => {
-            router.replace(`/auth/login?error=ServerAuthError&error_description=${encodeURIComponent(error.message)}`)
-          }, ERROR_REDIRECT_DELAY_MS)
-          return
-        }
-
-        if (data.session) {
-          if (isDev) console.log('[Auth Callback Page] ✅ Session established for user:', data.session.user.id.slice(0, 8) + '...')
-          setStatus('success')
-          
-          // Đợi để session được sync trước khi redirect
-          setTimeout(() => {
-            router.replace(next)
-          }, SUCCESS_REDIRECT_DELAY_MS)
-        } else {
-          console.error('[Auth Callback Page] No session returned')
-          setStatus('error')
-          setErrorMessage('Không thể thiết lập phiên đăng nhập')
-          
-          setTimeout(() => {
-            router.replace('/auth/login?error=NoSession')
-          }, ERROR_REDIRECT_DELAY_MS)
-        }
-      } catch (err) {
-        console.error('[Auth Callback Page] Unexpected error:', err)
+    // 3. Set up timeout for session wait
+    timeoutRef.current = setTimeout(() => {
+      if (!hasRedirected.current) {
+        console.error('[Auth Callback Page] Session wait timeout')
         setStatus('error')
-        setErrorMessage(err instanceof Error ? err.message : 'Lỗi không xác định')
+        setErrorMessage('Quá thời gian đợi xác thực. Vui lòng thử lại.')
         
         setTimeout(() => {
-          router.replace('/auth/login?error=UnexpectedError')
+          router.replace('/auth/login?error=Timeout')
         }, ERROR_REDIRECT_DELAY_MS)
+      }
+    }, MAX_SESSION_WAIT_TIME)
+
+    // 4. Listen for auth state changes
+    // Supabase's detectSessionInUrl will automatically process the code and fire SIGNED_IN
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (isDev) console.log('[Auth Callback Page] Auth event:', event)
+      
+      if (event === 'SIGNED_IN' && session) {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        handleSuccess(session, next)
+      }
+    })
+
+    // 5. Also check if session already exists (in case SIGNED_IN was already fired before listener)
+    const checkExistingSession = async () => {
+      try {
+        // Give Supabase time to process the URL first
+        await new Promise(resolve => setTimeout(resolve, SUPABASE_PROCESSING_DELAY_MS))
+        
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('[Auth Callback Page] getSession error:', error.message)
+          return
+        }
+        
+        if (session) {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          handleSuccess(session, next)
+        }
+      } catch (err) {
+        console.error('[Auth Callback Page] Error checking session:', err)
       }
     }
 
-    handleCallback()
-  }, [router, searchParams])
+    checkExistingSession()
+
+    // Cleanup
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      subscription.unsubscribe()
+    }
+  }, [router, searchParams, handleSuccess])
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center">
