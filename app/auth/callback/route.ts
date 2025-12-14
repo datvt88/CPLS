@@ -75,8 +75,9 @@ export async function GET(request: NextRequest) {
   }
 
   // No code present - this is an unexpected state
-  // Redirect to dashboard if user might already be authenticated
-  // or to login if not
+  // Redirect to login page as this represents an error condition
   console.warn('[Auth Callback] No authorization code present in callback URL')
-  return NextResponse.redirect(new URL('/dashboard', origin))
+  const loginUrl = new URL('/auth/login', origin)
+  loginUrl.searchParams.set('error', 'Không tìm thấy mã xác thực. Vui lòng thử đăng nhập lại.')
+  return NextResponse.redirect(loginUrl)
 }
