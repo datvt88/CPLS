@@ -195,7 +195,12 @@ export const authService = {
   },
 
   /**
-   * Handle OAuth callback - exchange code for session
+   * Handle OAuth callback - check for session after detectSessionInUrl processes
+   * 
+   * Note: We rely on Supabase's detectSessionInUrl (configured in supabaseClient.ts)
+   * to automatically handle the OAuth callback and PKCE flow. Manually calling
+   * exchangeCodeForSession would fail because detectSessionInUrl already consumed
+   * the code verifier.
    */
   async handleOAuthCallback(): Promise<SessionResult> {
     try {
@@ -203,54 +208,26 @@ export const authService = {
         return { session: null, error: null }
       }
 
-      const code = getAuthCodeFromUrl()
-      
-      // Exchange authorization code for session (PKCE flow)
-      if (code) {
-        const { data, error } = await withTimeout(
-          supabase.auth.exchangeCodeForSession(code),
-          OAUTH_TIMEOUT
-        )
-        
-        if (error) {
-          // Fallback: Supabase may have already processed the session (detectSessionInUrl)
-          console.warn('[Auth] OAuth code exchange error, attempting session fallback:', error.message)
-          try {
-            const { data: existingSession } = await withTimeout(
-              supabase.auth.getSession(),
-              OAUTH_TIMEOUT
-            )
-            if (existingSession.session?.user) {
-              this.trackUserDevice(existingSession.session.user.id).catch(console.error)
-              return { session: existingSession.session, error: null }
-            }
-          } catch (fallbackError) {
-            console.error('[Auth] Fallback session retrieval failed:', fallbackError)
-          }
-          return { session: null, error }
-        }
-        
-        if (data?.session?.user) {
-          this.trackUserDevice(data.session.user.id).catch(console.error)
-          return { session: data.session, error: null }
-        }
-      }
-      
-      // Fallback: check for existing session
+      // Check for session after detectSessionInUrl has processed the OAuth callback
+      // detectSessionInUrl runs automatically when the Supabase client initializes
+      // and handles the PKCE flow including code verifier validation
       const { data, error } = await withTimeout(
         supabase.auth.getSession(),
         OAUTH_TIMEOUT
       )
       
       if (error) {
+        console.error('[Auth] Error retrieving session after OAuth callback:', error)
         return { session: null, error }
       }
       
       if (data.session?.user) {
         this.trackUserDevice(data.session.user.id).catch(console.error)
+        return { session: data.session, error: null }
       }
       
-      return { session: data.session, error: null }
+      // No session found - OAuth callback may not have completed yet
+      return { session: null, error: null }
     } catch (error) {
       console.error('[Auth] OAuth callback exception:', error)
       return { session: null, error: error as AuthError }
