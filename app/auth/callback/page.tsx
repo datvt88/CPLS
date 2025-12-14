@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabaseClient'
 // Configuration constants
 const AUTH_CALLBACK_TIMEOUT = 15000 // 15 seconds max wait
 const REDIRECT_DELAY = 1000 // Delay before redirect for UX
-const SUPABASE_URL_PROCESSING_DELAY = 500 // Delay for Supabase to detect and process session from URL
+const SUPABASE_URL_PROCESSING_DELAY = 1000 // Delay for Supabase to detect and process session from URL (increased for PKCE)
 
 type Status = 'loading' | 'success' | 'error'
 
