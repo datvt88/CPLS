@@ -3,26 +3,26 @@
 import { useEffect, useState, useRef, Suspense, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { 
+  ERROR_REDIRECT_DELAY, 
+  SUCCESS_REDIRECT_DELAY, 
+  MAX_SESSION_WAIT_TIME,
+  SUPABASE_PROCESSING_DELAY
+} from '@/lib/auth/constants'
 import type { Session } from '@supabase/supabase-js'
 
 const isDev = process.env.NODE_ENV === 'development'
 
-// Constants for timeouts
-const ERROR_REDIRECT_DELAY_MS = 2000
-const SUCCESS_REDIRECT_DELAY_MS = 300
-const MAX_SESSION_WAIT_TIME = 15000 // Maximum 15 seconds to wait for session
-const SUPABASE_PROCESSING_DELAY_MS = 500 // Time to allow Supabase to process the URL
-
 /**
  * Client-side OAuth Callback Handler
  * 
- * Xử lý OAuth callback với PKCE flow trên client-side:
- * 1. Code verifier được lưu trong localStorage của browser
- * 2. Server-side Route Handler không thể truy cập localStorage
- * 3. Supabase client với detectSessionInUrl: true TỰ ĐỘNG xử lý PKCE exchange
+ * Handles OAuth callback with PKCE flow on client-side:
+ * 1. Code verifier is stored in browser's localStorage
+ * 2. Server-side Route Handler cannot access localStorage
+ * 3. Supabase client with detectSessionInUrl: true automatically handles PKCE exchange
  * 
- * QUAN TRỌNG: Không gọi exchangeCodeForSession() thủ công vì detectSessionInUrl 
- * đã tự động xử lý. Thay vào đó, chỉ cần đợi auth state change event.
+ * IMPORTANT: Do not call exchangeCodeForSession() manually as detectSessionInUrl 
+ * already handles it automatically. Just wait for auth state change event.
  */
 function CallbackContent() {
   const router = useRouter()
@@ -43,7 +43,7 @@ function CallbackContent() {
     
     setTimeout(() => {
       router.replace(next)
-    }, SUCCESS_REDIRECT_DELAY_MS)
+    }, SUCCESS_REDIRECT_DELAY)
   }, [router])
 
   useEffect(() => {
@@ -53,7 +53,7 @@ function CallbackContent() {
 
     if (isDev) console.log('[Auth Callback Page] Starting OAuth callback processing...')
 
-    // 1. Kiểm tra nếu Google/Provider trả về lỗi ngay lập tức
+    // 1. Check if OAuth provider returned an error
     const errorParam = searchParams.get('error')
     const errorDesc = searchParams.get('error_description')
     
@@ -62,14 +62,14 @@ function CallbackContent() {
       setStatus('error')
       setErrorMessage(errorDesc || errorParam)
       
-      // Redirect về login với lỗi
+      // Redirect to login with error
       setTimeout(() => {
         router.replace(`/auth/login?error=${errorParam}&error_description=${encodeURIComponent(errorDesc || '')}`)
-      }, ERROR_REDIRECT_DELAY_MS)
+      }, ERROR_REDIRECT_DELAY)
       return
     }
 
-    // 2. Lấy thông tin từ URL
+    // 2. Get next URL from params
     const next = searchParams.get('next') ?? '/dashboard'
 
     if (isDev) console.log('[Auth Callback Page] Will redirect to:', next)
@@ -83,7 +83,7 @@ function CallbackContent() {
         
         setTimeout(() => {
           router.replace('/auth/login?error=Timeout')
-        }, ERROR_REDIRECT_DELAY_MS)
+        }, ERROR_REDIRECT_DELAY)
       }
     }, MAX_SESSION_WAIT_TIME)
 
@@ -102,7 +102,7 @@ function CallbackContent() {
     const checkExistingSession = async () => {
       try {
         // Give Supabase time to process the URL first
-        await new Promise(resolve => setTimeout(resolve, SUPABASE_PROCESSING_DELAY_MS))
+        await new Promise(resolve => setTimeout(resolve, SUPABASE_PROCESSING_DELAY))
         
         const { data: { session }, error } = await supabase.auth.getSession()
         

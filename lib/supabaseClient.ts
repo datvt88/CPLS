@@ -1,12 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const AUTH_STORAGE_KEY = 'cpls-auth-token'
-const COOKIE_EXPIRY_DAYS = 30
-const SYNC_INTERVAL = 10000 // 10 seconds
+import { AUTH_STORAGE_KEY, COOKIE_EXPIRY_DAYS, AUTH_SYNC_INTERVAL } from '@/lib/auth/constants'
 
 // ============================================================================
 // Lazy Initialization
@@ -112,7 +105,7 @@ class AuthStorage {
 
   private syncToCookie(key: string, localValue: string, cookieValue: string | null): void {
     const now = Date.now()
-    const shouldSync = now - this.lastSyncTime > SYNC_INTERVAL
+    const shouldSync = now - this.lastSyncTime > AUTH_SYNC_INTERVAL
     
     if (shouldSync && cookieValue !== localValue) {
       try {

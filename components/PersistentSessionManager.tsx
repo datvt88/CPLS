@@ -8,21 +8,22 @@ import {
   getDeviceFingerprint,
   cleanupExpiredSessions
 } from '@/lib/session-manager'
-
-const INACTIVITY_TIMEOUT = 30 * 24 * 60 * 60 * 1000 // 30 days in milliseconds
-const VISIBILITY_DEBOUNCE = 2000 // 2 seconds debounce for visibility changes
-const SESSION_CHECK_DEBOUNCE = 5000 // 5 seconds debounce for session checks
+import {
+  INACTIVITY_TIMEOUT,
+  VISIBILITY_DEBOUNCE,
+  SESSION_CHECK_DEBOUNCE
+} from '@/lib/auth/constants'
 
 /**
  * PersistentSessionManager Component
  *
- * Quản lý toàn bộ session và authentication:
- * 1. Token refresh tự động (5 phút trước khi hết hạn)
- * 2. Session persistence 30 ngày
+ * Manages session and authentication:
+ * 1. Automatic token refresh (5 minutes before expiry)
+ * 2. Session persistence for 30 days
  * 3. Device fingerprinting & multi-device management (max 3 devices)
- * 4. Profile sync khi đăng nhập
- * 5. Inactivity logout (30 ngày không hoạt động)
- * 6. Tab visibility handling với debounce
+ * 4. Profile sync on login
+ * 5. Inactivity logout (30 days of inactivity)
+ * 6. Tab visibility handling with debounce
  */
 export default function PersistentSessionManager() {
   const refreshTimerRef = useRef<NodeJS.Timeout>()

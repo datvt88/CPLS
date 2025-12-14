@@ -1,81 +1,61 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { type User } from '@supabase/supabase-js'
+import type { CustomClaims, UserRole } from '@/types/auth'
+import { 
+  AUTH_STORAGE_KEY,
+  PROTECTED_ROUTES,
+  ADMIN_ROUTES,
+  PREMIUM_ROUTES,
+  AUTH_ROUTES,
+} from '@/lib/auth/constants'
+import type { User } from '@supabase/supabase-js'
 
 /**
  * Next.js Middleware for Route Protection
- * Đã sửa đổi để tương thích với Supabase Free Plan (Database Trigger)
+ * 
+ * Handles:
+ * - Authentication: Redirects unauthenticated users to login
+ * - Authorization: Checks admin/mod roles for admin routes
+ * - Premium access: Checks premium membership for premium routes
+ * - Auth routes: Redirects authenticated users away from login page
  */
 
 /**
- * Interface cho Custom Claims
- * Khớp với dữ liệu mà Trigger SQL sync_profile_to_metadata() tạo ra
- */
-interface CustomClaims {
-  role?: 'user' | 'mod' | 'admin'
-  membership?: 'free' | 'premium'
-  is_premium?: boolean
-}
-
-/**
- * Hàm lấy claims từ app_metadata (được inject bởi custom_access_token_hook)
- * Fallback sang user_metadata nếu không tìm thấy trong app_metadata
+ * Extract custom claims from user object
+ * Claims are injected by the custom_access_token_hook in Supabase
  */
 function getCustomClaims(user: User | null): CustomClaims {
   if (!user) return {}
   
-  // Ưu tiên đọc từ app_metadata (được inject bởi custom_access_token_hook)
   const appMetadata = user.app_metadata || {}
   const userMetadata = user.user_metadata || {}
   
   return {
-    role: (appMetadata.role ?? userMetadata.role) as CustomClaims['role'],
-    membership: (appMetadata.membership ?? userMetadata.membership) as CustomClaims['membership'],
+    role: (appMetadata.role ?? userMetadata.role) as UserRole | undefined,
+    membership: (appMetadata.membership ?? userMetadata.membership) as 'free' | 'premium' | undefined,
     is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
   }
 }
 
-// 1. Routes bắt buộc phải đăng nhập
-const PROTECTED_ROUTES = [
-  '/profile',
-  '/chat',
-  '/management',
-  '/admin',
-  '/upgrade',
-]
-
-// 2. Routes chỉ dành cho Admin/Mod
-const ADMIN_ROUTES = [
-  '/admin',
-  '/management',
-]
-
-// 3. Routes chỉ dành cho thành viên Premium (Mới thêm)
-const PREMIUM_ROUTES = [
-  '/premium-content',
-]
-
-// 4. Routes Authentication (Nếu đã login thì đá về dashboard)
-const AUTH_ROUTES = [
-  '/auth/login',
-  '/login',
-  '/register',
-]
-
-// 5. Routes Public (Không kiểm tra gì cả)
-const PUBLIC_ROUTES = [
-  '/',
-  '/pricing',
-  '/auth/callback',
-  '/api',
-  '/market',
-]
+/**
+ * Check if pathname matches any of the given routes
+ */
+function matchesRoute(pathname: string, routes: readonly string[]): boolean {
+  return routes.some(route => {
+    if (pathname === route) return true
+    if (pathname.startsWith(route) && 
+        (pathname[route.length] === '/' || pathname[route.length] === undefined)) {
+      return true
+    }
+    return false
+  })
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Bỏ qua static files
+  // Skip static files and API routes
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -88,11 +68,8 @@ export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: { headers: request.headers },
   })
-
-  // Cookie name must match client-side storageKey in lib/supabaseClient.ts
-  const AUTH_STORAGE_KEY = 'cpls-auth-token'
   
-  // Tạo Supabase Client
+  // Create Supabase Client with SSR support
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -113,64 +90,51 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // QUAN TRỌNG: Dùng getUser() thay vì getSession() để bảo mật hơn
+  // Use getUser() instead of getSession() for better security
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Helper function để check route logic
-  const matchesRoute = (routes: string[]) => {
-    return routes.some(route => {
-      if (pathname === route) return true
-      if (pathname.startsWith(route) && (pathname[route.length] === '/' || pathname[route.length] === undefined)) {
-        return true
-      }
-      return false
-    })
-  }
+  // Check route types
+  const isProtectedRoute = matchesRoute(pathname, PROTECTED_ROUTES)
+  const isAdminRoute = matchesRoute(pathname, ADMIN_ROUTES)
+  const isPremiumRoute = matchesRoute(pathname, PREMIUM_ROUTES)
+  const isAuthRoute = matchesRoute(pathname, AUTH_ROUTES)
 
-  const isProtectedRoute = matchesRoute(PROTECTED_ROUTES)
-  const isAdminRoute = matchesRoute(ADMIN_ROUTES)
-  const isPremiumRoute = matchesRoute(PREMIUM_ROUTES)
-  const isAuthRoute = matchesRoute(AUTH_ROUTES)
-
-  // --- 1. XỬ LÝ AUTH ROUTE (Login/Register) ---
-  // Nếu đã login mà cố vào trang login -> Redirect về Dashboard
+  // --- 1. AUTH ROUTES (Login/Register) ---
+  // Redirect authenticated users to dashboard
   if (isAuthRoute && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // --- 2. XỬ LÝ PROTECTED ROUTE (Chưa login) ---
-  // Nếu vào trang bảo mật mà chưa login -> Redirect về Login
+  // --- 2. PROTECTED ROUTES ---
+  // Redirect unauthenticated users to login
   if (isProtectedRoute && !user) {
     const loginUrl = new URL('/auth/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // --- 3. XỬ LÝ PHÂN QUYỀN (RBAC & Premium) ---
+  // --- 3. AUTHORIZATION (RBAC & Premium) ---
   if (user) {
-    // Lấy thông tin quyền hạn từ app_metadata (được inject bởi custom_access_token_hook)
     const claims = getCustomClaims(user)
     const role = claims.role || 'user'
     const plan = claims.membership || 'free'
 
-    // A. Check quyền Admin
+    // A. Admin routes - require admin or mod role
     if (isAdminRoute) {
-      const hasAdminAccess = role === 'admin' || role === 'mod'
+      const hasAccess = role === 'admin' || role === 'mod'
       
-      if (!hasAdminAccess) {
+      if (!hasAccess) {
         console.log(`[Middleware] Access denied to ${pathname}: user role is ${role}`)
         return NextResponse.redirect(new URL('/dashboard', request.url))
       }
     }
 
-    // B. Check quyền Premium (Thêm mới)
+    // B. Premium routes - require premium membership or admin/mod role
     if (isPremiumRoute) {
-      // Logic: Cho phép nếu là Premium HOẶC là Admin/Mod
-      const hasPremiumAccess = plan === 'premium' || role === 'admin' || role === 'mod'
+      const hasAccess = plan === 'premium' || role === 'admin' || role === 'mod'
       
-      if (!hasPremiumAccess) {
+      if (!hasAccess) {
         console.log(`[Middleware] Access denied to ${pathname}: plan is ${plan}`)
-        // Redirect về trang Pricing để dụ mua gói
         return NextResponse.redirect(new URL('/pricing', request.url))
       }
     }

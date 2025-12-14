@@ -3,18 +3,14 @@
 import { createContext, useContext, useMemo, useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { Feature, PREMIUM_FEATURES, FREE_FEATURES } from '@/lib/permissions'
+import { getClaimsFromSession } from '@/lib/auth/helpers'
+import { 
+  PERMISSIONS_INIT_TIMEOUT, 
+  SESSION_CACHE_TTL, 
+  PERMISSIONS_DEDUPE_INTERVAL 
+} from '@/lib/auth/constants'
+import type { UserRole, PermissionData, CustomClaims } from '@/types/auth'
 import useSWR, { useSWRConfig } from 'swr'
-
-// User role types
-type UserRole = 'user' | 'mod' | 'admin'
-
-interface PermissionData {
-  isAuthenticated: boolean
-  isPremium: boolean
-  features: Feature[]
-  role: UserRole
-  userId: string | null
-}
 
 interface PermissionsContextValue {
   // Auth state
@@ -50,37 +46,11 @@ const DEFAULT_PERMISSIONS: PermissionData = {
   userId: null
 }
 
-// Session cache để tránh race condition - singleton pattern
+// Session cache to avoid race condition - singleton pattern
 let sessionCache: { session: any; timestamp: number } | null = null
-const SESSION_CACHE_TTL = 5000 // 5 seconds cache (reduced from 10s for faster sync after login)
 let fetchInProgress: Promise<PermissionData> | null = null
 // Track if a fresh session is required (after auth events)
 let requireFreshSession = false
-
-/**
- * Extract custom claims from JWT session
- * Claims are injected by the custom_access_token_hook in Supabase
- */
-interface CustomClaims {
-  role?: UserRole
-  membership?: 'free' | 'premium'
-  is_premium?: boolean
-}
-
-function getClaimsFromSession(session: any): CustomClaims {
-  if (!session?.user) return {}
-  
-  // Claims can be in app_metadata (from custom_access_token_hook)
-  // or in user_metadata (fallback for compatibility)
-  const appMetadata = session.user.app_metadata || {}
-  const userMetadata = session.user.user_metadata || {}
-  
-  return {
-    role: (appMetadata.role ?? userMetadata.role) as UserRole | undefined,
-    membership: (appMetadata.membership ?? userMetadata.membership) as 'free' | 'premium' | undefined,
-    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
-  }
-}
 
 // Helper function to get cached session or fetch new one
 const getCachedSession = async () => {
@@ -227,9 +197,6 @@ const fetchPermissions = async (): Promise<PermissionData> => {
   return fetchInProgress
 }
 
-// Timeout for initialization - increased from 3s to 8s to allow auth to stabilize
-const INIT_TIMEOUT = 8000
-
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { mutate } = useSWRConfig()
   const [isInitialized, setIsInitialized] = useState(false)
@@ -244,7 +211,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 60000, // Tăng lên 60s để tránh duplicate fetches
+      dedupingInterval: PERMISSIONS_DEDUPE_INTERVAL,
       fallbackData: DEFAULT_PERMISSIONS,
       keepPreviousData: true,
       errorRetryCount: 2,
@@ -259,14 +226,14 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     }
   )
 
-  // Safety timeout: force initialize after INIT_TIMEOUT
+  // Safety timeout: force initialize after PERMISSIONS_INIT_TIMEOUT
   useEffect(() => {
     initTimeoutRef.current = setTimeout(() => {
       if (!isInitialized) {
         console.warn('⏱️ [PermissionsContext] Init timeout - forcing ready state')
         setIsInitialized(true)
       }
-    }, INIT_TIMEOUT)
+    }, PERMISSIONS_INIT_TIMEOUT)
 
     return () => {
       if (initTimeoutRef.current) {
