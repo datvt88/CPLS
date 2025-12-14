@@ -30,8 +30,8 @@ function getCustomClaims(user: User | null): CustomClaims {
   const userMetadata = user.user_metadata || {}
   
   return {
-    role: (appMetadata.role || userMetadata.role) as CustomClaims['role'],
-    membership: (appMetadata.membership || userMetadata.membership) as CustomClaims['membership'],
+    role: (appMetadata.role ?? userMetadata.role) as CustomClaims['role'],
+    membership: (appMetadata.membership ?? userMetadata.membership) as CustomClaims['membership'],
     is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
   }
 }

@@ -74,9 +74,9 @@ function getClaimsFromSession(session: any): CustomClaims {
   const userMetadata = session.user.user_metadata || {}
   
   return {
-    role: (appMetadata.role || userMetadata.role) as UserRole || undefined,
-    membership: (appMetadata.membership || userMetadata.membership) as 'free' | 'premium' || undefined,
-    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean || undefined
+    role: (appMetadata.role ?? userMetadata.role) as UserRole | undefined,
+    membership: (appMetadata.membership ?? userMetadata.membership) as 'free' | 'premium' | undefined,
+    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
   }
 }
 
