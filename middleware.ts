@@ -91,6 +91,9 @@ export async function middleware(request: NextRequest) {
     request: { headers: request.headers },
   })
 
+  // Cookie name must match client-side storageKey in lib/supabaseClient.ts
+  const AUTH_STORAGE_KEY = 'cpls-auth-token'
+  
   // Tạo Supabase Client
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,6 +108,9 @@ export async function middleware(request: NextRequest) {
             response.cookies.set(name, value, options)
           )
         },
+      },
+      cookieOptions: {
+        name: AUTH_STORAGE_KEY,
       },
     }
   )
