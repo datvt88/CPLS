@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, Suspense, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import type { Session } from '@supabase/supabase-js'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -10,6 +11,7 @@ const isDev = process.env.NODE_ENV === 'development'
 const ERROR_REDIRECT_DELAY_MS = 2000
 const SUCCESS_REDIRECT_DELAY_MS = 300
 const MAX_SESSION_WAIT_TIME = 15000 // Maximum 15 seconds to wait for session
+const SUPABASE_PROCESSING_DELAY_MS = 500 // Time to allow Supabase to process the URL
 
 /**
  * Client-side OAuth Callback Handler
@@ -29,9 +31,10 @@ function CallbackContent() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const hasProcessed = useRef(false)
   const hasRedirected = useRef(false)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Stable callback to handle successful session
-  const handleSuccess = useCallback((session: any, next: string) => {
+  const handleSuccess = useCallback((session: Session, next: string) => {
     if (hasRedirected.current) return
     hasRedirected.current = true
     
@@ -72,7 +75,7 @@ function CallbackContent() {
     if (isDev) console.log('[Auth Callback Page] Will redirect to:', next)
 
     // 3. Set up timeout for session wait
-    const timeoutId = setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       if (!hasRedirected.current) {
         console.error('[Auth Callback Page] Session wait timeout')
         setStatus('error')
@@ -90,7 +93,7 @@ function CallbackContent() {
       if (isDev) console.log('[Auth Callback Page] Auth event:', event)
       
       if (event === 'SIGNED_IN' && session) {
-        clearTimeout(timeoutId)
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
         handleSuccess(session, next)
       }
     })
@@ -99,7 +102,7 @@ function CallbackContent() {
     const checkExistingSession = async () => {
       try {
         // Give Supabase time to process the URL first
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise(resolve => setTimeout(resolve, SUPABASE_PROCESSING_DELAY_MS))
         
         const { data: { session }, error } = await supabase.auth.getSession()
         
@@ -109,7 +112,7 @@ function CallbackContent() {
         }
         
         if (session) {
-          clearTimeout(timeoutId)
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
           handleSuccess(session, next)
         }
       } catch (err) {
@@ -121,7 +124,7 @@ function CallbackContent() {
 
     // Cleanup
     return () => {
-      clearTimeout(timeoutId)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
       subscription.unsubscribe()
     }
   }, [router, searchParams, handleSuccess])
