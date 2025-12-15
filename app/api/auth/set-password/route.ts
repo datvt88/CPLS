@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       if (!supabaseServiceKey) missingVars.push('SUPABASE_SERVICE_ROLE_KEY')
       console.error(`❌ [set-password API] Missing environment variables: ${missingVars.join(', ')}`)
       return NextResponse.json(
-        { error: 'Lỗi cấu hình server. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình SUPABASE_SERVICE_ROLE_KEY.' },
+        { error: 'Lỗi cấu hình server. Vui lòng liên hệ quản trị viên.' },
         { status: 500 }
       )
     }
