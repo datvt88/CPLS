@@ -6,6 +6,7 @@ import { validatePassword } from '@/utils/validation'
 
 export default function PasswordManagement() {
   const [hasPassword, setHasPassword] = useState<boolean | null>(null)
+  const [hasPhoneNumber, setHasPhoneNumber] = useState<boolean | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -46,11 +47,24 @@ export default function PasswordManagement() {
         return
       }
 
-      // Check if user has email provider (means they have password)
+      // Check if user has password set
+      // This can be via:
+      // 1. Email provider (user signed up with email+password)
+      // 2. user_metadata.has_password flag (set when password is set via admin API)
       const providers = user.app_metadata?.providers || []
       const hasEmailProvider = providers.includes('email')
+      const hasPasswordFlag = user.user_metadata?.has_password === true
+      
+      setHasPassword(hasEmailProvider || hasPasswordFlag)
 
-      setHasPassword(hasEmailProvider)
+      // Check if user has phone number in profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('phone_number')
+        .eq('id', user.id)
+        .single()
+      
+      setHasPhoneNumber(!!profile?.phone_number && profile.phone_number.trim() !== '')
       setError('')
     } catch (err: any) {
       console.error('Error checking password status:', err)
@@ -89,19 +103,33 @@ export default function PasswordManagement() {
     setSaving(true)
 
     try {
-      // Add timeout protection (15 seconds for password update)
-      const updatePromise = supabase.auth.updateUser({
-        password: newPassword
+      // Get the current session for authorization
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session?.access_token) {
+        throw new Error('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.')
+      }
+
+      // Use server-side API to set password (works for all auth providers)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+      const response = await fetch('/api/auth/set-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ newPassword }),
+        signal: controller.signal
       })
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: Không thể cập nhật mật khẩu')), 15000)
-      )
+      clearTimeout(timeoutId)
 
-      const { error } = await Promise.race([updatePromise, timeoutPromise])
+      const result = await response.json()
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        throw new Error(result.error || 'Không thể cập nhật mật khẩu')
       }
 
       if (hasPassword) {
@@ -121,7 +149,7 @@ export default function PasswordManagement() {
       await checkPasswordStatus()
     } catch (error: any) {
       console.error('Error updating password:', error)
-      if (error.message?.includes('Timeout')) {
+      if (error.name === 'AbortError' || error.message?.includes('Timeout')) {
         setMessage('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.')
       } else {
         setMessage(error.message || 'Có lỗi xảy ra khi cập nhật mật khẩu')
@@ -180,6 +208,15 @@ export default function PasswordManagement() {
         )}
       </div>
 
+      {/* Phone number warning */}
+      {hasPhoneNumber === false && (
+        <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <p className="text-yellow-400 text-sm">
+            ⚠️ Bạn chưa cập nhật số điện thoại. Vui lòng cập nhật số điện thoại trong phần &quot;Thông Tin Hồ Sơ&quot; ở trên trước khi thiết lập mật khẩu.
+          </p>
+        </div>
+      )}
+
       {/* Status */}
       <div className="mb-4 p-3 bg-[--bg] rounded-lg">
         <p className="text-[--muted] text-sm">
@@ -193,7 +230,8 @@ export default function PasswordManagement() {
       {!showForm ? (
         <button
           onClick={() => setShowForm(true)}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition-colors"
+          disabled={!hasPhoneNumber}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {hasPassword ? 'Thay đổi mật khẩu mới' : 'Thiết lập mật khẩu'}
         </button>
