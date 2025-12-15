@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 interface SetPasswordRequest {
   newPassword: string
+  currentPassword?: string
 }
 
 /**
@@ -67,6 +68,36 @@ export async function POST(request: NextRequest) {
         { error: 'Mật khẩu phải có ít nhất 6 ký tự' },
         { status: 400 }
       )
+    }
+
+    // Check if user already has a password set
+    const providers = user.app_metadata?.providers || []
+    const hasEmailProvider = providers.includes('email')
+    const hasPasswordFlag = user.user_metadata?.has_password === true
+    const userHasPassword = hasEmailProvider || hasPasswordFlag
+
+    // If user already has a password, verify the current password
+    if (userHasPassword) {
+      if (!body.currentPassword) {
+        return NextResponse.json(
+          { error: 'Vui lòng nhập mật khẩu hiện tại' },
+          { status: 400 }
+        )
+      }
+
+      // Verify current password by attempting to sign in
+      const { error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+        email: user.email || '',
+        password: body.currentPassword
+      })
+
+      if (signInError) {
+        console.error('❌ [set-password API] Current password verification failed:', signInError.message)
+        return NextResponse.json(
+          { error: 'Mật khẩu hiện tại không đúng' },
+          { status: 400 }
+        )
+      }
     }
 
     console.log(`🔐 [set-password API] Setting password for user: ${user.email}`)

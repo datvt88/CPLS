@@ -114,13 +114,18 @@ export default function PasswordManagement() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 15000)
 
+      const requestBody: { newPassword: string; currentPassword?: string } = { newPassword }
+      if (hasPassword && currentPassword) {
+        requestBody.currentPassword = currentPassword
+      }
+
       const response = await fetch('/api/auth/set-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal
       })
 
@@ -231,6 +236,8 @@ export default function PasswordManagement() {
         <button
           onClick={() => setShowForm(true)}
           disabled={!hasPhoneNumber}
+          title={!hasPhoneNumber ? 'Vui lòng cập nhật số điện thoại trước' : undefined}
+          aria-label={!hasPhoneNumber ? 'Cần cập nhật số điện thoại trước khi thiết lập mật khẩu' : undefined}
           className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {hasPassword ? 'Thay đổi mật khẩu mới' : 'Thiết lập mật khẩu'}
