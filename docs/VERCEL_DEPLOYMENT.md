@@ -53,6 +53,7 @@ Tài liệu này hướng dẫn chi tiết cách deploy ứng dụng CPLS lên V
 | `ZALO_APP_SECRET` | **Secret** | Server only | Exchange authorization code |
 | `NEXT_PUBLIC_SUPABASE_URL` | **Public** | Client + Server | Connect to Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Public** | Client + Server | Row-level security |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Secret** | Server only | Admin API operations (set password, create user) |
 | `GEMINI_API_KEY` | **Secret** | Server only | AI signal generation |
 
 ### Nguyên tắc bảo mật
@@ -108,6 +109,7 @@ Bạn sẽ cần:
 - ✅ Zalo App Secret (từ Zalo Developers)
 - ✅ Supabase Project URL (từ Supabase Dashboard)
 - ✅ Supabase Anon Key (từ Supabase Dashboard > Settings > API)
+- ✅ **Supabase Service Role Key** (từ Supabase Dashboard > Settings > API) - **Bắt buộc cho tính năng đặt mật khẩu**
 - ✅ Gemini API Key (từ Google AI Studio)
 
 ---
@@ -145,6 +147,13 @@ Environment: Production, Preview, Development
 ```
 
 **Secret Variables** (chỉ ở server):
+
+```
+Name: SUPABASE_SERVICE_ROLE_KEY
+Value: [Your Supabase Service Role Key]
+Environment: Production, Preview, Development
+⚠️ SENSITIVE - Keep this secret! Required for password management & admin features
+```
 
 ```
 Name: ZALO_APP_SECRET
@@ -185,6 +194,8 @@ vercel env add ZALO_APP_SECRET
 
 vercel env add NEXT_PUBLIC_SUPABASE_URL
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
+vercel env add SUPABASE_SERVICE_ROLE_KEY
+# Mark as "Secret" when prompted - Required for password management
 vercel env add GEMINI_API_KEY
 
 # Pull environment variables for local development
@@ -452,6 +463,31 @@ ls -la app/api/auth/zalo/token/
 npm run build
 vercel --prod
 ```
+
+### Issue 6: "Lỗi cấu hình server" khi thiết lập mật khẩu
+
+**Triệu chứng**: Lỗi 500 với thông báo "Lỗi cấu hình server" khi cố gắng thiết lập mật khẩu trong trang Cá nhân (Profile)
+
+**Nguyên nhân**: Environment variable `SUPABASE_SERVICE_ROLE_KEY` chưa được set trên Vercel
+
+**Giải pháp**:
+1. Vào Supabase Dashboard > Settings > API
+2. Copy "service_role key" (KHÔNG phải anon key)
+3. Vào Vercel Dashboard > Project Settings > Environment Variables
+4. Thêm biến mới:
+   - Name: `SUPABASE_SERVICE_ROLE_KEY`
+   - Value: [Service Role Key từ Supabase]
+   - Environment: Production, Preview, Development
+5. Redeploy ứng dụng
+
+```bash
+# Hoặc qua CLI
+vercel env add SUPABASE_SERVICE_ROLE_KEY
+# Nhập giá trị, chọn "Sensitive" khi được hỏi
+vercel --prod
+```
+
+⚠️ **Lưu ý**: Service Role Key có quyền bypass RLS, KHÔNG BAO GIỜ expose ra client-side!
 
 ---
 

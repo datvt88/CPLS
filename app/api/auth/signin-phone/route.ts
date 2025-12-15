@@ -30,9 +30,12 @@ export async function POST(request: NextRequest) {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('❌ [signin-phone API] Supabase credentials not configured')
+      const missingVars = []
+      if (!supabaseUrl) missingVars.push('NEXT_PUBLIC_SUPABASE_URL')
+      if (!supabaseServiceKey) missingVars.push('SUPABASE_SERVICE_ROLE_KEY')
+      console.error(`❌ [signin-phone API] Missing environment variables: ${missingVars.join(', ')}`)
       return NextResponse.json(
-        { error: 'Server configuration error' },
+        { error: 'Lỗi cấu hình server. Vui lòng liên hệ quản trị viên để kiểm tra cấu hình SUPABASE_SERVICE_ROLE_KEY.' },
         { status: 500 }
       )
     }
