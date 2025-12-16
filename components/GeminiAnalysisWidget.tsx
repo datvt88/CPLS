@@ -54,7 +54,7 @@ const StatusIndicator = ({ ready, label }: { ready: boolean; label: string }) =>
 
 const StatusBadge = ({ status, message }: { status: StatusType; message: string }) => {
   const colorMap: Record<StatusType, string> = {
-    idle: 'bg-slate-600',
+    idle: 'bg-slate-500',
     checking: 'bg-blue-500 animate-pulse',
     fetching: 'bg-yellow-500 animate-pulse',
     processing: 'bg-blue-500 animate-pulse',
@@ -63,10 +63,20 @@ const StatusBadge = ({ status, message }: { status: StatusType; message: string 
     error: 'bg-rose-500'
   }
 
+  const textColorMap: Record<StatusType, string> = {
+    idle: 'text-slate-400',
+    checking: 'text-blue-300',
+    fetching: 'text-yellow-300',
+    processing: 'text-blue-300',
+    ai_generating: 'text-purple-300',
+    success: 'text-emerald-300',
+    error: 'text-rose-300'
+  }
+
   return (
     <div className="flex items-center gap-2 text-[10px] sm:text-xs font-medium bg-slate-800/80 px-2 sm:px-3 py-1 rounded-full border border-slate-700 whitespace-nowrap">
       <span className={`h-2 w-2 rounded-full ${colorMap[status]}`} />
-      <span className="text-slate-300">{message}</span>
+      <span className={textColorMap[status]}>{message}</span>
     </div>
   )
 }
@@ -324,7 +334,9 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
     if (hasAnalysis) {
       setLocalStatus('success')
       setStatusMsg('Dữ liệu từ cache')
-    } else if (localStatus === 'success') {
+    } else {
+      // Always reset to idle when no cached analysis
+      // This prevents green indicator with 'Sẵn sàng' text
       setLocalStatus('idle')
       setStatusMsg('Sẵn sàng')
     }
