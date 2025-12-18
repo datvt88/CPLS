@@ -7,7 +7,7 @@ import type { GeminiModel } from './types'
 
 export const GEMINI_MODELS: GeminiModel[] = [
   {
-    id: 'gemini-3-flash',
+    id: 'gemini-2.5-flash',
     name: 'Gemini 3 Flash',
     description: 'Cân bằng tốc độ và hiệu suất',
     status: 'active',
@@ -21,7 +21,7 @@ export const GEMINI_MODELS: GeminiModel[] = [
 ]
 
 // Default model
-export const DEFAULT_GEMINI_MODEL = 'gemini-3-flash'
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash'
 
 // Gemini API base URL
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
