@@ -2,14 +2,14 @@
 
 import { createContext, useContext, useMemo, useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { Feature, PREMIUM_FEATURES, FREE_FEATURES } from '@/lib/permissions'
+import { Feature, PREMIUM_FEATURES, FREE_FEATURES, DIAMOND_FEATURES, getFeaturesForTier } from '@/lib/permissions'
 import { getClaimsFromSession } from '@/lib/auth/helpers'
-import { 
-  PERMISSIONS_INIT_TIMEOUT, 
-  SESSION_CACHE_TTL, 
-  PERMISSIONS_DEDUPE_INTERVAL 
+import {
+  PERMISSIONS_INIT_TIMEOUT,
+  SESSION_CACHE_TTL,
+  PERMISSIONS_DEDUPE_INTERVAL
 } from '@/lib/auth/constants'
-import type { UserRole, PermissionData, CustomClaims } from '@/types/auth'
+import type { UserRole, PermissionData, CustomClaims, MembershipTier } from '@/types/auth'
 import useSWR, { useSWRConfig } from 'swr'
 
 interface PermissionsContextValue {
@@ -17,8 +17,12 @@ interface PermissionsContextValue {
   isAuthenticated: boolean
   userId: string | null
 
-  // Premium features
-  isPremium: boolean
+  // Membership tier
+  membership: MembershipTier
+  isPremium: boolean // true for premium or diamond
+  isDiamond: boolean // true only for diamond
+
+  // Features
   accessibleFeatures: Feature[]
   canAccess: (feature: Feature) => boolean
 
@@ -40,7 +44,9 @@ const PermissionsContext = createContext<PermissionsContextValue | undefined>(un
 // Default permissions (guest/unauthenticated)
 const DEFAULT_PERMISSIONS: PermissionData = {
   isAuthenticated: false,
+  membership: 'free',
   isPremium: false,
+  isDiamond: false,
   features: FREE_FEATURES,
   role: 'user',
   userId: null
@@ -113,13 +119,17 @@ const fetchPermissions = async (): Promise<PermissionData> => {
 
       if (hasValidClaims) {
         console.log('🎫 [PermissionsContext] Using claims from JWT:', claims)
-        const userIsPremium = claims.is_premium === true || claims.membership === 'premium'
+        const userMembership: MembershipTier = claims.membership || 'free'
+        const userIsDiamond = userMembership === 'diamond'
+        const userIsPremium = userIsDiamond || userMembership === 'premium'
         const userRole: UserRole = claims.role || 'user'
 
         return {
           isAuthenticated: true,
+          membership: userMembership,
           isPremium: userIsPremium,
-          features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
+          isDiamond: userIsDiamond,
+          features: getFeaturesForTier(userMembership),
           role: userRole,
           userId: userId
         }
@@ -144,31 +154,38 @@ const fetchPermissions = async (): Promise<PermissionData> => {
           console.warn('⚠️ [PermissionsContext] Profile not found, using defaults')
           return {
             isAuthenticated: true,
+            membership: 'free',
             isPremium: false,
+            isDiamond: false,
             features: FREE_FEATURES,
             role: 'user',
             userId: userId
           }
         }
 
-        // Check premium status
-        let userIsPremium = false
-        if (profile.membership === 'premium') {
-          if (profile.membership_expires_at) {
-            const expiresAt = new Date(profile.membership_expires_at)
-            userIsPremium = expiresAt.getTime() > Date.now()
-          } else {
-            userIsPremium = true
+        // Check membership status (considering expiration)
+        let userMembership: MembershipTier = (profile.membership as MembershipTier) || 'free'
+
+        // Check if membership is expired
+        if (profile.membership_expires_at && userMembership !== 'free') {
+          const expiresAt = new Date(profile.membership_expires_at)
+          if (expiresAt.getTime() <= Date.now()) {
+            userMembership = 'free' // Expired, revert to free
           }
         }
+
+        const userIsDiamond = userMembership === 'diamond'
+        const userIsPremium = userIsDiamond || userMembership === 'premium'
 
         // Get role (default to 'user' if not set)
         const userRole: UserRole = (profile.role as UserRole) || 'user'
 
         return {
           isAuthenticated: true,
+          membership: userMembership,
           isPremium: userIsPremium,
-          features: userIsPremium ? [...FREE_FEATURES, ...PREMIUM_FEATURES] : FREE_FEATURES,
+          isDiamond: userIsDiamond,
+          features: getFeaturesForTier(userMembership),
           role: userRole,
           userId: userId
         }
@@ -177,7 +194,9 @@ const fetchPermissions = async (): Promise<PermissionData> => {
         // Return authenticated state with default permissions
         return {
           isAuthenticated: true,
+          membership: 'free',
           isPremium: false,
+          isDiamond: false,
           features: FREE_FEATURES,
           role: 'user',
           userId: userId
@@ -305,14 +324,19 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     const role = data?.role ?? 'user'
     const isAdmin = role === 'admin'
     const isMod = role === 'mod'
+    const membership = data?.membership ?? 'free'
 
     return {
       // Auth state
       isAuthenticated: data?.isAuthenticated ?? false,
       userId: data?.userId ?? null,
 
-      // Premium features
+      // Membership tier
+      membership,
       isPremium: data?.isPremium ?? false,
+      isDiamond: data?.isDiamond ?? false,
+
+      // Features
       accessibleFeatures: data?.features ?? FREE_FEATURES,
       canAccess,
 
@@ -344,7 +368,9 @@ export function usePermissions() {
     return {
       isAuthenticated: false,
       userId: null,
+      membership: 'free' as MembershipTier,
       isPremium: false,
+      isDiamond: false,
       accessibleFeatures: FREE_FEATURES,
       canAccess: () => false,
       role: 'user' as UserRole,

@@ -17,9 +17,12 @@ import type { User, Session, AuthError } from '@supabase/supabase-js'
 export type UserRole = 'user' | 'mod' | 'admin'
 
 /**
- * Membership tier for premium access
+ * Membership tier for subscription access
+ * - free: Giới hạn 3 lần Deep Analysis/ngày
+ * - premium: Giới hạn 20 lần Deep Analysis/ngày
+ * - diamond: Không giới hạn Deep Analysis và truy cập tất cả trang
  */
-export type MembershipTier = 'free' | 'premium'
+export type MembershipTier = 'free' | 'premium' | 'diamond'
 
 /**
  * Custom claims from JWT (injected by custom_access_token_hook)
@@ -27,7 +30,8 @@ export type MembershipTier = 'free' | 'premium'
 export interface CustomClaims {
   role?: UserRole
   membership?: MembershipTier
-  is_premium?: boolean
+  is_premium?: boolean // true for premium or diamond
+  is_diamond?: boolean // true only for diamond tier
 }
 
 // ============================================================================
@@ -75,7 +79,9 @@ import type { Feature } from '@/lib/permissions'
 
 export interface PermissionData {
   isAuthenticated: boolean
-  isPremium: boolean
+  membership: MembershipTier
+  isPremium: boolean // true for premium or diamond
+  isDiamond: boolean // true only for diamond
   features: Feature[]
   role: UserRole
   userId: string | null

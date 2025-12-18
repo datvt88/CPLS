@@ -6,9 +6,9 @@ export const FEATURES = {
   STOCKS: 'stocks',
   MARKET: 'market',
   PROFILE: 'profile',
-  SIGNALS: 'signals', 
+  SIGNALS: 'signals',
 
-  // Premium only features
+  // Premium tier features (includes all free features)
   AI_ANALYSIS: 'ai-analysis',
   PORTFOLIO: 'portfolio',
   ALERTS: 'alerts',
@@ -16,6 +16,7 @@ export const FEATURES = {
 
 export type Feature = typeof FEATURES[keyof typeof FEATURES]
 
+// Free tier: Basic features only
 export const FREE_FEATURES: Feature[] = [
   FEATURES.DASHBOARD,
   FEATURES.STOCKS,
@@ -24,15 +25,26 @@ export const FREE_FEATURES: Feature[] = [
   FEATURES.SIGNALS,
 ]
 
-export const PREMIUM_FEATURES: Feature[] = [
+// Premium tier features (additional features on top of free)
+export const PREMIUM_ONLY_FEATURES: Feature[] = [
   FEATURES.AI_ANALYSIS,
   FEATURES.PORTFOLIO,
   FEATURES.ALERTS,
 ]
 
-export const ALL_FEATURES: Feature[] = [
+// Premium tier: Free + Premium features
+export const PREMIUM_FEATURES: Feature[] = [
   ...FREE_FEATURES,
+  ...PREMIUM_ONLY_FEATURES,
+]
+
+// Diamond tier: All features with unlimited access
+export const DIAMOND_FEATURES: Feature[] = [
   ...PREMIUM_FEATURES,
+]
+
+export const ALL_FEATURES: Feature[] = [
+  ...DIAMOND_FEATURES,
 ]
 
 // Mapping đường dẫn router với Feature tương ứng
@@ -71,5 +83,18 @@ export function getFeatureForRoute(pathname: string): Feature | null {
 }
 
 export function isPremiumFeature(feature: Feature): boolean {
-  return PREMIUM_FEATURES.includes(feature)
+  return PREMIUM_ONLY_FEATURES.includes(feature)
+}
+
+// Helper to get features based on membership tier
+export function getFeaturesForTier(tier: 'free' | 'premium' | 'diamond'): Feature[] {
+  switch (tier) {
+    case 'diamond':
+      return DIAMOND_FEATURES
+    case 'premium':
+      return PREMIUM_FEATURES
+    case 'free':
+    default:
+      return FREE_FEATURES
+  }
 }

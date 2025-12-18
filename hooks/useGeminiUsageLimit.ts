@@ -1,13 +1,13 @@
 'use client'
 
 /**
- * Hook quản lý số lần sử dụng widget phân tích Gemini
+ * Hook quản lý số lần sử dụng widget phân tích Gemini (Deep Analysis)
  *
  * Quy tắc:
  * - Không đăng nhập: không được sử dụng (0 lần)
  * - Free user: 3 lần/ngày
  * - Premium user: 20 lần/ngày
- * - Admin/Mod: không giới hạn
+ * - Diamond user: không giới hạn
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
@@ -17,6 +17,7 @@ import { usePermissions } from '@/contexts/PermissionsContext'
 const STORAGE_KEY = 'gemini_usage'
 const FREE_LIMIT = 3
 const PREMIUM_LIMIT = 20
+const DIAMOND_LIMIT = Infinity
 
 interface UsageData {
   count: number
@@ -88,7 +89,7 @@ const setStoredUsage = (userId: string | null, data: UsageData): void => {
 }
 
 export function useGeminiUsageLimit(): GeminiUsageLimitReturn {
-  const { isAuthenticated, isPremium, isAdmin, isMod, userId } = usePermissions()
+  const { isAuthenticated, isPremium, isDiamond, userId } = usePermissions()
 
   const [usageData, setUsageData] = useState<UsageData>({ count: 0, date: getTodayString() })
 
@@ -98,12 +99,12 @@ export function useGeminiUsageLimit(): GeminiUsageLimitReturn {
     setUsageData(stored)
   }, [userId])
 
-  // Tính toán các giá trị
-  const isUnlimited = isAdmin || isMod
+  // Tính toán các giá trị - Diamond tier có không giới hạn
+  const isUnlimited = isDiamond
   const isGuest = !isAuthenticated
 
   const usageLimit = useMemo(() => {
-    if (isUnlimited) return Infinity
+    if (isUnlimited) return DIAMOND_LIMIT
     if (isGuest) return 0
     if (isPremium) return PREMIUM_LIMIT
     return FREE_LIMIT
@@ -132,7 +133,7 @@ export function useGeminiUsageLimit(): GeminiUsageLimitReturn {
     // Guest không được dùng
     if (isGuest) return false
 
-    // Admin/Mod không cần track
+    // Diamond tier không cần track
     if (isUnlimited) return true
 
     // Check còn lượt không
@@ -163,13 +164,13 @@ export function useGeminiUsageLimit(): GeminiUsageLimitReturn {
     }
 
     if (isUnlimited) {
-      return 'Không giới hạn (Admin/Mod)'
+      return 'Không giới hạn (Diamond)'
     }
 
     if (!canUse) {
       return isPremium
-        ? `Bạn đã hết ${PREMIUM_LIMIT} lượt phân tích hôm nay. Vui lòng quay lại ngày mai.`
-        : `Bạn đã hết ${FREE_LIMIT} lượt phân tích miễn phí hôm nay. Nâng cấp Premium để có ${PREMIUM_LIMIT} lượt/ngày.`
+        ? `Bạn đã hết ${PREMIUM_LIMIT} lượt phân tích hôm nay. Nâng cấp Diamond để không giới hạn.`
+        : `Bạn đã hết ${FREE_LIMIT} lượt phân tích miễn phí hôm nay. Nâng cấp Premium (${PREMIUM_LIMIT} lượt/ngày) hoặc Diamond (không giới hạn).`
     }
 
     if (isPremium) {
@@ -195,5 +196,6 @@ export function useGeminiUsageLimit(): GeminiUsageLimitReturn {
 // Export constants for testing or external use
 export const GEMINI_USAGE_LIMITS = {
   FREE: FREE_LIMIT,
-  PREMIUM: PREMIUM_LIMIT
+  PREMIUM: PREMIUM_LIMIT,
+  DIAMOND: DIAMOND_LIMIT
 }
