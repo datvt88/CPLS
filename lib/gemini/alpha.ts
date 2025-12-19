@@ -7,10 +7,28 @@
  * - Vietnamese stock market expertise
  * - Friendly chat personality
  * - Stock Hub integration for current stock context
+ * - Stock analysis via Deep Analysis API
  */
 
 import { geminiAPI } from './gemini-api'
 import type { AlphaResponse, DeepAnalysisResult } from './types'
+
+// Vietnamese stock symbols pattern
+// Matches 3-character uppercase codes (e.g., VNM, FPT, TCB, HPG)
+const STOCK_SYMBOL_PATTERN = /\b([A-Z]{3})\b/g
+
+// Stock analysis request patterns in Vietnamese
+const STOCK_ANALYSIS_PATTERNS = [
+  /phân tích\s+(?:mã\s+)?([A-Za-z]{3})/i,
+  /(?:mã\s+)?([A-Za-z]{3})\s+(?:như thế nào|ra sao|thế nào)/i,
+  /đánh giá\s+(?:mã\s+)?([A-Za-z]{3})/i,
+  /nhận định\s+(?:mã\s+)?([A-Za-z]{3})/i,
+  /xem\s+(?:mã\s+)?([A-Za-z]{3})/i,
+  /tư vấn\s+(?:mã\s+)?([A-Za-z]{3})/i,
+  /(?:mã\s+)?([A-Za-z]{3})\s+có nên mua/i,
+  /nên mua\s+(?:mã\s+)?([A-Za-z]{3})/i,
+  /(?:mã\s+)?([A-Za-z]{3})\s+có tiềm năng/i,
+]
 
 // Stock context interface (matches StockHubContext output)
 export interface StockContext {
@@ -240,6 +258,115 @@ Câu hỏi: "${prompt}"
     lines.push('\n' + '=' .repeat(50))
 
     return lines.join('\n')
+  }
+
+  /**
+   * Detect if message contains a stock analysis request
+   * Returns the stock symbol if found, null otherwise
+   */
+  detectStockAnalysisRequest(message: string): string | null {
+    // Check each pattern for stock analysis request
+    for (const pattern of STOCK_ANALYSIS_PATTERNS) {
+      const match = message.match(pattern)
+      if (match && match[1]) {
+        return match[1].toUpperCase()
+      }
+    }
+    return null
+  }
+
+  /**
+   * Extract all stock symbols from a message
+   * Returns array of unique uppercase symbols
+   */
+  extractStockSymbols(message: string): string[] {
+    const upperMessage = message.toUpperCase()
+    const matches = upperMessage.match(STOCK_SYMBOL_PATTERN)
+    if (!matches) return []
+
+    // Return unique symbols
+    return [...new Set(matches)]
+  }
+
+  /**
+   * Format Deep Analysis result for chat display
+   * Creates a readable Vietnamese summary
+   */
+  formatDeepAnalysisForChat(symbol: string, analysis: DeepAnalysisResult): string {
+    const lines: string[] = []
+
+    lines.push(`📊 **PHÂN TÍCH CỔ PHIẾU ${symbol}**`)
+    lines.push('')
+
+    // Short term analysis
+    if (analysis.shortTerm) {
+      const signalEmoji = this.getSignalEmoji(analysis.shortTerm.signal)
+      lines.push(`🎯 **Ngắn hạn (1-4 tuần):** ${signalEmoji} ${analysis.shortTerm.signal}`)
+      lines.push(`   Độ tin cậy: ${analysis.shortTerm.confidence}%`)
+      if (analysis.shortTerm.summary) {
+        lines.push(`   ${analysis.shortTerm.summary}`)
+      }
+      lines.push('')
+    }
+
+    // Long term analysis
+    if (analysis.longTerm) {
+      const signalEmoji = this.getSignalEmoji(analysis.longTerm.signal)
+      lines.push(`📈 **Dài hạn (3-12 tháng):** ${signalEmoji} ${analysis.longTerm.signal}`)
+      lines.push(`   Độ tin cậy: ${analysis.longTerm.confidence}%`)
+      if (analysis.longTerm.summary) {
+        lines.push(`   ${analysis.longTerm.summary}`)
+      }
+      lines.push('')
+    }
+
+    // Price targets
+    if (analysis.buyPrice || analysis.targetPrice || analysis.stopLoss) {
+      lines.push(`💰 **Khuyến nghị giá:**`)
+      if (analysis.buyPrice) {
+        lines.push(`   Giá mua: ${analysis.buyPrice.toLocaleString('vi-VN')} (x1000 VNĐ)`)
+      }
+      if (analysis.targetPrice) {
+        lines.push(`   Mục tiêu: ${analysis.targetPrice.toLocaleString('vi-VN')} (x1000 VNĐ)`)
+      }
+      if (analysis.stopLoss) {
+        lines.push(`   Cắt lỗ: ${analysis.stopLoss.toLocaleString('vi-VN')} (x1000 VNĐ)`)
+      }
+      lines.push('')
+    }
+
+    // Risks
+    if (analysis.risks && analysis.risks.length > 0) {
+      lines.push(`⚠️ **Rủi ro:**`)
+      analysis.risks.forEach((risk, i) => {
+        lines.push(`   ${i + 1}. ${risk}`)
+      })
+      lines.push('')
+    }
+
+    // Opportunities
+    if (analysis.opportunities && analysis.opportunities.length > 0) {
+      lines.push(`✨ **Cơ hội:**`)
+      analysis.opportunities.forEach((opp, i) => {
+        lines.push(`   ${i + 1}. ${opp}`)
+      })
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
+   * Get emoji for signal type
+   */
+  private getSignalEmoji(signal: string): string {
+    const upperSignal = signal?.toUpperCase() || ''
+    if (upperSignal.includes('MUA') || upperSignal.includes('BUY')) {
+      return '🟢'
+    }
+    if (upperSignal.includes('BÁN') || upperSignal.includes('SELL')) {
+      return '🔴'
+    }
+    return '🟡' // THEO DÕI / HOLD
   }
 }
 
