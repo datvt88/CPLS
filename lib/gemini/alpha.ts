@@ -70,7 +70,7 @@ export interface StockContext {
 
 // Alpha's personality prompt
 const ALPHA_SYSTEM_PROMPT = `
-Bạn tên là Alpha (ký hiệu 🤖).
+Bạn tên là Alpha (ký hiệu ✨).
 Vai trò: Chuyên gia đầu tư chứng khoán Việt Nam và là Trợ lý ảo trong nhóm chat 'Kiếm tiền đi chợ'.
 Tính cách: Thông minh, ngắn gọn, vui vẻ.
 
@@ -324,13 +324,13 @@ Câu hỏi: "${prompt}"
     if (analysis.buyPrice || analysis.targetPrice || analysis.stopLoss) {
       lines.push(`💰 **Khuyến nghị giá:**`)
       if (analysis.buyPrice) {
-        lines.push(`   Giá mua: ${analysis.buyPrice.toLocaleString('vi-VN')} (x1000 VNĐ)`)
+        lines.push(`   Giá mua: ${analysis.buyPrice.toLocaleString('vi-VN')} (VNĐ)`)
       }
       if (analysis.targetPrice) {
-        lines.push(`   Mục tiêu: ${analysis.targetPrice.toLocaleString('vi-VN')} (x1000 VNĐ)`)
+        lines.push(`   Mục tiêu: ${analysis.targetPrice.toLocaleString('vi-VN')} (VNĐ)`)
       }
       if (analysis.stopLoss) {
-        lines.push(`   Cắt lỗ: ${analysis.stopLoss.toLocaleString('vi-VN')} (x1000 VNĐ)`)
+        lines.push(`   Cắt lỗ: ${analysis.stopLoss.toLocaleString('vi-VN')} (VNĐ)`)
       }
       lines.push('')
     }
@@ -346,7 +346,7 @@ Câu hỏi: "${prompt}"
 
     // Opportunities
     if (analysis.opportunities && analysis.opportunities.length > 0) {
-      lines.push(`✨ **Cơ hội:**`)
+      lines.push(`🟢 **Cơ hội:**`)
       analysis.opportunities.forEach((opp, i) => {
         lines.push(`   ${i + 1}. ${opp}`)
       })
