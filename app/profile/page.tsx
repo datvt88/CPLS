@@ -170,14 +170,14 @@ function ProfilePageContent() {
     const isDiamond = membership === 'diamond'
     const isPremium = membership === 'premium'
 
-    let badgeClass = 'bg-gray-700 text-gray-300 border border-gray-600'
+    let badgeClass = 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-lg shadow-green-500/30'
     let badgeText = 'FREE'
 
     if (isDiamond) {
-      badgeClass = 'bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 text-white shadow-lg shadow-cyan-500/30 animate-pulse'
+      badgeClass = 'bg-gradient-to-r from-purple-500 via-violet-500 to-fuchsia-500 text-white shadow-lg shadow-purple-500/30 animate-pulse'
       badgeText = 'DIAMOND'
     } else if (isPremium) {
-      badgeClass = 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30'
+      badgeClass = 'bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg shadow-blue-500/30'
       badgeText = 'PREMIUM'
     }
 
@@ -373,8 +373,8 @@ function ProfilePageContent() {
               <div>
                 <p className="text-gray-300 font-medium">Trạng thái hiện tại</p>
                 <p className={`text-lg font-bold ${
-                  profile?.membership === 'diamond' ? 'text-cyan-400' :
-                  profile?.membership === 'premium' ? 'text-purple-400' : 'text-gray-400'
+                  profile?.membership === 'diamond' ? 'text-purple-400' :
+                  profile?.membership === 'premium' ? 'text-blue-400' : 'text-emerald-400'
                 }`}>
                   {profile?.membership === 'diamond' ? 'Thành viên DIAMOND' :
                    profile?.membership === 'premium' ? 'Thành viên PREMIUM' : 'Thành viên Miễn phí'}
@@ -393,37 +393,37 @@ function ProfilePageContent() {
               <div className="space-y-2">
                 {profile?.membership === 'diamond' ? (
                   <>
-                    <div className="flex items-center gap-2 text-cyan-400 text-sm">
+                    <div className="flex items-center gap-2 text-purple-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>Không giới hạn Deep Analysis</span>
                     </div>
-                    <div className="flex items-center gap-2 text-cyan-400 text-sm">
+                    <div className="flex items-center gap-2 text-purple-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>Truy cập tất cả tính năng</span>
                     </div>
-                    <div className="flex items-center gap-2 text-cyan-400 text-sm">
+                    <div className="flex items-center gap-2 text-purple-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>Hỗ trợ ưu tiên</span>
                     </div>
                   </>
                 ) : profile?.membership === 'premium' ? (
                   <>
-                    <div className="flex items-center gap-2 text-purple-400 text-sm">
+                    <div className="flex items-center gap-2 text-blue-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>20 lượt Deep Analysis/ngày</span>
                     </div>
-                    <div className="flex items-center gap-2 text-purple-400 text-sm">
+                    <div className="flex items-center gap-2 text-blue-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>Truy cập AI Analysis, Portfolio, Alerts</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-2 text-gray-400 text-sm">
+                    <div className="flex items-center gap-2 text-emerald-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>3 lượt Deep Analysis/ngày</span>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-400 text-sm">
+                    <div className="flex items-center gap-2 text-emerald-400 text-sm">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                       <span>Các tính năng cơ bản</span>
                     </div>
