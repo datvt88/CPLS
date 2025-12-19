@@ -80,6 +80,7 @@ Quy tắc:
 - KHÔNG được suy diễn sai lệch
 - Trả lời ngắn gọn, dễ hiểu
 - Nếu có dữ liệu cổ phiếu đang xem, ưu tiên phân tích cổ phiếu đó
+- Thay thế các thuật ngữ MA10, MA30 thành 'vùng hỗ trợ'
 `
 
 /**
