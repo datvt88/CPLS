@@ -15,22 +15,27 @@ import type { User, Session } from '@supabase/supabase-js'
 /**
  * Extract custom claims from user object
  * Claims are injected by the custom_access_token_hook in Supabase
- * 
+ *
  * @param user - Supabase user object
- * @returns Custom claims (role, membership, is_premium)
+ * @returns Custom claims (role, membership, is_premium, is_diamond)
  */
 export function getClaimsFromUser(user: User | null): CustomClaims {
   if (!user) return {}
-  
+
   // Claims can be in app_metadata (from custom_access_token_hook)
   // or in user_metadata (fallback for compatibility)
   const appMetadata = user.app_metadata || {}
   const userMetadata = user.user_metadata || {}
-  
+
+  const membership = (appMetadata.membership ?? userMetadata.membership) as 'free' | 'premium' | 'diamond' | undefined
+  const isDiamond = membership === 'diamond'
+  const isPremium = isDiamond || membership === 'premium'
+
   return {
     role: (appMetadata.role ?? userMetadata.role) as UserRole | undefined,
-    membership: (appMetadata.membership ?? userMetadata.membership) as 'free' | 'premium' | undefined,
-    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium) as boolean | undefined
+    membership,
+    is_premium: (appMetadata.is_premium ?? userMetadata.is_premium ?? isPremium) as boolean | undefined,
+    is_diamond: (appMetadata.is_diamond ?? userMetadata.is_diamond ?? isDiamond) as boolean | undefined
   }
 }
 
@@ -56,10 +61,17 @@ export function hasAdminAccess(claims: CustomClaims): boolean {
 }
 
 /**
- * Check if user has premium access
+ * Check if user has premium access (premium or diamond tier)
  */
 export function hasPremiumAccess(claims: CustomClaims): boolean {
-  return claims.is_premium === true || claims.membership === 'premium'
+  return claims.is_premium === true || claims.membership === 'premium' || claims.membership === 'diamond'
+}
+
+/**
+ * Check if user has diamond access
+ */
+export function hasDiamondAccess(claims: CustomClaims): boolean {
+  return claims.is_diamond === true || claims.membership === 'diamond'
 }
 
 // ============================================================================
