@@ -54,7 +54,7 @@ const StatusIndicator = ({ ready, label }: { ready: boolean; label: string }) =>
 
 const StatusBadge = ({ status, message }: { status: StatusType; message: string }) => {
   const colorMap: Record<StatusType, string> = {
-    idle: 'bg-slate-500',
+    idle: 'bg-emerald-500',
     checking: 'bg-blue-500 animate-pulse',
     fetching: 'bg-yellow-500 animate-pulse',
     processing: 'bg-blue-500 animate-pulse',
@@ -64,7 +64,7 @@ const StatusBadge = ({ status, message }: { status: StatusType; message: string 
   }
 
   const textColorMap: Record<StatusType, string> = {
-    idle: 'text-slate-400',
+    idle: 'text-emerald-300',
     checking: 'text-blue-300',
     fetching: 'text-yellow-300',
     processing: 'text-blue-300',
@@ -680,46 +680,98 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
           </div>
         )}
 
-        {/* Result Content */}
+        {/* Result Content - Similar to @alpha chat format */}
         {result && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid md:grid-cols-2 gap-4">
-              <AnalysisCard title="⚡ Kỹ thuật (Ngắn hạn)" data={result.shortTerm} colorClass="bg-slate-800/50 border-slate-700" />
-              <AnalysisCard title="📊 Cơ bản (Dài hạn)" data={result.longTerm} colorClass="bg-slate-800/50 border-slate-700" />
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-slate-900/50 rounded-xl p-4 border border-slate-700/50">
+            {/* Header */}
+            <div className="text-center border-b border-slate-700/50 pb-3">
+              <h4 className="text-lg font-bold text-white">📊 PHÂN TÍCH CỔ PHIẾU {symbol}</h4>
+              <span className="text-[10px] text-gray-500">
+                Cập nhật: {new Date(result.timestamp || Date.now()).toLocaleTimeString('vi-VN')}
+              </span>
             </div>
 
-            <div className="bg-emerald-900/10 border border-emerald-500/20 p-4 rounded-xl">
-              <div className="flex justify-between items-end mb-3">
-                <h4 className="text-emerald-400 font-bold text-sm flex items-center gap-2">🎯 KHUYẾN NGHỊ</h4>
-                <span className="text-[10px] text-gray-500">
-                  Cập nhật: {new Date(result.timestamp || Date.now()).toLocaleTimeString('vi-VN')}
-                </span>
+            {/* Short Term */}
+            {result.shortTerm && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">🎯 Ngắn hạn (1-4 tuần):</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    result.shortTerm.signal === 'MUA' ? 'bg-emerald-600 text-white' :
+                    result.shortTerm.signal === 'BÁN' ? 'bg-rose-600 text-white' :
+                    'bg-amber-600 text-white'
+                  }`}>
+                    {result.shortTerm.signal === 'MUA' ? '🟢' : result.shortTerm.signal === 'BÁN' ? '🔴' : '🟡'} {result.shortTerm.signal}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 ml-6">Độ tin cậy: {result.shortTerm.confidence}%</p>
+                {result.shortTerm.summary && (
+                  <p className="text-sm text-gray-300 ml-6 italic">"{result.shortTerm.summary}"</p>
+                )}
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <ActionBox label="Vùng Mua" value={result.buyPrice} color="text-emerald-400" />
-                <ActionBox label="Mục Tiêu" value={result.targetPrice} color="text-purple-400" />
-                <ActionBox label="Cắt Lỗ" value={result.stopLoss} color="text-rose-400" />
-              </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm text-slate-300">
-              {result.risks?.length > 0 && (
-                <div className="bg-rose-950/30 p-3 rounded-lg border border-rose-900/30">
-                  <b className="text-rose-400 block mb-1">⚠️ Rủi ro cần lưu ý</b>
-                  <ul className="list-disc list-inside space-y-0.5 text-rose-200/80">
-                    {result.risks.slice(0, 2).map((r, i) => <li key={i}>{r}</li>)}
-                  </ul>
+            {/* Long Term */}
+            {result.longTerm && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">📈 Dài hạn (3-12 tháng):</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    result.longTerm.signal === 'MUA' ? 'bg-emerald-600 text-white' :
+                    result.longTerm.signal === 'BÁN' ? 'bg-rose-600 text-white' :
+                    'bg-amber-600 text-white'
+                  }`}>
+                    {result.longTerm.signal === 'MUA' ? '🟢' : result.longTerm.signal === 'BÁN' ? '🔴' : '🟡'} {result.longTerm.signal}
+                  </span>
                 </div>
-              )}
-              {result.opportunities?.length > 0 && (
-                <div className="bg-emerald-950/30 p-3 rounded-lg border border-emerald-900/30">
-                  <b className="text-emerald-400 block mb-1">🚀 Cơ hội tiềm năng</b>
-                  <ul className="list-disc list-inside space-y-0.5 text-emerald-200/80">
-                    {result.opportunities.slice(0, 2).map((o, i) => <li key={i}>{o}</li>)}
-                  </ul>
+                <p className="text-xs text-gray-400 ml-6">Độ tin cậy: {result.longTerm.confidence}%</p>
+                {result.longTerm.summary && (
+                  <p className="text-sm text-gray-300 ml-6 italic">"{result.longTerm.summary}"</p>
+                )}
+              </div>
+            )}
+
+            {/* Price Recommendations */}
+            {(result.buyPrice || result.targetPrice || result.stopLoss) && (
+              <div className="space-y-1 border-t border-slate-700/50 pt-3">
+                <p className="text-sm font-bold text-white">💰 Khuyến nghị giá:</p>
+                <div className="ml-6 space-y-1 text-sm">
+                  {result.buyPrice && (
+                    <p className="text-emerald-400">Giá mua: <span className="font-bold">{formatPrice(result.buyPrice, 0)}</span> (x1000 VNĐ)</p>
+                  )}
+                  {result.targetPrice && (
+                    <p className="text-purple-400">Mục tiêu: <span className="font-bold">{formatPrice(result.targetPrice, 0)}</span> (x1000 VNĐ)</p>
+                  )}
+                  {result.stopLoss && (
+                    <p className="text-rose-400">Cắt lỗ: <span className="font-bold">{formatPrice(result.stopLoss, 0)}</span> (x1000 VNĐ)</p>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Risks */}
+            {result.risks && result.risks.length > 0 && (
+              <div className="space-y-1 border-t border-slate-700/50 pt-3">
+                <p className="text-sm font-bold text-rose-400">⚠️ Rủi ro:</p>
+                <ul className="ml-6 space-y-1 text-sm text-rose-200/80">
+                  {result.risks.map((risk, i) => (
+                    <li key={i}>{i + 1}. {risk}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Opportunities */}
+            {result.opportunities && result.opportunities.length > 0 && (
+              <div className="space-y-1 border-t border-slate-700/50 pt-3">
+                <p className="text-sm font-bold text-emerald-400">✨ Cơ hội:</p>
+                <ul className="ml-6 space-y-1 text-sm text-emerald-200/80">
+                  {result.opportunities.map((opp, i) => (
+                    <li key={i}>{i + 1}. {opp}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
