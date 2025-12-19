@@ -6,7 +6,7 @@ export type UserRole = 'user' | 'mod' | 'admin'
 export interface Profile {
   id: string
   email: string
-  phone_number: string  // BẮT BUỘC: Số điện thoại
+  phone_number?: string  // Số điện thoại
   full_name?: string
   nickname?: string  // Tên hiển thị tài khoản (user tự đặt)
   stock_account_number?: string  // Số tài khoản chứng khoán (optional)
@@ -21,6 +21,12 @@ export interface Profile {
   role: UserRole  // User role: user (default), mod, admin
   tcbs_api_key?: string
   tcbs_connected_at?: string
+  // Account status fields
+  is_active?: boolean
+  is_banned?: boolean
+  ban_reason?: string
+  last_login_at?: string
+  // Timestamps
   created_at: string
   updated_at?: string
 }
@@ -28,14 +34,14 @@ export interface Profile {
 export interface CreateProfileData {
   id: string
   email: string
-  phone_number: string  // BẮT BUỘC: Số điện thoại
+  phone_number?: string
   full_name?: string
   nickname?: string
   stock_account_number?: string
   avatar_url?: string
   zalo_id?: string
-  birthday?: string  // Ngày sinh từ Zalo (DD/MM/YYYY)
-  gender?: 'male' | 'female'  // Giới tính từ Zalo
+  birthday?: string
+  gender?: 'male' | 'female'
   membership?: MembershipTier
   created_at?: string
 }
