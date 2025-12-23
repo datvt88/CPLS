@@ -170,18 +170,21 @@ class GeminiDeepAnalysis {
 
     // Analysis Instructions
     prompt += `🎯 YÊU CẦU PHÂN TÍCH:\n\n`
+    prompt += `QUAN TRỌNG: Hãy phân tích DỰA TRÊN DỮ LIỆU THỰC TẾ được cung cấp ở trên. Đưa ra nhận định CỤ THỂ, KHÔNG được trả lời chung chung.\n\n`
     prompt += `1. NGẮN HẠN (1-4 tuần): Tỷ trọng 70% KỸ THUẬT + 30% CƠ BẢN\n`
-    prompt += `   - Kỹ thuật: MA crossover, Bollinger position, momentum, volume, 52-week range\n`
-    prompt += `   - Cơ bản: ROE/ROA gần đây, thanh khoản\n\n`
+    prompt += `   - Phân tích cụ thể: MA crossover (MA10 vs MA30), vị trí Bollinger, momentum, khối lượng\n`
+    prompt += `   - Nếu MA10 > MA30 và momentum > 0: thiên về MUA\n`
+    prompt += `   - Nếu MA10 < MA30 và momentum < 0: thiên về BÁN\n\n`
     prompt += `2. DÀI HẠN (3-12 tháng): Tỷ trọng 70% CƠ BẢN + 30% KỸ THUẬT\n`
-    prompt += `   - Cơ bản: P/E, P/B, ROE/ROA, cổ tức, EPS\n`
-    prompt += `   - Kỹ thuật: Xu hướng dài hạn\n\n`
-    prompt += `3. Khuyến nghị: MUA, BÁN, hoặc THEO DÕI\n\n`
-    prompt += `4. Nếu khuyến nghị MUA:\n`
-    prompt += `   - buyPrice: Giá mua tốt (dựa trên hỗ trợ kỹ thuật)\n`
-    prompt += `   - targetPrice: Giá mục tiêu\n`
-    prompt += `   - stopLoss: Mức cắt lỗ (5-7% dưới giá mua)\n\n`
-    prompt += `5. Đưa ra ĐÚNG 3 rủi ro và ĐÚNG 3 cơ hội cụ thể nhất\n\n`
+    prompt += `   - Phân tích cụ thể: P/E so với ngành, ROE, tăng trưởng\n`
+    prompt += `   - Nếu P/E < 15 và ROE > 15%: thiên về MUA\n`
+    prompt += `   - Nếu P/E > 25 và ROE < 10%: thiên về BÁN\n\n`
+    prompt += `3. Khuyến nghị: MUA (confidence >= 65), BÁN (confidence >= 65), hoặc THEO DÕI\n\n`
+    prompt += `4. LUÔN LUÔN cung cấp mức giá (dựa trên dữ liệu kỹ thuật):\n`
+    prompt += `   - buyPrice: Giá mua tốt = Hỗ trợ S2 hoặc Bollinger Lower\n`
+    prompt += `   - targetPrice: Giá mục tiêu = Kháng cự R2 hoặc giá mục tiêu CTCK\n`
+    prompt += `   - stopLoss: Mức cắt lỗ = 5-7% dưới giá mua hoặc dưới hỗ trợ S3\n\n`
+    prompt += `5. Đưa ra ĐÚNG 3 rủi ro và ĐÚNG 3 cơ hội CỤ THỂ cho cổ phiếu ${symbol} (không chung chung)\n\n`
 
     // Response format
     prompt += `📋 FORMAT JSON (BẮT BUỘC - chỉ trả về JSON, không có text khác):\n`
@@ -203,11 +206,12 @@ class GeminiDeepAnalysis {
   "opportunities": ["Cơ hội 1", "Cơ hội 2", "Cơ hội 3"]
 }\n\n`
 
-    prompt += `LƯU Ý:\n`
+    prompt += `LƯU Ý QUAN TRỌNG:\n`
     prompt += `- signal: "MUA", "BÁN", hoặc "THEO DÕI"\n`
-    prompt += `- confidence: số nguyên 0-100\n`
-    prompt += `- buyPrice, targetPrice, stopLoss: số (x1000 VNĐ), null nếu không MUA\n`
-    prompt += `- risks và opportunities: mỗi array ĐÚNG 3 phần tử\n`
+    prompt += `- confidence: số nguyên 0-100 (MUA/BÁN cần >= 65)\n`
+    prompt += `- buyPrice, targetPrice, stopLoss: LUÔN cung cấp số (x1000 VNĐ) dựa trên hỗ trợ/kháng cự\n`
+    prompt += `- summary: Phải CỤ THỂ, đề cập đến dữ liệu thực (MA, P/E, ROE...)\n`
+    prompt += `- risks và opportunities: ĐÚNG 3 phần tử, CỤ THỂ cho ${symbol}, KHÔNG chung chung\n`
 
     return prompt
   }
