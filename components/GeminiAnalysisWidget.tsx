@@ -497,6 +497,18 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
       setLocalStatus('ai_generating')
       setStatusMsg('Gemini đang phân tích...')
 
+      // Calculate additional data for better analysis
+      const volumeAvg10 = volumes.slice(-10).reduce((a, b) => a + b, 0) / 10
+      const volumeRatio = volumeAvg10 > 0 ? (volumes[lastIdx] / volumeAvg10) * 100 : 100
+
+      // Find 52-week high/low
+      const last252Prices = closePrices.slice(-252)
+      const week52High = last252Prices.length > 0 ? Math.max(...last252Prices) : undefined
+      const week52Low = last252Prices.length > 0 ? Math.min(...last252Prices) : undefined
+
+      // Calculate momentum 10 days
+      const momentum10d = lastIdx >= 10 ? ((currentPrice - closePrices[lastIdx - 10]) / closePrices[lastIdx - 10]) * 100 : 0
+
       const payload = {
         symbol,
         technicalData: {
@@ -506,19 +518,25 @@ export default function GeminiAnalysisWidget({ symbol: propSymbol }: GeminiAnaly
           ma10,
           ma30,
           bollinger: bb ? { upper: bb.upper[lastIdx], lower: bb.lower[lastIdx], middle: bb.middle[lastIdx] } : undefined,
-          momentum: { day5: momentum5d },
-          volume: { current: volumes[lastIdx], avg10: volumes.slice(-10).reduce((a, b) => a + b, 0) / 10 }
+          momentum: { day5: momentum5d, day10: momentum10d },
+          volume: { current: volumes[lastIdx], avg10: volumeAvg10, ratio: volumeRatio },
+          week52: { high: week52High, low: week52Low }
         },
         fundamentalData: {
           pe: (ratios as any)?.['PRICE_TO_EARNINGS']?.value,
           pb: (ratios as any)?.['PRICE_TO_BOOK']?.value,
           roe: (ratios as any)?.['ROAE_TR_AVG5Q']?.value ? (ratios as any)['ROAE_TR_AVG5Q'].value * 100 : undefined,
           roa: (ratios as any)?.['ROAA_TR_AVG5Q']?.value ? (ratios as any)['ROAA_TR_AVG5Q'].value * 100 : undefined,
+          eps: (ratios as any)?.['EPS_TR']?.value,
+          dividendYield: (ratios as any)?.['DIVIDEND_YIELD']?.value,
+          marketCap: (ratios as any)?.['MARKETCAP']?.value,
           profitability,
           profitStructure
         },
         recommendations: recs?.slice(0, 5) || []
       }
+
+      console.log('[GeminiWidget] Payload sent to API:', JSON.stringify(payload, null, 2))
 
       const res = await fetch('/api/gemini/stock-analysis', {
         method: 'POST',
