@@ -192,26 +192,27 @@ class GeminiDeepAnalysis {
   "shortTerm": {
     "signal": "MUA",
     "confidence": 75,
-    "summary": "Phân tích ngắn hạn 2-3 câu"
+    "summary": "MA10 (xxx) đã cắt lên MA30 (xxx) cho tín hiệu tích cực. Giá đang ở vị trí xx% trong dải Bollinger, momentum 5 ngày đạt +x.x%. Khối lượng giao dịch tăng xx% so với trung bình cho thấy dòng tiền đang vào. Vị trí xx% trong kênh 52 tuần cho thấy còn dư địa tăng."
   },
   "longTerm": {
-    "signal": "THEO DÕI",
-    "confidence": 60,
-    "summary": "Phân tích dài hạn 2-3 câu"
+    "signal": "MUA",
+    "confidence": 70,
+    "summary": "P/E hiện tại xx.x thấp hơn trung bình ngành (15-18). ROE đạt xx% cho thấy hiệu quả sử dụng vốn tốt. EPS tăng trưởng ổn định qua các quý gần đây. Các CTCK đưa giá mục tiêu trung bình xx.x, cao hơn giá hiện tại xx%."
   },
   "buyPrice": 85.5,
   "targetPrice": 95,
   "stopLoss": 80,
-  "risks": ["Rủi ro 1", "Rủi ro 2", "Rủi ro 3"],
-  "opportunities": ["Cơ hội 1", "Cơ hội 2", "Cơ hội 3"]
+  "risks": ["Rủi ro cụ thể 1 cho ${symbol}", "Rủi ro cụ thể 2 cho ${symbol}", "Rủi ro cụ thể 3 cho ${symbol}"],
+  "opportunities": ["Cơ hội cụ thể 1 cho ${symbol}", "Cơ hội cụ thể 2 cho ${symbol}", "Cơ hội cụ thể 3 cho ${symbol}"]
 }\n\n`
 
     prompt += `LƯU Ý QUAN TRỌNG:\n`
     prompt += `- signal: "MUA", "BÁN", hoặc "THEO DÕI"\n`
     prompt += `- confidence: số nguyên 0-100 (MUA/BÁN cần >= 65)\n`
     prompt += `- buyPrice, targetPrice, stopLoss: LUÔN cung cấp số (x1000 VNĐ) dựa trên hỗ trợ/kháng cự\n`
-    prompt += `- summary: Phải CỤ THỂ, đề cập đến dữ liệu thực (MA, P/E, ROE...)\n`
-    prompt += `- risks và opportunities: ĐÚNG 3 phần tử, CỤ THỂ cho ${symbol}, KHÔNG chung chung\n`
+    prompt += `- summary NGẮN HẠN: PHẢI 3-5 câu, đề cập CỤ THỂ: MA10/MA30, Bollinger %, momentum %, volume %, vị trí 52 tuần\n`
+    prompt += `- summary DÀI HẠN: PHẢI 3-5 câu, đề cập CỤ THỂ: P/E, P/B, ROE %, ROA %, EPS, khuyến nghị CTCK\n`
+    prompt += `- risks và opportunities: ĐÚNG 3 phần tử, CỤ THỂ cho ${symbol}, liên quan đến ngành/công ty, KHÔNG chung chung\n`
 
     return prompt
   }
