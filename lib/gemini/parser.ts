@@ -198,12 +198,10 @@ function normalizeDeepAnalysis(parsed: any, currentPrice?: number): DeepAnalysis
   // Check if any signal is MUA
   const hasBuySignal = result.shortTerm.signal === 'MUA' || result.longTerm.signal === 'MUA'
 
-  // Normalize prices (only if buy signal)
-  if (hasBuySignal) {
-    result.buyPrice = parsePriceValue(parsed.buyPrice)
-    result.targetPrice = parsePriceValue(parsed.targetPrice)
-    result.stopLoss = parsePriceValue(parsed.stopLoss)
-  }
+  // Always normalize prices (for reference levels even if not BUY)
+  result.buyPrice = parsePriceValue(parsed.buyPrice)
+  result.targetPrice = parsePriceValue(parsed.targetPrice)
+  result.stopLoss = parsePriceValue(parsed.stopLoss)
 
   // Normalize risks and opportunities (exactly 3 each)
   result.risks = normalizeArray(parsed.risks, 3, [
@@ -225,6 +223,11 @@ function normalizeDeepAnalysis(parsed: any, currentPrice?: number): DeepAnalysis
  * Create default deep analysis response
  */
 function createDefaultDeepAnalysis(currentPrice?: number): DeepAnalysisResult {
+  // Calculate default price levels based on currentPrice if available
+  const buyPrice = currentPrice ? Math.round(currentPrice * 0.95 * 100) / 100 : null  // 5% below current
+  const targetPrice = currentPrice ? Math.round(currentPrice * 1.10 * 100) / 100 : null  // 10% above current
+  const stopLoss = currentPrice ? Math.round(currentPrice * 0.92 * 100) / 100 : null  // 8% below current
+
   return {
     shortTerm: {
       signal: 'THEO DÕI',
@@ -238,9 +241,9 @@ function createDefaultDeepAnalysis(currentPrice?: number): DeepAnalysisResult {
       summary: 'Cần phân tích thêm các chỉ số cơ bản để đánh giá dài hạn.',
       reasons: []
     },
-    buyPrice: null,
-    targetPrice: null,
-    stopLoss: null,
+    buyPrice,
+    targetPrice,
+    stopLoss,
     risks: [
       'Biến động thị trường có thể ảnh hưởng đến giá',
       'Rủi ro thanh khoản khi giao dịch',
