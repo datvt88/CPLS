@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
-const API_BASE_URL = 'https://cpls-be-230198333889.asia-southeast1.run.app/api/v1'
+const API_BASE_URL = process.env.SIGNAL_API_URL || process.env.NEXT_PUBLIC_API_URL
+const REVALIDATE_INTERVAL = parseInt(process.env.NEXT_PUBLIC_REVALIDATE_INTERVAL || '60', 10)
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -9,6 +10,13 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ code: string }> }
 ) {
+  if (!API_BASE_URL) {
+    return NextResponse.json(
+      { success: false, error: 'API URL not configured' },
+      { status: 500 }
+    )
+  }
+
   try {
     const { code } = await params
 
@@ -19,11 +27,11 @@ export async function GET(
       )
     }
 
-    const response = await fetch(`${API_BASE_URL}/signals/stock/${code.toUpperCase()}`, {
+    const response = await fetch(`${API_BASE_URL}/api/v1/signals/stock/${code.toUpperCase()}`, {
       headers: {
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 },
+      next: { revalidate: REVALIDATE_INTERVAL },
     })
 
     if (!response.ok) {
