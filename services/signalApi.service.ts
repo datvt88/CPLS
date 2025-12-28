@@ -1,5 +1,5 @@
 // File: services/signalApi.service.ts
-// Service to interact with CPLS Backend Signal API
+// Service to interact with CPLS Backend Signal API via local proxy
 
 import type {
   Signal,
@@ -12,7 +12,8 @@ import type {
   SignalFilters,
 } from '@/types/signal'
 
-const API_BASE_URL = 'https://cpls-be-230198333889.asia-southeast1.run.app/api/v1'
+// Use local API routes as proxy
+const API_BASE_URL = '/api/signals/external'
 const DEFAULT_TIMEOUT = 15000 // 15 seconds
 
 // Utility to create fetch with timeout
@@ -60,7 +61,7 @@ export async function getSignals(
   if (filters.page) params.append('page', filters.page.toString())
   if (filters.limit) params.append('limit', filters.limit.toString())
 
-  const url = `${API_BASE_URL}/signals${params.toString() ? `?${params.toString()}` : ''}`
+  const url = `${API_BASE_URL}${params.toString() ? `?${params.toString()}` : ''}`
 
   try {
     const response = await fetchWithTimeout(url)
@@ -85,7 +86,7 @@ export async function getSignals(
  */
 export async function getStockSignal(stockCode: string): Promise<Signal | null> {
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/signals/stock/${stockCode}`)
+    const response = await fetchWithTimeout(`${API_BASE_URL}/stock/${stockCode}`)
     if (!response.ok) {
       if (response.status === 404) return null
       throw new Error(`Failed to fetch stock signal: ${response.status}`)
@@ -102,7 +103,7 @@ export async function getStockSignal(stockCode: string): Promise<Signal | null> 
  */
 export async function getTopSignals(): Promise<TopSignalsResponse> {
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/signals/top`)
+    const response = await fetchWithTimeout(`${API_BASE_URL}/top`)
     if (!response.ok) {
       throw new Error(`Failed to fetch top signals: ${response.status}`)
     }
@@ -123,7 +124,7 @@ export async function getTopSignals(): Promise<TopSignalsResponse> {
  */
 export async function getSignalStats(): Promise<SignalStats | null> {
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/signals/stats`)
+    const response = await fetchWithTimeout(`${API_BASE_URL}/stats`)
     if (!response.ok) {
       throw new Error(`Failed to fetch signal stats: ${response.status}`)
     }
@@ -139,7 +140,7 @@ export async function getSignalStats(): Promise<SignalStats | null> {
  */
 export async function getStrategies(): Promise<StrategyInfo[]> {
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/signals/strategies`)
+    const response = await fetchWithTimeout(`${API_BASE_URL}/strategies`)
     if (!response.ok) {
       throw new Error(`Failed to fetch strategies: ${response.status}`)
     }
@@ -163,7 +164,7 @@ export async function getScreenerResults(
 ): Promise<ScreenerResult[]> {
   try {
     const response = await fetchWithTimeout(
-      `${API_BASE_URL}/signals/screener/${type}?limit=${limit}`
+      `${API_BASE_URL}/screener/${type}?limit=${limit}`
     )
     if (!response.ok) {
       throw new Error(`Failed to fetch screener results: ${response.status}`)
@@ -189,7 +190,7 @@ export const getBreakoutScreener = (limit?: number) => getScreenerResults('break
  */
 export async function getStockIndicators(stockCode: string): Promise<StockIndicator | null> {
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/signals/indicators/${stockCode}`)
+    const response = await fetchWithTimeout(`${API_BASE_URL}/indicators/${stockCode}`)
     if (!response.ok) {
       if (response.status === 404) return null
       throw new Error(`Failed to fetch stock indicators: ${response.status}`)
@@ -210,7 +211,7 @@ export async function getAllIndicators(
 ): Promise<PaginatedResponse<StockIndicator>> {
   try {
     const response = await fetchWithTimeout(
-      `${API_BASE_URL}/signals/indicators?page=${page}&limit=${limit}`
+      `${API_BASE_URL}/indicators?page=${page}&limit=${limit}`
     )
     if (!response.ok) {
       throw new Error(`Failed to fetch indicators: ${response.status}`)
