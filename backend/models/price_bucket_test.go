@@ -39,7 +39,7 @@ func TestGetYearFromDate(t *testing.T) {
 
 	for _, tt := range tests {
 		result, err := GetYearFromDate(tt.dateStr)
-		
+
 		if tt.hasError {
 			if err == nil {
 				t.Errorf("GetYearFromDate(%s) expected error but got none", tt.dateStr)

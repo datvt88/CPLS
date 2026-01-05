@@ -33,21 +33,21 @@ func (ac *AdminController) ShowLoginPage(c *gin.Context) {
 // ProcessLogin handles login form submission
 func (ac *AdminController) ProcessLogin(c *gin.Context) {
 	session := sessions.Default(c)
-	
+
 	username := c.PostForm("username")
 	password := c.PostForm("password")
-	
+
 	// Simple authentication (in production, use proper password hashing)
 	adminUser := os.Getenv("ADMIN_USERNAME")
 	adminPass := os.Getenv("ADMIN_PASSWORD")
-	
+
 	if adminUser == "" {
 		adminUser = "admin"
 	}
 	if adminPass == "" {
 		adminPass = "admin123"
 	}
-	
+
 	if username == adminUser && password == adminPass {
 		// Set user in session
 		session.Set("user", username)
@@ -57,7 +57,7 @@ func (ac *AdminController) ProcessLogin(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		c.Redirect(http.StatusFound, "/admin/dashboard")
 	} else {
 		c.HTML(http.StatusUnauthorized, "login.html", gin.H{
@@ -71,7 +71,7 @@ func (ac *AdminController) ProcessLogin(c *gin.Context) {
 func (ac *AdminController) ShowDashboard(c *gin.Context) {
 	session := sessions.Default(c)
 	user := session.Get("user")
-	
+
 	c.HTML(http.StatusOK, "dashboard.html", gin.H{
 		"title": "Admin Dashboard",
 		"user":  user,
@@ -88,6 +88,6 @@ func (ac *AdminController) Logout(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.Redirect(http.StatusFound, "/admin/login")
 }

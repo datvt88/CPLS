@@ -46,11 +46,11 @@ func main() {
 	}
 
 	store := cookie.NewStore([]byte(sessionSecret))
-	
+
 	// Configure session options for Cloud Run (HTTPS environment)
 	store.Options(sessions.Options{
 		Path:   "/",
-		Domain: "", // Empty domain works for *.run.app domains
+		Domain: "",        // Empty domain works for *.run.app domains
 		MaxAge: 86400 * 7, // 7 days
 		// Secure: true is CRITICAL for HTTPS (Cloud Run)
 		// Even though the app runs HTTP internally, Cloud Run terminates HTTPS at the load balancer
@@ -60,7 +60,7 @@ func main() {
 		// SameSite: Lax is recommended for Cloud Run to prevent CSRF while allowing navigation
 		SameSite: http.SameSiteLaxMode,
 	})
-	
+
 	router.Use(sessions.Sessions("admin_session", store))
 
 	// CORS middleware for Cloud Run
@@ -85,7 +85,7 @@ func main() {
 		// Public routes (no auth required)
 		admin.GET("/login", adminController.ShowLoginPage)
 		admin.POST("/login", adminController.ProcessLogin)
-		
+
 		// Protected routes (auth required)
 		admin.GET("/dashboard", middleware.AuthRequired(), adminController.ShowDashboard)
 		admin.GET("/logout", middleware.AuthRequired(), adminController.Logout)

@@ -18,10 +18,10 @@ type CandleData struct {
 // PriceBucket represents a bucket of price data for a stock in a specific year
 // This implements the Bucket Pattern to save storage in MongoDB
 type PriceBucket struct {
-	ID      string        `bson:"_id" json:"id"`           // Format: "{CODE}_{YEAR}" (e.g., "HPG_2024")
-	Code    string        `bson:"code" json:"code"`        // Stock code
-	Year    int           `bson:"year" json:"year"`        // Year
-	History []CandleData  `bson:"history" json:"history"`  // Array of candles
+	ID      string       `bson:"_id" json:"id"`          // Format: "{CODE}_{YEAR}" (e.g., "HPG_2024")
+	Code    string       `bson:"code" json:"code"`       // Stock code
+	Year    int          `bson:"year" json:"year"`       // Year
+	History []CandleData `bson:"history" json:"history"` // Array of candles
 }
 
 // GenerateBucketID creates a bucket ID from code and year
