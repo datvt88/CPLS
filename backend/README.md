@@ -2,6 +2,12 @@
 
 Go backend service for crawling and storing Vietnamese stock market data from VNDirect API.
 
+## 📚 Quick Links
+
+- **[Quick Start Guide](./QUICKSTART.md)** - Get running in 5 minutes
+- **[API Usage Examples](./API_USAGE.md)** - How to use the API
+- **[Cloud Run Deployment](./CLOUD_RUN_DEPLOYMENT.md)** - Deploy to production
+
 ## 🏗️ Architecture
 
 - **Framework**: Gin (Go 1.22)
