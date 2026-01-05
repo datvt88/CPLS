@@ -146,6 +146,7 @@ func (cs *CrawlerService) saveStocks(stocks []models.Stock) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	var errorCount int
 	for _, stock := range stocks {
 		filter := bson.M{"code": stock.Code}
 		update := bson.M{
@@ -165,7 +166,12 @@ func (cs *CrawlerService) saveStocks(stocks []models.Stock) error {
 		_, err := cs.stockCollection.UpdateOne(ctx, filter, update, opts)
 		if err != nil {
 			log.Printf("⚠️  Failed to upsert stock %s: %v", stock.Code, err)
+			errorCount++
 		}
+	}
+
+	if errorCount > 0 {
+		log.Printf("⚠️  Failed to save %d out of %d stocks", errorCount, len(stocks))
 	}
 
 	return nil

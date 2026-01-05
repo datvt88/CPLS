@@ -4,7 +4,7 @@ Go backend service for crawling and storing Vietnamese stock market data from VN
 
 ## 🏗️ Architecture
 
-- **Framework**: Gin (Go 1.22+)
+- **Framework**: Gin (Go 1.22)
 - **Database**: MongoDB Atlas (Free M0 - 512MB)
 - **Deployment**: Google Cloud Run
 - **Pattern**: Bucket Pattern for time-series data optimization
@@ -73,7 +73,7 @@ Each document represents one stock for one year:
 
 ### Prerequisites
 
-- Go 1.22 or higher
+- Go 1.22+
 - MongoDB Atlas account (Free M0 tier)
 
 ### Installation
