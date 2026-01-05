@@ -108,6 +108,7 @@ func main() {
 
 		// Protected routes (auth required)
 		admin.GET("/dashboard", middleware.AuthRequired(), adminController.ShowDashboard)
+		admin.GET("/users", middleware.AuthRequired(), adminController.ShowUsers)
 		admin.GET("/logout", middleware.AuthRequired(), adminController.Logout)
 
 		// User management API endpoints

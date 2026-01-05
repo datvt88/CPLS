@@ -99,6 +99,17 @@ func (ac *AdminController) Logout(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/admin/login")
 }
 
+// ShowUsers renders the user management page
+func (ac *AdminController) ShowUsers(c *gin.Context) {
+	session := sessions.Default(c)
+	user := session.Get("user")
+
+	c.HTML(http.StatusOK, "users.html", gin.H{
+		"title": "User Management",
+		"user":  user,
+	})
+}
+
 // GetAdminUsers returns all admin users (JSON API)
 func (ac *AdminController) GetAdminUsers(c *gin.Context) {
 	log.Println("=== AdminController.GetAdminUsers: API called ===")
