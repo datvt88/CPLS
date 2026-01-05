@@ -20,11 +20,18 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
-	// Connect to MongoDB
-	if err := config.ConnectMongoDB(); err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+	// Connect to PostgreSQL (Supabase)
+	if err := config.ConnectPostgres(); err != nil {
+		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
 	}
-	defer config.DisconnectMongoDB()
+	defer config.DisconnectPostgres()
+
+	// Keep MongoDB connection for backward compatibility (if needed)
+	// Comment out if you want to fully migrate to PostgreSQL
+	// if err := config.ConnectMongoDB(); err != nil {
+	// 	log.Printf("Warning: Failed to connect to MongoDB: %v", err)
+	// }
+	// defer config.DisconnectMongoDB()
 
 	// Initialize Gin router
 	router := gin.Default()
@@ -102,6 +109,10 @@ func main() {
 		// Protected routes (auth required)
 		admin.GET("/dashboard", middleware.AuthRequired(), adminController.ShowDashboard)
 		admin.GET("/logout", middleware.AuthRequired(), adminController.Logout)
+
+		// User management API endpoints
+		admin.GET("/api/admin-users", middleware.AuthRequired(), adminController.GetAdminUsers)
+		admin.GET("/api/profiles", middleware.AuthRequired(), adminController.GetProfiles)
 	}
 
 	// API routes
