@@ -2,10 +2,14 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/datvt88/CPLS/backend/config"
 	"github.com/datvt88/CPLS/backend/controllers"
+	"github.com/datvt88/CPLS/backend/middleware"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -25,6 +29,44 @@ func main() {
 	// Initialize Gin router
 	router := gin.Default()
 
+	// IMPORTANT: Trust proxies for Cloud Run
+	// Cloud Run uses a load balancer (proxy) in front of the app
+	// Setting to nil trusts all proxies, which is safe in Cloud Run environment
+	router.SetTrustedProxies(nil)
+
+	// Load HTML templates
+	router.LoadHTMLGlob("templates/*")
+
+	// Configure session middleware for Cloud Run
+	sessionSecret := os.Getenv("SESSION_SECRET")
+	if sessionSecret == "" {
+		// In production, fail fast if SESSION_SECRET is not set
+		if os.Getenv("ENV") == "production" {
+			log.Fatal("FATAL: SESSION_SECRET environment variable must be set in production")
+		}
+		// For development, warn and use default
+		log.Println("WARNING: SESSION_SECRET not set. Using default (not recommended for production)")
+		sessionSecret = "default-secret-change-in-production"
+	}
+
+	store := cookie.NewStore([]byte(sessionSecret))
+
+	// Configure session options for Cloud Run (HTTPS environment)
+	store.Options(sessions.Options{
+		Path:   "/",
+		Domain: "",        // Empty domain works for *.run.app domains
+		MaxAge: 86400 * 7, // 7 days
+		// Secure: true is CRITICAL for HTTPS (Cloud Run)
+		// Even though the app runs HTTP internally, Cloud Run terminates HTTPS at the load balancer
+		// The X-Forwarded-Proto header tells Gin the original protocol was HTTPS
+		Secure:   true,
+		HttpOnly: true, // Prevent JavaScript access to cookies (XSS protection)
+		// SameSite: Lax is recommended for Cloud Run to prevent CSRF while allowing navigation
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	router.Use(sessions.Sessions("admin_session", store))
+
 	// CORS middleware for Cloud Run
 	router.Use(corsMiddleware())
 
@@ -39,6 +81,19 @@ func main() {
 
 	// Initialize controllers
 	crawlerController := controllers.NewCrawlerController()
+	adminController := controllers.NewAdminController()
+
+	// Admin routes (with session-based authentication)
+	admin := router.Group("/admin")
+	{
+		// Public routes (no auth required)
+		admin.GET("/login", adminController.ShowLoginPage)
+		admin.POST("/login", adminController.ProcessLogin)
+
+		// Protected routes (auth required)
+		admin.GET("/dashboard", middleware.AuthRequired(), adminController.ShowDashboard)
+		admin.GET("/logout", middleware.AuthRequired(), adminController.Logout)
+	}
 
 	// API routes
 	api := router.Group("/api")

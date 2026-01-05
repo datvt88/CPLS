@@ -41,6 +41,9 @@ gcloud run deploy $SERVICE_NAME \
   --allow-unauthenticated \
   --set-env-vars MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority" \
   --set-env-vars MONGODB_DATABASE="cpls_trading" \
+  --set-env-vars SESSION_SECRET="$(openssl rand -base64 32)" \
+  --set-env-vars ADMIN_USERNAME="admin" \
+  --set-env-vars ADMIN_PASSWORD="your-secure-password" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
@@ -76,13 +79,25 @@ gcloud secrets add-iam-policy-binding mongodb-uri \
 ### 2. Deploy with Secret
 
 ```bash
+# First create session secret
+echo -n "$(openssl rand -base64 32)" | gcloud secrets create session-secret --data-file=-
+
+# Grant access
+gcloud secrets add-iam-policy-binding session-secret \
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Deploy with secrets
 gcloud run deploy $SERVICE_NAME \
   --image gcr.io/$PROJECT_ID/$SERVICE_NAME \
   --platform managed \
   --region $REGION \
   --allow-unauthenticated \
   --set-secrets MONGODB_URI=mongodb-uri:latest \
+  --set-secrets SESSION_SECRET=session-secret:latest \
   --set-env-vars MONGODB_DATABASE="cpls_trading" \
+  --set-env-vars ADMIN_USERNAME="admin" \
+  --set-env-vars ADMIN_PASSWORD="your-secure-password" \
   --memory 512Mi \
   --cpu 1 \
   --timeout 300 \
@@ -326,6 +341,41 @@ gcloud run services update-traffic $SERVICE_NAME \
   --to-revisions=REVISION_NAME=100 \
   --region=$REGION
 ```
+
+## Admin Dashboard
+
+The application includes an admin dashboard with session-based authentication.
+
+### Accessing the Dashboard
+
+```bash
+# Get service URL
+SERVICE_URL=$(gcloud run services describe $SERVICE_NAME \
+  --platform managed \
+  --region $REGION \
+  --format 'value(status.url)')
+
+# Open admin login
+echo "Admin Login: $SERVICE_URL/admin/login"
+```
+
+### Default Credentials
+
+- Username: `admin` (or value from ADMIN_USERNAME env var)
+- Password: `admin123` (or value from ADMIN_PASSWORD env var)
+
+**Important**: Change default credentials in production!
+
+### Session Configuration
+
+The session management is configured for Cloud Run with:
+- **Secure cookies** (HTTPS only)
+- **HttpOnly** (XSS protection)
+- **SameSite=Lax** (CSRF protection)
+- **7-day session lifetime**
+- **Persistent SESSION_SECRET** (prevents session loss on restart)
+
+See [CLOUD_RUN_SESSION_GUIDE.md](./CLOUD_RUN_SESSION_GUIDE.md) for detailed information about session management.
 
 ## Clean Up
 
