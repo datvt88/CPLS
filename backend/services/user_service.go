@@ -38,8 +38,16 @@ func (s *UserService) GetAdminUsers() ([]models.AdminUser, error) {
 	// Log results
 	log.Printf("✓ GetAdminUsers: Found %d admin users", result.RowsAffected)
 	for i, user := range adminUsers {
-		log.Printf("  [%d] ID: %s, Email: %s, Username: %s, Role: %s, Active: %v",
-			i+1, user.ID, user.Email, user.Username, user.Role, user.Active)
+		username := "N/A"
+		if user.Username != nil {
+			username = *user.Username
+		}
+		fullName := "N/A"
+		if user.FullName != nil {
+			fullName = *user.FullName
+		}
+		log.Printf("  [%d] ID: %s, Email: %s, Username: %s, FullName: %s, Role: %s, Active: %v",
+			i+1, user.ID, user.Email, username, fullName, user.Role, user.Active)
 	}
 
 	if len(adminUsers) == 0 {

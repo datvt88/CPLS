@@ -42,7 +42,10 @@ func ConnectPostgres() error {
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		// PrepareStmt: true, // Prepared statement mode for better performance
+		// PrepareStmt can improve performance by caching prepared statements
+		// However, it's disabled here to avoid issues with connection pooling in Cloud Run
+		// Enable if you're experiencing performance issues with repeated queries
+		// PrepareStmt: true,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to PostgreSQL: %w", err)

@@ -11,8 +11,8 @@ import (
 type AdminUser struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primary_key;column:id" json:"id"`
 	Email     string     `gorm:"type:text;not null;unique;column:email" json:"email"`
-	Username  string     `gorm:"type:text;unique;column:username" json:"username,omitempty"`
-	FullName  string     `gorm:"type:text;column:full_name" json:"full_name,omitempty"`
+	Username  *string    `gorm:"type:text;unique;column:username" json:"username,omitempty"`
+	FullName  *string    `gorm:"type:text;column:full_name" json:"full_name,omitempty"`
 	Role      string     `gorm:"type:text;default:'admin';column:role" json:"role"`
 	Active    bool       `gorm:"type:boolean;default:true;column:active" json:"active"`
 	CreatedAt time.Time  `gorm:"type:timestamptz;default:now();column:created_at" json:"created_at"`
