@@ -32,10 +32,13 @@ func main() {
 	// IMPORTANT: Trust proxies for Cloud Run
 	// Cloud Run uses a Google-managed load balancer in front of the app
 	// We need to trust ALL proxies (0.0.0.0/0 for IPv4, ::/0 for IPv6) because:
-	// 1. Cloud Run is an isolated environment (safe to trust all)
-	// 2. We need Gin to recognize X-Forwarded-Proto header to detect HTTPS
-	// 3. Without this, cookies with Secure=true won't be set (causing logout loops)
+	// 1. Cloud Run is an isolated, managed environment - only Google's LB can access the container
+	// 2. Cloud Run containers are NOT directly accessible from the internet
+	// 3. All external traffic MUST go through Google's load balancer first
+	// 4. We need Gin to recognize X-Forwarded-Proto header to detect HTTPS
+	// 5. Without this, cookies with Secure=true won't be set (causing logout loops)
 	// Note: SetTrustedProxies(nil) would DISABLE proxy trust, not enable it!
+	// Note: This is safe because Cloud Run's network isolation prevents direct container access
 	if err := router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"}); err != nil {
 		log.Printf("Warning: Failed to set trusted proxies: %v", err)
 	}
