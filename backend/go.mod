@@ -8,8 +8,11 @@ require (
 	github.com/gin-contrib/sessions v1.0.4
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-resty/resty/v2 v2.17.1
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	go.mongodb.org/mongo-driver v1.17.6
+	gorm.io/driver/postgres v1.6.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -24,7 +27,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/context v1.1.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/sessions v1.4.0 // indirect
@@ -61,6 +63,4 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
-	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.31.1 // indirect
 )
