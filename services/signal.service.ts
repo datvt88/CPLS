@@ -1,6 +1,15 @@
-// File: services/signal.service.ts
+// ============================================================================
+// Signal Service - Adapter for Golden Cross signals
+// Following Clean Architecture: Application Layer
+// ============================================================================
 
-// --- 1. Định nghĩa Interface cho Bot Alpha ---
+import { getGoldenCrossStocks } from './goldenCross.service'
+import type { GoldenCrossStock } from './goldenCross.service'
+
+// ============================================================================
+// Types
+// ============================================================================
+
 export interface SignalData {
   ticker: string
   price: number
@@ -9,102 +18,86 @@ export interface SignalData {
   type?: string
 }
 
-// --- 2. Các hàm Fetch RAW (Theo yêu cầu của bạn) ---
+/**
+ * Raw signal data structure from Firebase
+ */
+interface RawSignalItem {
+  price: number
+  ma30: number
+  crossDate?: string
+  timeCross?: string
+  timestamp?: number | string
+}
+
+// ============================================================================
+// Data Transformation Utilities
+// ============================================================================
 
 /**
- * Fetch RAW data from Firebase Realtime Database using REST API.
- * Requires only FIREBASE_URL + FIREBASE_SECRET
+ * Safely extract timestamp from signal data
  */
-export async function getGoldenCrossStocks(): Promise<any> {
-  // Lấy biến môi trường (Server-side only)
-  const baseUrl = process.env.FIREBASE_URL; // VD: https://project-id.firebaseio.com
-  const secret = process.env.FIREBASE_SECRET; // Database Secret
+function extractTimestamp(item: RawSignalItem): string {
+  if (item.crossDate) return item.crossDate
+  if (item.timeCross) return item.timeCross
+  if (item.timestamp) return new Date(item.timestamp).toISOString()
+  return new Date().toISOString()
+}
 
-  if (!baseUrl || !secret) {
-    console.error("❌ Missing FIREBASE_URL or FIREBASE_SECRET in environment");
-    return null;
-  }
-
-  // Endpoint REST API của Firebase
-  const url = `${baseUrl}/goldenCross.json?auth=${secret}`;
-
-  try {
-    const res = await fetch(url, {
-        next: { revalidate: 60 } // Cache 60s để không spam request
-    });
-
-    if (!res.ok) {
-      console.error("❌ Firebase fetch failed:", res.status, await res.text());
-      return null;
-    }
-
-    return await res.json();
-  } catch (error) {
-    console.error("❌ Network error fetching Firebase:", error);
-    return null;
+/**
+ * Convert raw Firebase signal data to SignalData format
+ */
+function transformSignalData(key: string, item: RawSignalItem): SignalData {
+  return {
+    ticker: key,
+    price: Number(item.price) || 0,
+    ma30: Number(item.ma30) || 0,
+    timeCross: extractTimestamp(item),
+    type: 'Golden Cross',
   }
 }
 
 /**
- * Fetch specific ticker (Optional - Dành cho chi tiết mã)
+ * Sort signals by time (newest first)
  */
-export async function getGoldenCrossStock(ticker: string): Promise<any> {
-  const baseUrl = process.env.FIREBASE_URL;
-  const secret = process.env.FIREBASE_SECRET;
-
-  if (!baseUrl || !secret) return null;
-
-  const url = `${baseUrl}/goldenCross/${ticker}.json?auth=${secret}`;
-
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (error) {
-    return null;
-  }
+function sortSignalsByTime(signals: SignalData[]): SignalData[] {
+  return signals.sort((a, b) => {
+    const timeA = new Date(a.timeCross).getTime() || 0
+    const timeB = new Date(b.timeCross).getTime() || 0
+    return timeB - timeA
+  })
 }
 
-// --- 3. Hàm Adapter (Kết nối dữ liệu RAW vào Bot Alpha) ---
-// Bot Alpha trong file chat-gemini.ts đang gọi hàm này
+// ============================================================================
+// Public API
+// ============================================================================
+
+/**
+ * Fetch and transform Golden Cross signals for the trading bot
+ * This is an adapter that connects raw Firebase data to the bot's interface
+ * 
+ * @returns Array of up to 30 most recent Golden Cross signals
+ */
 export async function fetchGoldenCrossSignals(): Promise<SignalData[]> {
   try {
-    // Gọi hàm REST API ở trên
-    const rawData = await getGoldenCrossStocks();
+    const rawData = await getGoldenCrossStocks()
 
-    if (!rawData) return [];
+    if (!rawData || typeof rawData !== 'object') {
+      console.warn('⚠️ No Golden Cross data available')
+      return []
+    }
 
-    // Chuyển đổi Object { "BAF": {...}, "CEO": {...} } thành Array
-    const signalsArray = Object.keys(rawData).map(key => {
-      const item = rawData[key];
-      
-      // Xử lý thời gian an toàn
-      let timeString = new Date().toISOString();
-      if (item.crossDate) timeString = item.crossDate;
-      else if (item.timeCross) timeString = item.timeCross;
-      else if (item.timestamp) timeString = new Date(item.timestamp).toISOString();
+    // Transform object to array
+    const signalsArray = Object.keys(rawData).map(key =>
+      transformSignalData(key, rawData[key])
+    )
 
-      return {
-        ticker: key, // Key chính là mã CK
-        price: Number(item.price) || 0,
-        ma30: Number(item.ma30) || 0,
-        timeCross: timeString,
-        type: 'Golden Cross'
-      };
-    });
+    // Sort by time (newest first)
+    const sortedSignals = sortSignalsByTime(signalsArray)
 
-    // Sắp xếp: Mới nhất lên đầu
-    signalsArray.sort((a, b) => {
-        const timeA = new Date(a.timeCross).getTime() || 0;
-        const timeB = new Date(b.timeCross).getTime() || 0;
-        return timeB - timeA;
-    });
-
-    // Lấy 30 mã mới nhất
-    return signalsArray.slice(0, 30);
-
+    // Return top 30 signals
+    return sortedSignals.slice(0, 30)
   } catch (error) {
-    console.error("Lỗi xử lý dữ liệu cho Bot:", error);
-    return [];
+    console.error('❌ Error processing Golden Cross signals:', error)
+    return []
   }
 }

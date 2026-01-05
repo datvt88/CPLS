@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
         'Origin': 'https://dstock.vndirect.com.vn',
       },
       next: { revalidate: 3600 }, // Cache for 1 hour (financial data changes less frequently)
-    })
+    } as RequestInit)
 
     console.log('✅ VNDirect Ratios API response status:', response.status)
 
