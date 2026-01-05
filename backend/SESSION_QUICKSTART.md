@@ -20,7 +20,10 @@ Khi deploy lên Cloud Run, session-based authentication bị **Login Loop**:
 
 ```go
 // QUAN TRỌNG: Cho phép Gin tin tưởng proxy của Cloud Run
-router.SetTrustedProxies(nil)
+// Trust all proxies (safe in Cloud Run's isolated environment)
+// Required for HTTPS detection via X-Forwarded-Proto header
+router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})
+// LƯU Ý: SetTrustedProxies(nil) sẽ TẮT proxy trust, không phải BẬT!
 ```
 
 ### 2. Session Configuration
@@ -74,7 +77,7 @@ import (
 )
 
 // Trong func main():
-router.SetTrustedProxies(nil)                    // Trust proxy
+router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})  // Trust proxy
 router.LoadHTMLGlob("templates/*")               // Load templates
 // ... session config như trên
 router.Use(sessions.Sessions("admin_session", store))
@@ -155,7 +158,7 @@ gcloud run deploy cpls-crawler \
 
 ### Vẫn bị Login Loop?
 
-1. ✅ Check `router.SetTrustedProxies(nil)` đã thêm chưa?
+1. ✅ Check `router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})` đã thêm chưa?
 2. ✅ Check `Secure: true` trong session options
 3. ✅ Check `SESSION_SECRET` environment variable đã set chưa?
 4. ✅ Check logs: `gcloud run services logs read cpls-crawler --limit 50`
@@ -188,7 +191,7 @@ backend/
 
 | Setting | Value | Tại sao? |
 |---------|-------|----------|
-| `SetTrustedProxies(nil)` | Trust all | Cloud Run proxy an toàn |
+| `SetTrustedProxies` | `[]string{"0.0.0.0/0", "::/0"}` | Trust Cloud Run proxy để detect HTTPS |
 | `Secure: true` | Bật | HTTPS của Cloud Run |
 | `HttpOnly: true` | Bật | Chống XSS |
 | `SameSite: Lax` | Lax | Cân bằng security & UX |

@@ -30,9 +30,15 @@ func main() {
 	router := gin.Default()
 
 	// IMPORTANT: Trust proxies for Cloud Run
-	// Cloud Run uses a load balancer (proxy) in front of the app
-	// Setting to nil trusts all proxies, which is safe in Cloud Run environment
-	router.SetTrustedProxies(nil)
+	// Cloud Run uses a Google-managed load balancer in front of the app
+	// We need to trust ALL proxies (0.0.0.0/0 for IPv4, ::/0 for IPv6) because:
+	// 1. Cloud Run is an isolated environment (safe to trust all)
+	// 2. We need Gin to recognize X-Forwarded-Proto header to detect HTTPS
+	// 3. Without this, cookies with Secure=true won't be set (causing logout loops)
+	// Note: SetTrustedProxies(nil) would DISABLE proxy trust, not enable it!
+	if err := router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"}); err != nil {
+		log.Printf("Warning: Failed to set trusted proxies: %v", err)
+	}
 
 	// Load HTML templates
 	router.LoadHTMLGlob("templates/*")
