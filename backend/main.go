@@ -40,7 +40,11 @@ func main() {
 	// Configure session middleware for Cloud Run
 	sessionSecret := os.Getenv("SESSION_SECRET")
 	if sessionSecret == "" {
-		// Generate a warning if SESSION_SECRET is not set
+		// In production, fail fast if SESSION_SECRET is not set
+		if os.Getenv("ENV") == "production" {
+			log.Fatal("FATAL: SESSION_SECRET environment variable must be set in production")
+		}
+		// For development, warn and use default
 		log.Println("WARNING: SESSION_SECRET not set. Using default (not recommended for production)")
 		sessionSecret = "default-secret-change-in-production"
 	}
