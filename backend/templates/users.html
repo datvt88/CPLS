@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - CPLS Admin Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background-color: #f0f0f0;
+        }
+        .header {
+            background: white;
+            padding: 1rem 2rem;
+            margin: -2rem -2rem 2rem -2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            margin: 0;
+            color: #333;
+        }
+        .user-info {
+            color: #666;
+        }
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background-color: #dc3545;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-left: 1rem;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab {
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            background-color: #f8f9fa;
+        }
+        .tab.active {
+            border-bottom-color: #007bff;
+            color: #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .badge-primary {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            flex: 1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 2rem;
+        }
+        .stat-card p {
+            margin: 0;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>User Management</h1>
+        <div>
+            <span class="user-info">Welcome, {{ .user }}!</span>
+            <a href="/admin/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('admin-users')">Admin Users</div>
+            <div class="tab" onclick="showTab('profiles')">User Profiles</div>
+        </div>
+
+        <!-- Admin Users Tab -->
+        <div id="admin-users-tab" class="tab-content active">
+            <div class="stats">
+                <div class="stat-card">
+                    <h3 id="admin-count">-</h3>
+                    <p>Total Admin Users</p>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h3 id="active-admin-count">-</h3>
+                    <p>Active Admins</p>
+                </div>
+            </div>
+
+            <div id="admin-error" class="error" style="display: none;"></div>
+            <div id="admin-loading" class="loading">Loading admin users...</div>
+            
+            <table id="admin-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- User Profiles Tab -->
+        <div id="profiles-tab" class="tab-content">
+            <div class="stats">
+                <div class="stat-card" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                    <h3 id="profile-count">-</h3>
+                    <p>Total Users</p>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                    <h3 id="premium-count">-</h3>
+                    <p>Premium Members</p>
+                </div>
+            </div>
+
+            <div id="profile-error" class="error" style="display: none;"></div>
+            <div id="profile-loading" class="loading">Loading user profiles...</div>
+            
+            <table id="profile-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Phone Number</th>
+                        <th>Full Name</th>
+                        <th>Nickname</th>
+                        <th>Membership</th>
+                        <th>Created At</th>
+                    </tr>
+                </thead>
+                <tbody id="profile-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Load admin users
+        async function loadAdminUsers() {
+            const loading = document.getElementById('admin-loading');
+            const error = document.getElementById('admin-error');
+            const table = document.getElementById('admin-table');
+            const tbody = document.getElementById('admin-table-body');
+
+            try {
+                const response = await fetch('/admin/api/admin-users');
+                const result = await response.json();
+
+                loading.style.display = 'none';
+
+                if (result.success && result.data) {
+                    table.style.display = 'table';
+                    tbody.innerHTML = '';
+
+                    // Update stats
+                    document.getElementById('admin-count').textContent = result.total;
+                    const activeCount = result.data.filter(u => u.active).length;
+                    document.getElementById('active-admin-count').textContent = activeCount;
+
+                    // Populate table
+                    result.data.forEach(user => {
+                        const row = `
+                            <tr>
+                                <td>${user.email}</td>
+                                <td>${user.username || 'N/A'}</td>
+                                <td>${user.full_name || 'N/A'}</td>
+                                <td><span class="badge badge-primary">${user.role}</span></td>
+                                <td><span class="badge ${user.active ? 'badge-success' : 'badge-danger'}">${user.active ? 'Active' : 'Inactive'}</span></td>
+                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `;
+                        tbody.insertAdjacentHTML('beforeend', row);
+                    });
+                } else {
+                    error.textContent = 'Failed to load admin users';
+                    error.style.display = 'block';
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                error.textContent = 'Error loading admin users: ' + err.message;
+                error.style.display = 'block';
+            }
+        }
+
+        // Load user profiles
+        async function loadProfiles() {
+            const loading = document.getElementById('profile-loading');
+            const error = document.getElementById('profile-error');
+            const table = document.getElementById('profile-table');
+            const tbody = document.getElementById('profile-table-body');
+
+            try {
+                const response = await fetch('/admin/api/profiles');
+                const result = await response.json();
+
+                loading.style.display = 'none';
+
+                if (result.success && result.data) {
+                    table.style.display = 'table';
+                    tbody.innerHTML = '';
+
+                    // Update stats
+                    document.getElementById('profile-count').textContent = result.total;
+                    const premiumCount = result.data.filter(p => p.membership === 'premium').length;
+                    document.getElementById('premium-count').textContent = premiumCount;
+
+                    // Populate table
+                    result.data.forEach(profile => {
+                        const row = `
+                            <tr>
+                                <td>${profile.email}</td>
+                                <td>${profile.phone_number}</td>
+                                <td>${profile.full_name || 'N/A'}</td>
+                                <td>${profile.nickname || 'N/A'}</td>
+                                <td><span class="badge ${profile.membership === 'premium' ? 'badge-warning' : 'badge-primary'}">${profile.membership}</span></td>
+                                <td>${new Date(profile.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `;
+                        tbody.insertAdjacentHTML('beforeend', row);
+                    });
+                } else {
+                    error.textContent = 'Failed to load user profiles';
+                    error.style.display = 'block';
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                error.textContent = 'Error loading profiles: ' + err.message;
+                error.style.display = 'block';
+            }
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAdminUsers();
+            loadProfiles();
+        });
+    </script>
+</body>
+</html>
