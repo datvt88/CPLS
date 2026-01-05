@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
         'Origin': 'https://dstock.vndirect.com.vn',
       },
       next: { revalidate: 3600 }, // Cache for 1 hour (recommendations change less frequently)
-    })
+    } as RequestInit)
 
     console.log('✅ VNDirect Recommendations API response status:', response.status)
 

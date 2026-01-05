@@ -149,7 +149,7 @@ function GoldenCrossSignalsWidget() {
         signal: controller.signal,
         headers: { 'Cache-Control': 'public, max-age=120' },
         next: { revalidate: 120 }
-      })
+      } as RequestInit)
 
       clearTimeout(timeoutId)
 
