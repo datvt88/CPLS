@@ -2,8 +2,16 @@
 // Types
 // ============================================================================
 
+/**
+ * Structure of a Golden Cross stock data from Firebase
+ */
 export interface GoldenCrossStock {
-  [key: string]: any
+  price: number
+  ma30: number
+  crossDate?: string
+  timeCross?: string
+  timestamp?: number | string
+  [key: string]: unknown // Allow additional properties from Firebase
 }
 
 // ============================================================================

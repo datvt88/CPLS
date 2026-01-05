@@ -35,7 +35,7 @@ export function buildVNDirectUrl(endpoint: string, params?: Record<string, strin
  * @param options - Fetch options
  * @returns Promise with parsed JSON data
  */
-export async function fetchVNDirect<T = any>(
+export async function fetchVNDirect<T>(
   url: string,
   options?: NextFetchRequestInit
 ): Promise<T> {
@@ -47,7 +47,7 @@ export async function fetchVNDirect<T = any>(
         ...options?.headers,
       },
       ...options,
-    } as RequestInit)
+    } as RequestInit) // Type assertion needed for Next.js extended fetch options
 
     if (!response.ok) {
       throw new Error(`VNDirect API error: ${response.status}`)

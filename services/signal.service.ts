@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { getGoldenCrossStocks } from './goldenCross.service'
+import type { GoldenCrossStock } from './goldenCross.service'
 
 // ============================================================================
 // Types
@@ -17,6 +18,17 @@ export interface SignalData {
   type?: string
 }
 
+/**
+ * Raw signal data structure from Firebase
+ */
+interface RawSignalItem {
+  price: number
+  ma30: number
+  crossDate?: string
+  timeCross?: string
+  timestamp?: number | string
+}
+
 // ============================================================================
 // Data Transformation Utilities
 // ============================================================================
@@ -24,7 +36,7 @@ export interface SignalData {
 /**
  * Safely extract timestamp from signal data
  */
-function extractTimestamp(item: any): string {
+function extractTimestamp(item: RawSignalItem): string {
   if (item.crossDate) return item.crossDate
   if (item.timeCross) return item.timeCross
   if (item.timestamp) return new Date(item.timestamp).toISOString()
@@ -34,7 +46,7 @@ function extractTimestamp(item: any): string {
 /**
  * Convert raw Firebase signal data to SignalData format
  */
-function transformSignalData(key: string, item: any): SignalData {
+function transformSignalData(key: string, item: RawSignalItem): SignalData {
   return {
     ticker: key,
     price: Number(item.price) || 0,

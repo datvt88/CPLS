@@ -56,7 +56,7 @@ export function getRevalidateInterval(): number {
  * @param options - Fetch options
  * @returns Promise with API response
  */
-export async function fetchExternalApi<T = any>(
+export async function fetchExternalApi<T>(
   endpoint: string,
   options?: NextFetchRequestInit
 ): Promise<T> {
@@ -71,7 +71,7 @@ export async function fetchExternalApi<T = any>(
       },
       next: { revalidate: REVALIDATE_INTERVAL },
       ...options,
-    } as RequestInit)
+    } as RequestInit) // Type assertion needed for Next.js extended fetch options
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status}`)
@@ -121,30 +121,4 @@ export function buildSuccessResponse<T>(
     },
     { status: statusCode }
   )
-}
-
-// ============================================================================
-// Error Handling Wrapper
-// ============================================================================
-
-/**
- * Wrap an async API handler with standardized error handling
- * This eliminates repetitive try-catch blocks in route handlers
- */
-export function withErrorHandling<T>(
-  handler: () => Promise<NextResponse<T>>
-): Promise<NextResponse<T | ApiErrorResponse>> {
-  return handler().catch((error) => {
-    // Check if API URL is configured
-    if (error.message === 'API URL not configured') {
-      return buildErrorResponse('API URL not configured', 500)
-    }
-
-    // Handle different error types
-    const errorMessage = error.message || 'Internal server error'
-    const statusCode = error.statusCode || 500
-
-    console.error('API handler error:', error)
-    return buildErrorResponse(errorMessage, statusCode)
-  })
 }
