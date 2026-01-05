@@ -23,10 +23,10 @@ deploy lên Google Cloud Run, tôi gặp lỗi Login Loop:
 
 **Solution**: 
 ```go
-router.SetTrustedProxies(nil)
+router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})
 ```
 
-This allows Gin to properly recognize the `X-Forwarded-Proto` header and understand the connection is HTTPS.
+This allows Gin to properly recognize the `X-Forwarded-Proto` header and understand the connection is HTTPS. Note: In Gin v1.8.0+, `SetTrustedProxies(nil)` **disables** proxy trust rather than enabling it.
 
 ### 2. Cookie Secure & SameSite Configuration ✅
 **Problem**: External traffic is HTTPS, but internal traffic is HTTP. Cookies with `Secure: true` weren't being set properly.
@@ -220,7 +220,7 @@ curl $SERVICE_URL/health
 
 | Setting | Value | Purpose |
 |---------|-------|---------|
-| `SetTrustedProxies(nil)` | Trust all | Cloud Run load balancer |
+| `SetTrustedProxies` | `[]string{"0.0.0.0/0", "::/0"}` | Trust Cloud Run load balancer for HTTPS detection |
 | `Secure: true` | Enabled | HTTPS enforcement |
 | `HttpOnly: true` | Enabled | XSS protection |
 | `SameSite: Lax` | Lax mode | CSRF protection + UX |
@@ -242,7 +242,7 @@ curl $SERVICE_URL/health
 
 If you have an existing Gin app with session issues on Cloud Run:
 
-1. Add `router.SetTrustedProxies(nil)`
+1. Add `router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})`
 2. Update session options with `Secure: true`, `HttpOnly: true`, `SameSite: Lax`
 3. Set `SESSION_SECRET` environment variable
 4. Redeploy
@@ -270,7 +270,7 @@ If you have an existing Gin app with session issues on Cloud Run:
 
 The implementation successfully addresses all points raised in the problem statement:
 
-1. ✅ **Trust Proxies** - `SetTrustedProxies(nil)` configured
+1. ✅ **Trust Proxies** - `SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})` configured for HTTPS detection
 2. ✅ **Cookie Secure & SameSite** - Forced for Cloud Run HTTPS
 3. ✅ **Session Secret Key** - Fixed via `SESSION_SECRET` environment variable
 4. ✅ **Cookie Domain** - Empty string works with `*.run.app`

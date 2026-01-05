@@ -94,7 +94,7 @@ main.go initialization:
 │  └─ ADMIN_PASSWORD (default: admin123)
 │
 ├─ Configure Gin Router
-│  └─ router.SetTrustedProxies(nil) ← CRITICAL for Cloud Run
+│  └─ router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"}) ← CRITICAL for Cloud Run
 │
 ├─ Create Session Store
 │  └─ cookie.NewStore([]byte(sessionSecret))
@@ -176,7 +176,7 @@ Set-Cookie: admin_session=abc123...; Path=/; Secure; HttpOnly; SameSite=Lax
 ## Proxy Trust Mechanism
 
 ```
-Without SetTrustedProxies(nil):
+Without SetTrustedProxies (or with nil/empty):
 ┌──────────────────────────────────────────────┐
 │ Cloud Run Load Balancer                      │
 │ X-Forwarded-Proto: https                     │
@@ -191,7 +191,7 @@ Without SetTrustedProxies(nil):
 │ └─ ❌ Won't set Secure cookies               │
 └──────────────────────────────────────────────┘
 
-With SetTrustedProxies(nil):
+With SetTrustedProxies([]string{"0.0.0.0/0", "::/0"}):
 ┌──────────────────────────────────────────────┐
 │ Cloud Run Load Balancer                      │
 │ X-Forwarded-Proto: https                     │
@@ -327,7 +327,7 @@ Scenario 2: SESSION_SECRET from environment
 Login Loop Issue?
 │
 ├─ Yes → Check proxy trust
-│  │     router.SetTrustedProxies(nil) set?
+│  │     router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"}) set?
 │  │
 │  ├─ No → ⚠️ Add it!
 │  │
@@ -353,7 +353,7 @@ Login Loop Issue?
 ╔════════════════════════════════════════════════════╗
 ║  Cloud Run Session Management Requirements        ║
 ╠════════════════════════════════════════════════════╣
-║  1. SetTrustedProxies(nil)         ✅ CRITICAL    ║
+║  1. SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})  ✅ CRITICAL    ║
 ║  2. Secure: true                   ✅ REQUIRED    ║
 ║  3. HttpOnly: true                 ✅ SECURITY    ║
 ║  4. SameSite: Lax                  ✅ SECURITY    ║

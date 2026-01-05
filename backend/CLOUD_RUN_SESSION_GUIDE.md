@@ -21,8 +21,9 @@ Cloud Run uses a load balancer (proxy) in front of your application. The app rec
 
 **Solution**: Configure Gin to trust proxies
 ```go
-router.SetTrustedProxies(nil)
+router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})
 ```
+Note: In Gin v1.8.0+, `SetTrustedProxies(nil)` actually **disables** proxy trust. To trust all proxies (safe in Cloud Run's isolated environment), use the CIDR ranges above.
 
 ### 2. **HTTPS vs HTTP Mismatch**
 - External: Client → Load Balancer (HTTPS)
@@ -60,7 +61,9 @@ Domain: "",  // Works for all subdomains including *.run.app
 
 ```go
 // Trust proxies for Cloud Run
-router.SetTrustedProxies(nil)
+// Trust all proxies (0.0.0.0/0 for IPv4, ::/0 for IPv6)
+// This is safe in Cloud Run's isolated environment and required for HTTPS detection
+router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})
 
 // Get session secret from environment
 sessionSecret := os.Getenv("SESSION_SECRET")
@@ -256,8 +259,9 @@ SameSite: http.SameSiteLaxMode  // or http.SameSiteStrictMode for stricter prote
 
 **Check 1: Verify Proxy Trust**
 ```go
-// Should be set
-router.SetTrustedProxies(nil)
+// Should trust all proxies for Cloud Run
+router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})
+// NOT: router.SetTrustedProxies(nil) - this disables proxy trust!
 ```
 
 **Check 2: Verify Secure Cookie**
@@ -302,7 +306,7 @@ Verify cookie is being set with correct attributes
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| `SetTrustedProxies` | `nil` | Trust Cloud Run load balancer |
+| `SetTrustedProxies` | `[]string{"0.0.0.0/0", "::/0"}` | Trust Cloud Run load balancer for HTTPS detection |
 | `Secure` | `true` | HTTPS only (Cloud Run uses HTTPS) |
 | `HttpOnly` | `true` | Prevent XSS attacks |
 | `SameSite` | `Lax` | Balance security and usability |
@@ -328,7 +332,7 @@ If you have an existing application with session issues:
 
 1. **Add trust proxy configuration**
    ```go
-   router.SetTrustedProxies(nil)
+   router.SetTrustedProxies([]string{"0.0.0.0/0", "::/0"})
    ```
 
 2. **Update session options**
