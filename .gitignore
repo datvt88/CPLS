@@ -32,3 +32,10 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Go Backend
+backend/cpls-crawler
+backend/*.exe
+backend/*.dll
+backend/*.so
+backend/*.dylib
