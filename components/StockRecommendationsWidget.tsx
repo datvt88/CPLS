@@ -228,7 +228,7 @@ export default function StockRecommendationsWidget({ symbol }: StockRecommendati
                         {rec.reportPrice ? formatPrice(rec.reportPrice) : '-'}
                       </td>
                       <td className="py-2 px-2 md:px-3 text-right font-medium text-white text-xs md:text-sm">
-                        {formatPrice(rec.targetPrice)*1000}
+                        {formatPrice(rec.targetPrice)}
                       </td>
                       <td className="py-2 px-2 md:px-3 text-right">
                         {potential !== null ? (
